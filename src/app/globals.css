@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+:root {
+  /* =========================
+     IRTH — Design Tokens V1
+     ========================= */
+
+  /* Brand Colors */
+  --color-espresso: #362820;
+  --color-copper: #b87333;
+  --color-bronze: #8c6239;
+  --color-olive: #66705a;
+  --color-terracotta: #d79f8b;
+  --color-antique-gold: #c0b283;
+  --color-ivory: #f6f1e8;
+
+  /* Surfaces */
+  --background: #f6f1e8;
+  --surface: #fffdf8;
+  --surface-muted: #eee7dc;
+
+  /* Text */
+  --text-primary: #362820;
+  --text-secondary: #756a60;
+  --text-muted: #9a8f84;
+
+  /* Borders */
+  --border-soft: #ded5c9;
+  --border-strong: #bdb0a1;
+
+  /* Semantic */
+  --color-success: #66705a;
+  --color-warning: #c0b283;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  /* Shadows */
+  --shadow-soft: 0 10px 30px rgba(54, 40, 32, 0.08);
+  --shadow-card: 0 18px 45px rgba(54, 40, 32, 0.1);
+
+  /* Layout */
+  --container-max: 1280px;
+
+    /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+  /* Typography */
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-body: Arial, Helvetica, sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-body);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
