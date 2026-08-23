@@ -1,282 +1,240 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { products } from "../data/products";
+import { useSearchParams } from "next/navigation";
+import Header from "../components/Header";
+import Link from "next/link";
+
+// نفس تعريف الطلب اللي في صفحة الدفع
 type Order = {
-  orderNumber: string;
+  id: string;
   customer: {
-    firstName: string;
-    lastName: string;
-    email: string;
+    name: string;
     phone: string;
-  };
-  shipping: {
     address: string;
-    city: string;
-    country: string;
-    postalCode: string;
+    notes: string;
   };
-  items: string[];
-  quantities: Record<string, number>;
+  paymentMethod: string;
+  items: {
+    slug: string;
+    artisan: string;
+    name: string;
+    price: number;
+  }[];
   total: number;
+  status: string;
   createdAt: string;
 };
 
 export default function OrderSuccessPage() {
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get("id");
   const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedOrder = localStorage.getItem("irth-last-order");
-
-    if (!savedOrder) {
+    if (!orderId) {
+      setLoading(false);
       return;
     }
 
-    try {
-      const parsedOrder = JSON.parse(savedOrder);
-      setOrder(parsedOrder);
-    } catch {
-      setOrder(null);
-    }
-  }, []);
+    // نجيب الطلب من localStorage
+    const orders: Order[] = JSON.parse(
+      localStorage.getItem("irth-orders") || "[]"
+    );
+    const foundOrder = orders.find((o) => o.id === orderId);
 
-  if (!order) {
+    setOrder(foundOrder || null);
+    setLoading(false);
+  }, [orderId]);
+
+  if (loading) {
     return (
-      <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
-        <header className="border-b border-[var(--border-soft)] bg-[var(--background)]">
-          <div className="mx-auto max-w-[var(--container-max)] px-6 py-5">
-            <a
-              href="/"
-              className="font-[var(--font-display)] text-2xl tracking-[0.08em] text-[var(--color-espresso)]"
-            >
-              IRTH
-            </a>
-          </div>
-        </header>
-
-        <section className="mx-auto max-w-3xl px-6 py-20 text-center md:py-28">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--surface-muted)] text-2xl text-[var(--color-copper)]">
-            —
-          </div>
-
-          <p className="mt-8 text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
-            Order information
-          </p>
-
-          <h1 className="mt-4 font-[var(--font-display)] text-4xl font-normal text-[var(--color-espresso)] md:text-5xl">
-            No order found
-          </h1>
-
-          <p className="mx-auto mt-5 max-w-md text-base leading-7 text-[var(--text-secondary)]">
-            We could not find a recent order on this device.
-          </p>
-
-          <a
-            href="/"
-            className="mt-8 inline-flex min-h-12 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-7 py-3 text-sm font-medium text-[var(--color-ivory)] transition-colors hover:bg-[var(--color-copper)]"
-          >
-            Continue shopping
-          </a>
-        </section>
+      <main className="min-h-screen bg-[var(--background)]">
+        <Header />
+        <div className="flex h-96 items-center justify-center">
+          <p className="text-[var(--text-secondary)]">جاري التحميل...</p>
+        </div>
       </main>
     );
   }
 
-  const orderDate = new Date(order.createdAt).toLocaleDateString(
-    "en-US",
-    {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
+  if (!order) {
+    return (
+      <main className="min-h-screen bg-[var(--background)]">
+        <Header />
+        <div className="flex h-96 flex-col items-center justify-center gap-5">
+          <p className="text-lg text-[var(--text-secondary)]">
+            عفواً، لم نتمكن من العثور على طلبك
+          </p>
+          <Link
+            href="/"
+            className="text-sm font-medium text-[var(--color-copper)] hover:underline"
+          >
+            العودة للرئيسية
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  // تجميع المنتجات حسب الحرفي في صفحة النجاح (نفس الفكرة)
+  const groupedByArtisan = order.items.reduce((acc, item) => {
+    if (!acc[item.artisan]) {
+      acc[item.artisan] = [];
     }
-  );
+    acc[item.artisan].push(item);
+    return acc;
+  }, {} as Record<string, typeof order.items>);
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
-      <header className="border-b border-[var(--border-soft)] bg-[var(--background)]">
-        <div className="mx-auto max-w-[var(--container-max)] px-6 py-5">
-          <a
-            href="/"
-            className="font-[var(--font-display)] text-2xl tracking-[0.08em] text-[var(--color-espresso)]"
-          >
-            IRTH
-          </a>
-        </div>
-      </header>
+      <Header />
 
-      <section className="mx-auto max-w-4xl px-6 py-16 md:py-24">
-        {/* Confirmation */}
-        <div className="text-center">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[var(--color-olive)] text-4xl text-[var(--color-ivory)] shadow-[var(--shadow-soft)]">
-            ✓
-          </div>
-
-          <p className="mt-8 text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
-            Order confirmed
-          </p>
-
-          <h1 className="mt-4 font-[var(--font-display)] text-4xl font-normal leading-tight text-[var(--color-espresso)] md:text-6xl">
-            Thank you, {order.customer.firstName}.
+      <section className="mx-auto max-w-[var(--container-max)] px-6 py-16 md:py-24">
+        {/* رسالة النجاح */}
+        <div className="rounded-[var(--radius-lg)] border border-green-500/20 bg-green-50 p-8 text-center">
+          <div className="text-6xl">🎉</div>
+          <h1 className="mt-4 font-[var(--font-display)] text-4xl font-normal text-[var(--color-espresso)]">
+            Your order is confirmed!
           </h1>
-
-          <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-[var(--text-secondary)] md:text-lg">
-            Your order has been received successfully. We’ll be in touch with
-            you regarding the next steps.
-          </p>
-        </div>
-
-        {/* Order meta */}
-        <div className="mt-10 grid overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] sm:grid-cols-3">
-          <div className="p-6 text-center sm:border-r sm:border-[var(--border-soft)]">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
-              Order number
-            </p>
-
-            <p className="mt-3 font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-              {order.orderNumber}
-            </p>
-          </div>
-
-          <div className="border-t border-[var(--border-soft)] p-6 text-center sm:border-t-0 sm:border-r">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
-              Date
-            </p>
-
-            <p className="mt-3 text-sm text-[var(--text-secondary)]">
-              {orderDate}
-            </p>
-          </div>
-
-          <div className="border-t border-[var(--border-soft)] p-6 text-center sm:border-t-0">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
-              Total
-            </p>
-
-            <p className="mt-3 text-xl font-medium text-[var(--color-copper)]">
-              ${order.total}
-            </p>
-          </div>
-        </div>
-
-        {/* Customer + Shipping */}
-        <div className="mt-8 grid gap-8 md:grid-cols-2">
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-7">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-olive)]">
-              Customer
-            </p>
-
-            <p className="mt-4 font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-              {order.customer.firstName} {order.customer.lastName}
-            </p>
-
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              {order.customer.email}
-            </p>
-
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              {order.customer.phone}
-            </p>
-          </div>
-
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-7">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-olive)]">
-              Shipping address
-            </p>
-
-            <p className="mt-4 text-base leading-7 text-[var(--text-secondary)]">
-              {order.shipping.address}
-              <br />
-              {order.shipping.city}
-              <br />
-              {order.shipping.country}
-              <br />
-              {order.shipping.postalCode}
-            </p>
-          </div>
-        </div>
-
-        {/* Items */}
-        <div className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-7">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-olive)]">
-            Your items
+          <p className="mt-3 text-[var(--text-secondary)]">
+            شكراً لك على طلبك. سنقوم بتجهيزه وإعلامك بأحدث المستجدات.
           </p>
 
-          <div className="mt-6 space-y-5">
-            {Object.entries(order.quantities).map(
-              ([slug, quantity]) => {
-                const product =
-                  products[slug as keyof typeof products];
+          <div className="mt-6 inline-block rounded-[var(--radius-md)] bg-[var(--surface-muted)] px-6 py-3">
+            <p className="text-sm text-[var(--text-muted)]">رقم الطلب</p>
+            <p className="font-mono text-lg font-bold text-[var(--color-espresso)]">
+              {order.id}
+            </p>
+          </div>
+        </div>
 
-                if (!product) {
-                  return null;
-                }
+        {/* تفاصيل الطلب */}
+        <div className="mt-12 grid gap-10 lg:grid-cols-[1fr_400px]">
+          {/* العمود الأيمن: تفاصيل الشحن */}
+          <div>
+            <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-7">
+              <h2 className="text-lg font-medium text-[var(--color-espresso)]">
+                Shipping details
+              </h2>
 
-                return (
+              <div className="mt-5 space-y-3 text-sm">
+                <div>
+                  <p className="text-[var(--text-muted)]">الاسم</p>
+                  <p className="font-medium text-[var(--color-espresso)]">
+                    {order.customer.name}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[var(--text-muted)]">الهاتف</p>
+                  <p className="font-medium text-[var(--color-espresso)]">
+                    {order.customer.phone}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[var(--text-muted)]">العنوان</p>
+                  <p className="font-medium text-[var(--color-espresso)]">
+                    {order.customer.address}
+                  </p>
+                </div>
+                {order.customer.notes && (
+                  <div>
+                    <p className="text-[var(--text-muted)]">ملاحظات</p>
+                    <p className="font-medium text-[var(--color-espresso)]">
+                      {order.customer.notes}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-[var(--text-muted)]">طريقة الدفع</p>
+                  <p className="font-medium text-[var(--color-espresso)]">
+                    {order.paymentMethod}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[var(--text-muted)]">حالة الطلب</p>
+                  <p className="font-medium text-green-600">{order.status}</p>
+                </div>
+                <div>
+                  <p className="text-[var(--text-muted)]">تاريخ الطلب</p>
+                  <p className="font-medium text-[var(--color-espresso)]">
+                    {order.createdAt}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* العمود الأيسر: ملخص المنتجات حسب الحرفي */}
+          <div>
+            <div className="rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-7">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
+                Order summary
+              </p>
+
+              <div className="mt-6 space-y-6">
+                {Object.entries(groupedByArtisan).map(([artisan, items]) => (
                   <div
-                    key={slug}
-                    className="flex items-start justify-between gap-5 border-b border-[var(--border-soft)] pb-5 last:border-b-0 last:pb-0"
+                    key={artisan}
+                    className="border-b border-[var(--border-soft)] pb-5 last:border-0"
                   >
-                    <div>
-                      <p className="font-[var(--font-display)] text-lg text-[var(--color-espresso)]">
-                        {product.name}
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-[var(--color-espresso)]">
+                        🧑‍🎨 {artisan}
                       </p>
-
-                      <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                        By {product.artisan}
-                      </p>
-
-                      <p className="mt-2 text-xs text-[var(--text-muted)]">
-                        Quantity: {quantity}
+                      <p className="text-sm font-medium text-[var(--color-copper)]">
+                        ${items.reduce((sum, item) => sum + item.price, 0)}
                       </p>
                     </div>
 
-                    <p className="shrink-0 font-medium text-[var(--color-copper)]">
-                      ${product.price * quantity}
-                    </p>
+                    <div className="mt-3 space-y-2">
+                      {items.map((item, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between text-sm"
+                        >
+                          <span className="text-[var(--text-secondary)]">
+                            {item.name}
+                          </span>
+                          <span className="text-[var(--color-espresso)]">
+                            ${item.price}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                );
-              }
-            )}
-          </div>
+                ))}
+              </div>
 
-          <div className="mt-7 flex items-center justify-between border-t border-[var(--border-soft)] pt-6">
-            <span className="font-medium text-[var(--color-espresso)]">
-              Total
-            </span>
-
-            <span className="text-2xl font-medium text-[var(--color-copper)]">
-              ${order.total}
-            </span>
+              <div className="mt-6 flex items-center justify-between border-t border-[var(--border-soft)] pt-5">
+                <span className="font-medium text-[var(--color-espresso)]">
+                  Total
+                </span>
+                <span className="text-2xl font-medium text-[var(--color-copper)]">
+                  ${order.total}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Payment note */}
-        <div className="mt-8 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-7">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-olive)]">
-            Payment
-          </p>
-
-          <p className="mt-4 text-sm font-medium text-[var(--color-espresso)]">
-            Payment will be arranged securely.
-          </p>
-
-          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-            Our team will contact you with the next steps for completing your
-            payment and fulfilling your order.
-          </p>
-        </div>
-
-        {/* Actions */}
-        <div className="mt-10 flex justify-center">
-          <a
+        {/* أزرار إضافية */}
+        <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <Link
             href="/"
-            className="inline-flex min-h-12 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-8 py-3 text-sm font-medium text-[var(--color-ivory)] transition-colors hover:bg-[var(--color-copper)]"
+            className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-8 py-3 text-sm font-medium text-[var(--color-espresso)] transition hover:bg-[var(--surface-muted)]"
           >
             Continue shopping
-          </a>
+          </Link>
+          <Link
+            href="/account/orders"
+            className="rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-8 py-3 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)]"
+          >
+            View my orders
+          </Link>
         </div>
       </section>
     </main>
   );
 }
-

@@ -1,196 +1,211 @@
-
 "use client";
 
-import Link from "next/link";
-import Header from "../../components/Header";
 import { useEffect, useState } from "react";
-import {
-  getCustomProducts,
-  deleteCustomProduct,
-  type MarketplaceProduct,
-} from "../../data/productStorage";
+import { useRouter } from "next/navigation";
+import Header from "../../components/Header";
+import Link from "next/link";
+
+// تعريف شكل المنتج (نفس اللي في data/products.ts)
+type Product = {
+  slug: string;
+  artisanSlug: string;
+  name: string;
+  artisan: string;
+  country: string;
+  price: number;
+  category: string;
+  accent: "terracotta" | "olive" | "copper";
+  origin: string;
+  artisanRole: string;
+  objectLabel: string;
+  description: string;
+  material: string;
+  story: string;
+  status: "pending" | "approved" | "rejected"; // ← جديد
+};
 
 export default function ArtisanProductsPage() {
-  const [products, setProducts] = useState<MarketplaceProduct[]>([]);
-  const [message, setMessage] = useState("");
+  const router = useRouter();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setProducts(getCustomProducts());
-  }, []);
+  // اسم الحرفي الحالي (مؤقت)
+  const artisanName = "Ahmed Hassan";
 
-  const handleDelete = (slug: string) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this product?"
+  // دالة لجلب المنتجات
+  const loadProducts = () => {
+    // نجيب المنتجات من localStorage (المنتجات الجديدة اللي هنضيفها)
+    const storedProducts: Product[] = JSON.parse(
+      localStorage.getItem("irth-artisan-products") || "[]"
     );
 
-    if (!confirmed) return;
+    // نجيب المنتجات الأساسية من ملف البيانات (اللي موجودة في data/products.ts)
+    // هنا هنفلتر عشان نجيب بس منتجات الحرفي ده
+    import("../../data/products").then((module) => {
+      const baseProducts = Object.values(module.products).filter(
+        (p) => p.artisan === artisanName
+      );
 
-    deleteCustomProduct(slug);
+      // ندمج المنتجات الأساسية مع المنتجات الجديدة (مع تجنب التكرار)
+      const allProducts = [...baseProducts, ...storedProducts];
+      // نزيل أي منتج مكرر بناءً على الـ slug
+      const uniqueProducts = allProducts.filter(
+        (product, index, self) =>
+          index === self.findIndex((p) => p.slug === product.slug)
+      );
 
-    setProducts(getCustomProducts());
-    setMessage("Product deleted successfully.");
-
-    setTimeout(() => {
-      setMessage("");
-    }, 2500);
+      setProducts(uniqueProducts);
+      setLoading(false);
+    });
   };
+
+  // دالة حذف المنتج
+  const handleDelete = (slug: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذا المنتج؟")) return;
+
+    // نجيب المنتجات المخزنة
+    const storedProducts: Product[] = JSON.parse(
+      localStorage.getItem("irth-artisan-products") || "[]"
+    );
+
+    // نفلتر عشان نشيل المنتج المطلوب
+    const updated = storedProducts.filter((p) => p.slug !== slug);
+
+    // نحفظ التغييرات
+    localStorage.setItem("irth-artisan-products", JSON.stringify(updated));
+
+    // نحدث الحالة (state)
+    setProducts(updated);
+  };
+
+  // أول ما الصفحة تتحمل، نجيب المنتجات
+  useEffect(() => {
+    // نتأكد من تسجيل الدخول
+    const isAuth = localStorage.getItem("irth-artisan-auth");
+    if (!isAuth) {
+      router.push("/artisan/login");
+      return;
+    }
+    loadProducts();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[var(--background)]">
+        <Header />
+        <div className="flex h-96 items-center justify-center">
+          <p className="text-[var(--text-secondary)]">جاري تحميل المنتجات...</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
       <Header />
 
-      <section className="mx-auto max-w-[var(--container-max)] px-6 py-12 md:py-20">
-        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+      <section className="mx-auto max-w-[var(--container-max)] px-6 py-10 md:py-16">
+        {/* عنوان الصفحة */}
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
-              Artisan dashboard
+              Artisan Panel
             </p>
-
-            <h1 className="mt-3 font-[var(--font-display)] text-5xl font-normal leading-tight text-[var(--color-espresso)] md:text-6xl">
-              My products
+            <h1 className="mt-1 font-[var(--font-display)] text-4xl font-normal text-[var(--color-espresso)]">
+              🛍️ إدارة المنتجات
             </h1>
-
-            <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--text-secondary)]">
-              Manage the products you offer through the IRTH marketplace.
+            <p className="text-[var(--text-secondary)]">
+              منتجاتك المعروضة على المنصة
             </p>
           </div>
 
           <Link
-            href="/product/new"
-            className="inline-flex items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-3 text-sm font-medium text-[var(--color-ivory)] transition-colors hover:bg-[var(--color-copper)]"
+            href="/artisan/products/add"
+            className="rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-3 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)]"
           >
-            + Add new product
+            + إضافة منتج جديد
           </Link>
         </div>
 
-        {message && (
-          <div className="mt-8 rounded-[var(--radius-md)] bg-[var(--color-olive)] px-5 py-4 text-sm text-[var(--color-ivory)]">
-            {message}
-          </div>
-        )}
-
+        {/* عرض المنتجات */}
         {products.length === 0 ? (
-          <div className="mt-12 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-10 text-center">
-            <p className="font-[var(--font-display)] text-3xl text-[var(--color-espresso)]">
-              No products yet
+          <div className="mt-16 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-10 text-center">
+            <p className="text-lg text-[var(--text-secondary)]">
+              🎉 مفيش منتجات حالياً
             </p>
-
-            <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[var(--text-secondary)]">
-              Add your first handmade product to start building your
-              marketplace inventory.
-            </p>
-
             <Link
-              href="/product/new"
-              className="mt-7 inline-flex rounded-[var(--radius-md)] bg-[var(--color-copper)] px-6 py-3 text-sm font-medium text-[var(--color-ivory)]"
+              href="/artisan/products/add"
+              className="mt-5 inline-block text-sm font-medium text-[var(--color-copper)]"
             >
-              Add your first product
+              أضف أول منتج لك →
             </Link>
           </div>
         ) : (
-          <div className="mt-12 space-y-5">
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {products.map((product) => (
-              <article
+              <div
                 key={product.slug}
-                className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 md:p-7"
+                className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
               >
-                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {product.category && (
-                        <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs text-[var(--text-secondary)]">
-                          {product.category}
-                        </span>
-                      )}
+                {/* صورة المنتج (مؤقتة) */}
+                <div
+                  className={`h-40 w-full rounded-[var(--radius-md)] ${
+                    product.accent === "olive"
+                      ? "bg-[var(--color-olive)]"
+                      : product.accent === "copper"
+                      ? "bg-[var(--color-copper)]"
+                      : "bg-[var(--color-terracotta)]"
+                  }`}
+                />
 
-                      {product.madeToOrder && (
-                        <span className="rounded-full bg-[var(--color-olive)] px-3 py-1 text-xs text-[var(--color-ivory)]">
-                          Made to Order
-                        </span>
-                      )}
-
-                      {product.oneOfAKind && (
-                        <span className="rounded-full bg-[var(--color-copper)] px-3 py-1 text-xs text-[var(--color-ivory)]">
-                          One of a Kind
-                        </span>
-                      )}
-                    </div>
-
-                    <h2 className="mt-4 font-[var(--font-display)] text-3xl text-[var(--color-espresso)]">
-                      {product.name}
-                    </h2>
-
-                    {product.description && (
-                      <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
-                        {product.description}
-                      </p>
-                    )}
-
-                    <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--text-secondary)]">
-                      {product.material && (
-                        <span>
-                          <strong className="text-[var(--color-espresso)]">
-                            Material:
-                          </strong>{" "}
-                          {product.material}
-                        </span>
-                      )}
-
-                      {product.dimensions && (
-                        <span>
-                          <strong className="text-[var(--color-espresso)]">
-                            Size:
-                          </strong>{" "}
-                          {product.dimensions}
-                        </span>
-                      )}
-
-                      {product.weight && (
-                        <span>
-                          <strong className="text-[var(--color-espresso)]">
-                            Weight:
-                          </strong>{" "}
-                          {product.weight}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="w-full shrink-0 lg:w-64">
-                    <div className="rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-5">
-                      <p className="text-xs uppercase tracking-[0.15em] text-[var(--text-muted)]">
-                        Price
-                      </p>
-
-                      <p className="mt-1 font-[var(--font-display)] text-3xl text-[var(--color-espresso)]">
-                        ${Number(product.price || 0).toLocaleString()}
-                      </p>
-
-                      <p className="mt-3 text-sm text-[var(--text-secondary)]">
-                        {product.madeToOrder
-                          ? "Made to order"
-                          : `${product.quantity ?? 0} available`}
-                      </p>
-
-                      {product.customization && (
-                        <p className="mt-1 text-sm text-[var(--color-olive)]">
-                          Customization available
-                        </p>
-                      )}
-                    </div>
+                <div className="mt-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                    {product.category}
+                  </p>
+                  <h3 className="mt-1 font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
+                    {product.name}
+                  </h3>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    {product.country}
+                  </p>
+                  <p className="mt-2 font-medium text-[var(--color-copper)]">
+                    ${product.price}
+                  </p>
+{/* حالة المنتج */}
+<div className="mt-2">
+  {product.status === "pending" && (
+    <span className="inline-block rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">
+      ⏳ قيد المراجعة
+    </span>
+  )}
+  {product.status === "approved" && (
+    <span className="inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+      ✅ منشور
+    </span>
+  )}
+  {product.status === "rejected" && (
+    <span className="inline-block rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
+      ❌ مرفوض
+    </span>
+  )}
+</div>
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(product.slug)}
+                      className="flex-1 rounded-[var(--radius-md)] border border-red-200 px-4 py-2 text-sm text-red-500 transition hover:bg-red-50"
+                    >
+                      حذف
+                    </button>
+                    <Link
+                      href={`/artisan/products/edit/${product.slug}`}
+                      className="flex-1 rounded-[var(--radius-md)] border border-[var(--border-soft)] px-4 py-2 text-center text-sm text-[var(--text-secondary)] transition hover:bg-[var(--surface-muted)]"
+                    >
+                      تعديل
+                    </Link>
                   </div>
                 </div>
-
-                <div className="mt-6 flex flex-col gap-3 border-t border-[var(--border-soft)] pt-5 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(product.slug)}
-                    className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-3 text-sm text-[var(--text-secondary)] transition-colors hover:border-red-300 hover:text-red-600"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </article>
+              </div>
             ))}
           </div>
         )}

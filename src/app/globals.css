@@ -1,51 +1,42 @@
 @import "tailwindcss";
 
 :root {
-  /* =========================
-     IRTH — Design Tokens V1
-     ========================= */
+  /* 🟤 Core Colors */
+  --color-espresso: #1F1A17;
+  --color-ivory: #F4F1E8;
+  --color-ink: #111111;
+  --color-copper: #B87333;
+  --color-olive: #556B2F;
+  --color-terracotta: #A33E2B;
+  --color-purple: #6A4C9C;
 
-  /* Brand Colors */
-  --color-espresso: #362820;
-  --color-copper: #b87333;
-  --color-bronze: #8c6239;
-  --color-olive: #66705a;
-  --color-terracotta: #d79f8b;
-  --color-antique-gold: #c0b283;
-  --color-ivory: #f6f1e8;
+  /* 🌗 Surface */
+  --background: var(--color-ivory);
+  --surface: #FFFFFF;
+  --surface-muted: #F0EDE5;
 
-  /* Surfaces */
-  --background: #f6f1e8;
-  --surface: #fffdf8;
-  --surface-muted: #eee7dc;
+  /* 📝 Text */
+  --text-primary: var(--color-ink);
+  --text-secondary: #4A4A4A;
+  --text-muted: #8A8A8A;
+  --text-inverse: var(--color-ivory);
 
-  /* Text */
-  --text-primary: #362820;
-  --text-secondary: #756a60;
-  --text-muted: #9a8f84;
+  /* 🧱 Borders */
+  --border-soft: #E5E0D8;
+  --border-medium: #D5CFC5;
 
-  /* Borders */
-  --border-soft: #ded5c9;
-  --border-strong: #bdb0a1;
+  /* 💡 Shadows */
+  --shadow-soft: 0 4px 20px rgba(17, 17, 17, 0.04);
+  --shadow-card: 0 8px 30px rgba(17, 17, 17, 0.06);
+  --shadow-elevated: 0 20px 60px rgba(17, 17, 17, 0.10);
 
-  /* Semantic */
-  --color-success: #66705a;
-  --color-warning: #c0b283;
-
-  /* Radius */
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  /* 📐 Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 18px;
   --radius-xl: 28px;
 
-  /* Shadows */
-  --shadow-soft: 0 10px 30px rgba(54, 40, 32, 0.08);
-  --shadow-card: 0 18px 45px rgba(54, 40, 32, 0.1);
-
-  /* Layout */
-  --container-max: 1280px;
-
-    /* Spacing */
+  /* 📏 Spacing */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -58,37 +49,108 @@
   --space-16: 64px;
   --space-20: 80px;
   --space-24: 96px;
-  /* Typography */
-  --font-display: Georgia, "Times New Roman", serif;
-  --font-body: Arial, Helvetica, sans-serif;
+
+  /* 🖋️ Fonts */
+  --font-display: "Georgia", "serif";
+  --font-body: "Inter", "sans-serif";
+
+  /* 📦 Container */
+  --container-max: 1280px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--text-primary);
-  --font-sans: var(--font-body);
-}
+/* RTL / LTR Support */
+html[dir="rtl"] { text-align: right; }
+html[dir="ltr"] { text-align: left; }
 
-* {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
+/* Global Reset */
 body {
-  margin: 0;
-  background: var(--background);
+  background-color: var(--background);
   color: var(--text-primary);
   font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
 
-button,
-a {
-  -webkit-tap-highlight-color: transparent;
+/* 🏷️ Utility Classes */
+.text-brand { color: var(--color-espresso); }
+.text-copper { color: var(--color-copper); }
+.text-olive { color: var(--color-olive); }
+.text-terracotta { color: var(--color-terracotta); }
+
+.bg-brand { background-color: var(--color-espresso); }
+.bg-copper { background-color: var(--color-copper); }
+.bg-olive { background-color: var(--color-olive); }
+.bg-terracotta { background-color: var(--color-terracotta); }
+.bg-ivory { background-color: var(--color-ivory); }
+
+.card {
+  background-color: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  transition: all 0.25s ease;
+}
+.card:hover {
+  box-shadow: var(--shadow-card);
+  transform: translateY(-2px);
 }
 
-button {
-  cursor: pointer;
+/* 🎨 Bottom Navigation (Mobile) */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  justify-content: space-around;
+  padding: var(--space-2) 0 var(--space-3);
+  z-index: 50;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-soft);
 }
+.bottom-nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.bottom-nav a:hover,
+.bottom-nav a.active {
+  color: var(--color-copper);
+}
+.bottom-nav a span {
+  font-size: 20px;
+  margin-bottom: 2px;
+}
+/* ============================================================
+   Bottom Navigation (يظهر فقط على الموبايل)
+   ============================================================ */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 0 12px;
+  z-index: 50;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-soft);
+}
+
+/* إخفاءه على الشاشات الأكبر من 768px (تابلت وديسكتوب) */
+@media (min-width: 768px) {
+  .bottom-nav {
+    display: none !important;
+  }
+}
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--background); }
+::-webkit-scrollbar-thumb { background: var(--color-copper); border-radius: 10px; }
