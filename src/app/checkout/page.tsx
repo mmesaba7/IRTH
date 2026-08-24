@@ -28,6 +28,18 @@ type Order = {
   createdAt: string;
 };
 
+// ✅ تعريف شكل الإشعار (جديد)
+type Notification = {
+  id: string;
+  userId: string;        // معرف المستخدم (العميل، الحرفي، الأدمن)
+  userType: "buyer" | "artisan" | "admin";
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  orderId?: string;      // رقم الطلب المرتبط (اختياري)
+};
+
 export default function CheckoutPage() {
   const router = useRouter();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -38,9 +50,8 @@ export default function CheckoutPage() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerNotes, setCustomerNotes] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("cod"); // cod أو online
+  const [paymentMethod, setPaymentMethod] = useState("cod");
 
-  // أول ما الصفحة تتحمل، نجيب العربة
   useEffect(() => {
     const cart: CartItem[] = JSON.parse(
       localStorage.getItem("irth-cart") || "[]"
@@ -48,7 +59,6 @@ export default function CheckoutPage() {
     setCartItems(cart);
     setLoading(false);
 
-    // لو العربية فارغة، نوديه على صفحة العربة
     if (cart.length === 0) {
       router.push("/cart");
     }
@@ -63,7 +73,6 @@ export default function CheckoutPage() {
     return acc;
   }, {} as Record<string, CartItem[]>);
 
-  // حساب إجمالي كل حرفي
   const artisanTotals = Object.entries(groupedByArtisan).reduce(
     (acc, [artisan, items]) => {
       acc[artisan] = items.reduce((sum, item) => sum + item.price, 0);
@@ -72,21 +81,26 @@ export default function CheckoutPage() {
     {} as Record<string, number>
   );
 
-  // الإجمالي الكلي
   const total = cartItems.reduce((sum, item) => sum + item.price, 0);
-  
 
-  // دالة تأكيد الطلب
+  // ✅ دالة مساعدة لحفظ الإشعارات (جديدة)
+  const addNotification = (notification: Notification) => {
+    const notifications = JSON.parse(
+      localStorage.getItem("irth-notifications") || "[]"
+    );
+    notifications.push(notification);
+    localStorage.setItem("irth-notifications", JSON.stringify(notifications));
+  };
+
+  // دالة تأكيد الطلب (معدلة)
   const handlePlaceOrder = () => {
-    // ١- نتأكد من بيانات العميل الأساسية
     if (!customerName || !customerPhone || !customerAddress) {
       alert("من فضلك املأ جميع البيانات المطلوبة (الاسم، التليفون، العنوان)");
       return;
     }
 
-    // ٢- نجهز الطلب
     const order: Order = {
-      id: `IRTH-${Date.now()}`, // رقم طلب مؤقت (يعتمد على الوقت)
+      id: `IRTH-${Date.now()}`,
       customer: {
         name: customerName,
         phone: customerPhone,
@@ -100,16 +114,61 @@ export default function CheckoutPage() {
       createdAt: new Date().toLocaleString("ar-EG"),
     };
 
-    // ٣- نحفظ الطلب في localStorage (هنا بنحاكي قاعدة البيانات)
+    // حفظ الطلب
     const orders = JSON.parse(localStorage.getItem("irth-orders") || "[]");
     orders.push(order);
     localStorage.setItem("irth-orders", JSON.stringify(orders));
 
-    // ٤- نفضي العربية
+    // ✅ حفظ الإشعارات (جديد)
+    const now = new Date().toISOString();
+
+    // ١- إشعار للعميل
+    addNotification({
+      id: `notif-${Date.now()}-buyer`,
+      userId: "buyer-" + customerName.replace(/\s/g, "-").toLowerCase(),
+      userType: "buyer",
+      title: "✅ تم تأكيد طلبك",
+      message: `طلبك رقم ${order.id} تم استلامه بنجاح. سنقوم بتجهيزه وإعلامك بأحدث المستجدات.`,
+      read: false,
+      createdAt: now,
+      orderId: order.id,
+    });
+
+    // ٢- إشعار لكل حرفي (جديد)
+    const artisanNames = Object.keys(groupedByArtisan);
+    artisanNames.forEach((artisan) => {
+      const artisanItems = groupedByArtisan[artisan];
+      const totalArtisanPrice = artisanItems.reduce((sum, item) => sum + item.price, 0);
+      
+      addNotification({
+        id: `notif-${Date.now()}-artisan-${artisan.replace(/\s/g, "-").toLowerCase()}`,
+        userId: `artisan-${artisan.replace(/\s/g, "-").toLowerCase()}`,
+        userType: "artisan",
+        title: "📦 طلب جديد",
+        message: `لديك طلب جديد رقم ${order.id} من ${customerName} بقيمة $${totalArtisanPrice.toFixed(2)}.`,
+        read: false,
+        createdAt: now,
+        orderId: order.id,
+      });
+    });
+
+    // ٣- إشعار للأدمن (جديد)
+    addNotification({
+      id: `notif-${Date.now()}-admin`,
+      userId: "admin-irth",
+      userType: "admin",
+      title: "📦 طلب جديد",
+      message: `طلب جديد رقم ${order.id} من ${customerName} بقيمة $${total.toFixed(2)}.`,
+      read: false,
+      createdAt: now,
+      orderId: order.id,
+    });
+
+    // نفضي العربية
     localStorage.setItem("irth-cart", "[]");
     window.dispatchEvent(new Event("irth-cart-updated"));
 
-    // ٥- نودي العميل على صفحة نجاح الطلب
+    // نودي العميل على صفحة نجاح الطلب
     router.push(`/order-success?id=${order.id}`);
   };
 
@@ -238,7 +297,6 @@ export default function CheckoutPage() {
                 Order summary
               </p>
 
-              {/* تقسيم حسب الحرفي - ده جوهر الماركت بليس */}
               <div className="mt-6 space-y-6">
                 {Object.entries(groupedByArtisan).map(([artisan, items]) => (
                   <div
@@ -273,7 +331,6 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
-              {/* الإجمالي الكلي */}
               <div className="mt-6 flex items-center justify-between border-t border-[var(--border-soft)] pt-5">
                 <span className="font-medium text-[var(--color-espresso)]">
                   Total
@@ -283,7 +340,6 @@ export default function CheckoutPage() {
                 </span>
               </div>
 
-              {/* زر تأكيد الطلب */}
               <button
                 type="button"
                 onClick={handlePlaceOrder}

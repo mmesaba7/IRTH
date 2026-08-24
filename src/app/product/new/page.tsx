@@ -80,30 +80,25 @@ const handleSaveProduct = () => {
   }
 
   const product = {
-    id: `product-${Date.now()}`,
-    artisanSlug: "irth-artisan",
-
-    name: productName.trim(),
-    description: description.trim(),
-    category,
-    material: material.trim(),
-    dimensions: dimensions.trim(),
-    weight: weight.trim(),
-
-    price: Number(price),
-    quantity: madeToOrder ? null : Number(quantity),
-
-    madeToOrder,
-    preparationTime: preparationTime.trim(),
-
-    oneOfAKind,
-    customization,
-
-    imageNames: images.map((image) => image.name),
-    videoName: video ? video.name : null,
-
-    createdAt: new Date().toISOString(),
-  };
+  id: `product-${Date.now()}`,
+  artisanSlug: "irth-artisan",
+  name: productName.trim(),
+  description: description.trim(),
+  category,
+  material: material.trim(),
+  dimensions: dimensions.trim(),
+  weight: weight.trim(),
+  price: Number(price),
+  quantity: madeToOrder ? null : Number(quantity),
+  madeToOrder,
+  preparationTime: preparationTime.trim(),
+  oneOfAKind,
+  customization,
+  imageNames: images.map((image) => image.name),
+  videoName: video ? video.name : null,
+  createdAt: new Date().toISOString(),
+  status: "pending", // <- أهم إضافة
+};
 
   const existingProducts = JSON.parse(
     localStorage.getItem("irth-artisan-products") || "[]"

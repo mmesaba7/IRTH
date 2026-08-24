@@ -33,17 +33,20 @@ export default function HomePage() {
   const loadProducts = () => {
     const baseProducts = Object.values(products);
     const storedProducts = JSON.parse(
-      localStorage.getItem("irth-artisan-products") || "[]"
-    ).filter((p: Product) => p.status === "approved");
+  localStorage.getItem("irth-artisan-products") || "[]"
+).filter((p: any) => p.status === "approved"); // <= أهم إضافة
 
-    const allProducts = [...baseProducts, ...storedProducts];
-    const uniqueProducts = allProducts.filter(
-      (product, index, self) =>
-        index === self.findIndex((p) => p.slug === product.slug)
-    );
+    const allProducts = [...baseProducts, ...storedProducts].filter(
+  (product) => product.slug
+);
 
-    setProductList(uniqueProducts);
-    setLoading(false);
+const uniqueProducts = allProducts.filter(
+  (product, index, self) =>
+    index === self.findIndex((p) => p.slug === product.slug)
+);
+
+setProductList(uniqueProducts);
+setLoading(false);
   };
 
   useEffect(() => {

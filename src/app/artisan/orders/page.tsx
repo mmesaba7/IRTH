@@ -25,6 +25,7 @@ type Order = {
   total: number;
   status: string;
   createdAt: string;
+  
 };
 
 export default function ArtisanOrdersPage() {
