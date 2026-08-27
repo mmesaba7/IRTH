@@ -3,20 +3,13 @@
 import { useEffect, useState } from "react";
 import Header from "../components/Header";
 import Link from "next/link";
-import { products as baseProducts } from "../data/products";
+import {
+  products as baseProducts,
+  type Product,
+} from "../data/products";
 import ProductCard from "../components/ProductCard";
 
-// تعريف شكل المنتج
-type Product = {
-  slug: string;
-  name: string;
-  artisan: string;
-  country: string;
-  price: number;
-  category: string;
-  accent: "terracotta" | "olive" | "copper";
-  status?: "pending" | "approved" | "rejected";
-};
+
 
 export default function RecentlyViewedPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -112,8 +105,9 @@ export default function RecentlyViewedPage() {
         ) : (
           <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {products.map((product) => (
-              <ProductCard key={product.slug} slug={product.slug} />
-            ))}
+  <ProductCard key={product.slug} product={product} />
+))}
+    
           </div>
         )}
       </section>

@@ -1,4 +1,4 @@
-export type Artisan = {
+export type PublicArtisan = {
   slug: string;
   name: string;
   country: string;
@@ -10,9 +10,16 @@ export type Artisan = {
   rating: number;
   reviewCount: number;
   imageLabel: string;
+  profileImage?: string;
+  video?: string;
 };
 
-export const artisans: Record<string, Artisan> = {
+// Temporary compatibility alias.
+// Existing prototype pages can keep using "Artisan"
+// until we migrate them one by one to "PublicArtisan".
+export type Artisan = PublicArtisan;
+
+export const artisans: Record<string, PublicArtisan> = {
   "ahmed-hassan": {
     slug: "ahmed-hassan",
     name: "Ahmed Hassan",

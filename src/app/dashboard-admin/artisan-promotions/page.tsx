@@ -67,17 +67,18 @@ export default function AdminArtisanPromotionsPage() {
   };
 
   const handleReview = (id: string, action: "approved" | "rejected") => {
-    const updated = promotions.map((p) => {
-      if (p.id === id) {
-        return {
-          ...p,
-          status: action === "approved" ? "active" : "rejected",
-          adminNote: adminNote || undefined,
-          updatedAt: new Date().toISOString(),
-        };
-      }
-      return p;
-    });
+    const updated: ArtisanPromotion[] = promotions.map((p) => {
+  if (p.id !== id) {
+    return p;
+  }
+
+  return {
+    ...p,
+    status: action,
+    adminNote,
+    updatedAt: new Date().toISOString(),
+  };
+});
 
     localStorage.setItem("irth-artisan-promotions", JSON.stringify(updated));
     setPromotions(updated);

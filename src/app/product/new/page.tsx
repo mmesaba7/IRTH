@@ -79,8 +79,15 @@ const handleSaveProduct = () => {
     return;
   }
 
-  const product = {
+  const productSlug = `${productName
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9\u0600-\u06FF]+/g, "-")
+  .replace(/^-+|-+$/g, "")}-${Date.now()}`;
+
+const product = {
   id: `product-${Date.now()}`,
+  slug: productSlug,
   artisanSlug: "irth-artisan",
   name: productName.trim(),
   description: description.trim(),
@@ -97,7 +104,7 @@ const handleSaveProduct = () => {
   imageNames: images.map((image) => image.name),
   videoName: video ? video.name : null,
   createdAt: new Date().toISOString(),
-  status: "pending", // <- أهم إضافة
+  status: "pending",
 };
 
   const existingProducts = JSON.parse(

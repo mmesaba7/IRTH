@@ -168,16 +168,14 @@ export default function Header() {
             >
               {menuOpen ? "✕" : "☰"}
             </button>
-
-            {/* Search */}
-            <button
-              type="button"
-              aria-label="Search"
-              className="text-lg text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]"
-            >
-              ⌕
-            </button>
-
+{/* Search */}
+<Link
+  href="/search"
+  aria-label="Search"
+  className="text-lg text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]"
+>
+  ⌕
+</Link>
             {/* 🔔 Notifications (جديد) - التعديل هنا */}
             <div className="relative flex items-center gap-1">
               <Link

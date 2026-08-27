@@ -4,24 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
 import Link from "next/link";
+import type { Product } from "@/app/data/products";
 
-type Product = {
-  slug: string;
-  artisanSlug: string;
-  name: string;
-  artisan: string;
-  country: string;
-  price: number;
-  category: string;
-  accent: "terracotta" | "olive" | "copper";
-  origin: string;
-  artisanRole: string;
-  objectLabel: string;
-  description: string;
-  material: string;
-  story: string;
-  status: "pending" | "approved" | "rejected";
-};
 
 export default function ArtisanProductsPage() {
   const router = useRouter();

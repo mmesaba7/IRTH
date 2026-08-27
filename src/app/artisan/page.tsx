@@ -2,6 +2,7 @@
 
 import Header from "../components/Header";
 import ProductCard from "../components/ProductCard";
+import { products } from "../data/products";
 
 export default function ArtisanPage() {
   const artisan = {
@@ -190,7 +191,7 @@ export default function ArtisanPage() {
           </div>
 
           <div className="mt-12 max-w-md">
-            <ProductCard slug="clay-vessel" />
+            <ProductCard product={products["clay-vessel"]} />
           </div>
         </div>
       </section>

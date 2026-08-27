@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Button from "../components/Button";
 import { products } from "../data/products";
 import Header from "../components/Header";
 import { getCustomProducts } from "../data/productStorage";
 
-export default function ProductPage() {
+function ProductContent() {
   const searchParams = useSearchParams();
   const slug = searchParams.get("slug");
   const product = products[slug as keyof typeof products] ?? products["clay-vessel"];
@@ -279,4 +279,22 @@ return (
 </main>
 
 );
+}
+export default function ProductPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[var(--background)]">
+          <Header />
+          <div className="flex h-96 items-center justify-center">
+            <p className="text-[var(--text-secondary)]">
+              جاري تحميل المنتج...
+            </p>
+          </div>
+        </main>
+      }
+    >
+      <ProductContent />
+    </Suspense>
+  );
 }

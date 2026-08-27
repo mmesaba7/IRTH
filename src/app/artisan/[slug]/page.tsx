@@ -1,26 +1,28 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "../../components/Header";
 import Link from "next/link";
 import { products as baseProducts } from "../../data/products";
+import {
+  artisans as baseArtisans,
+  type PublicArtisan,
+} from "../../data/artisans";
 import { getArtisanReviews } from "../../../lib/reviewUtils";
 
-// تعريف شكل الحرفي
-type Artisan = {
+
+type PrototypeArtisanRecord = {
   id?: string;
   name: string;
   country: string;
   status: string;
   story?: string;
-  video?: string; // رابط فيديو تعريفي
-  profileImage?: string; // رابط صورة الحرفي
-  craft?: string; // الحرفة الرئيسية
-  region?: string; // المنطقة العامة (مثل: أخميم – سوهاج)
+  video?: string;
+  profileImage?: string;
+  craft?: string;
+  region?: string;
   createdAt: string;
 };
-
 // تعريف شكل المنتج
 type Product = {
   slug: string;
@@ -54,43 +56,57 @@ export default function ArtisanProfilePage() {
   const slug = params.slug as string;
 
   const [loading, setLoading] = useState(true);
-  const [artisan, setArtisan] = useState<Artisan | null>(null);
+  const [artisan, setArtisan] = useState<PublicArtisan | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [averageRating, setAverageRating] = useState<number | null>(null);
 
   useEffect(() => {
-    // ١- جلب بيانات الحرفي من localStorage
-    const artisans: Artisan[] = JSON.parse(
-      localStorage.getItem("irth-artisans") || "[]"
-    );
-    const foundArtisan = artisans.find(
-      (a) => a.name.toLowerCase().replace(/ /g, "-") === slug
-    );
+    // ١- جلب السجل التشغيلي المؤقت للحرفي من localStorage
+const storedArtisans: PrototypeArtisanRecord[] = JSON.parse(
+  localStorage.getItem("irth-artisans") || "[]"
+);
 
-    if (!foundArtisan || foundArtisan.status === "Deactivated") {
-      router.push("/404");
-      return;
-    }
+const storedArtisan = storedArtisans.find(
+  (artisan) =>
+    artisan.name.toLowerCase().replace(/ /g, "-") === slug
+);
 
-    setArtisan(foundArtisan);
+// ٢- جلب البيانات العامة للحرفي من المصدر العام
+const publicArtisan = baseArtisans[slug];
 
-    // ٢- جلب منتجات الحرفي
-    const storedProducts: Product[] = JSON.parse(
-      localStorage.getItem("irth-artisan-products") || "[]"
-    );
-    const baseProductsList = Object.values(baseProducts);
-    const allProducts = [...baseProductsList, ...storedProducts];
-    const artisanProducts = allProducts.filter(
-      (p) =>
-        p.artisan === foundArtisan.name &&
-        (p.status === "approved" || !p.status)
-    );
-    setProducts(artisanProducts);
+// لو الحرفي متوقف تشغيليًا، لا نعرض صفحته
+if (storedArtisan?.status === "Deactivated") {
+  router.push("/404");
+  return;
+}
 
-    // ٣- جلب تقييمات الحرفي
-    const artisanReviews = getArtisanReviews(foundArtisan.name);
-    setReviews(artisanReviews);
+// الصفحة العامة تعتمد على PublicArtisan فقط
+if (!publicArtisan) {
+  router.push("/404");
+  return;
+}
+
+setArtisan(publicArtisan);
+   // ٣- جلب منتجات الحرفي
+const storedProducts: Product[] = JSON.parse(
+  localStorage.getItem("irth-artisan-products") || "[]"
+);
+
+const baseProductsList = Object.values(baseProducts);
+
+const allProducts = [...baseProductsList, ...storedProducts];
+
+const artisanProducts = allProducts.filter(
+  (product) =>
+    product.artisan === publicArtisan.name &&
+    (product.status === "approved" || !product.status)
+);
+
+setProducts(artisanProducts);
+
+// ٤- جلب تقييمات الحرفي
+const artisanReviews = getArtisanReviews(publicArtisan.name);
 
     // ٤- حساب متوسط تقييم الحرفي
     if (artisanReviews.length > 0) {
@@ -188,7 +204,7 @@ export default function ArtisanProfilePage() {
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
                 <span className="text-[var(--color-ivory)]/70">
-                  {artisan.craft || "حرفي"}
+                  {artisan.mainCraft}
                 </span>
                 <span className="text-[var(--color-ivory)]/40">·</span>
                 <span className="text-[var(--color-ivory)]/70">

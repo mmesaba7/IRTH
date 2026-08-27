@@ -1,18 +1,51 @@
 export type Product = {
+
   slug: string;
+
   artisanSlug: string;
+
   name: string;
+
   artisan: string;
+
   country: string;
+
   price: number;
+
   category: string;
+
   accent: "terracotta" | "olive" | "copper";
+
   origin: string;
+
   artisanRole: string;
+
   objectLabel: string;
+
   description: string;
+
   material: string;
+
   story: string;
+
+  status?: "pending" | "approved" | "rejected";
+
+  dimensions?: string;
+
+  weight?: string;
+
+  madeToOrder?: boolean;
+
+  preparationTime?: string;
+
+  oneOfAKind?: boolean;
+
+  customization?: boolean;
+
+  imageNames?: string[];
+
+  videoName?: string | null;
+
 };
 
 export const products: Record<string, Product> = {

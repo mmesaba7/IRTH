@@ -1,17 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { products } from "../data/products";
-import { getCustomProducts } from "../data/productStorage";
+import type { Product } from "../data/products";
 import Link from "next/link";
 
 type ProductCardProps = {
-  slug: string;
+  product: Product;
 };
 
-export default function ProductCard({ slug }: ProductCardProps) {
-  const customProducts = getCustomProducts();
-  const product = products[slug] || customProducts.find((item) => item.slug === slug);
+export default function ProductCard({ product }: ProductCardProps) {
+  
+  const { slug } = product;
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -35,8 +34,6 @@ export default function ProductCard({ slug }: ProductCardProps) {
     window.dispatchEvent(new Event("irth-saved-updated"));
   };
 
-  if (!product) return null;
-
   const accentColors = {
     terracotta: "bg-[var(--color-terracotta)]",
     olive: "bg-[var(--color-olive)]",
@@ -58,7 +55,7 @@ export default function ProductCard({ slug }: ProductCardProps) {
   };
 
   return (
-    <Link href={`/product?slug=${product.slug}`} className="group block">
+    <Link href={`/product/${product.slug}`} className="group block">
       <div className="card hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
         {/* Image with Heritage Motif */}
         <div

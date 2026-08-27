@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
 import { getArtisanReviews, addArtisanReply } from "../../../lib/reviewUtils";
-import { Review } from "../../types";
+import { Review } from "@/types";
 
 export default function ArtisanReviewsPage() {
   const router = useRouter();

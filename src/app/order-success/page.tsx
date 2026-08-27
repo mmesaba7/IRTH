@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Header from "../components/Header";
 import Link from "next/link";
@@ -26,7 +26,7 @@ type Order = {
   createdAt: string;
 };
 
-export default function OrderSuccessPage() {
+function OrderSuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("id");
   const [order, setOrder] = useState<Order | null>(null);
@@ -236,5 +236,23 @@ export default function OrderSuccessPage() {
         </div>
       </section>
     </main>
+  );
+}
+export default function OrderSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[var(--background)]">
+          <Header />
+          <div className="flex h-96 items-center justify-center">
+            <p className="text-[var(--text-secondary)]">
+              جاري تحميل تفاصيل الطلب...
+            </p>
+          </div>
+        </main>
+      }
+    >
+      <OrderSuccessContent />
+    </Suspense>
   );
 }

@@ -4,48 +4,58 @@ import { useEffect, useState } from "react";
 import Header from "../components/Header";
 import ProductCard from "../components/ProductCard";
 import Link from "next/link";
-import { products as baseProducts } from "../data/products";
-
-type Product = {
-  slug: string;
-  artisanSlug: string;
-  name: string;
-  artisan: string;
-  country: string;
-  price: number;
-  category: string;
-  accent: "terracotta" | "olive" | "copper";
-  origin: string;
-  artisanRole: string;
-  objectLabel: string;
-  description: string;
-  material: string;
-  story: string;
-  status?: "pending" | "approved" | "rejected";
-};
+import {
+  products as baseProducts,
+  type Product,
+} from "../data/products";
 
 export default function CraftsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+useEffect(() => {
+  const baseProductsList: Product[] = Object.values(baseProducts);
 
-  useEffect(() => {
-    const baseProductsList = Object.values(baseProducts);
-    const storedProducts: Product[] = JSON.parse(
-      localStorage.getItem("irth-artisan-products") || "[]"
-    ).filter((p) => p.status === "approved");
+  const allStoredProducts = JSON.parse(
+    localStorage.getItem("irth-artisan-products") || "[]"
+  ) as Product[];
 
-    const allProducts = [...baseProductsList, ...storedProducts];
-    const uniqueProducts = allProducts.filter(
-      (product, index, self) =>
-        index === self.findIndex((p) => p.slug === product.slug)
-    );
+  const storedProducts = allStoredProducts.filter(
+    (product) => product.status === "approved"
+  );
 
-    setProducts(uniqueProducts);
-    setLoading(false);
-  }, []);
+  const allProducts: Product[] = [
+    ...baseProductsList,
+    ...storedProducts,
+  ];
 
+  const uniqueProducts = allProducts.filter(
+    (product, index, self) =>
+      product.slug &&
+      index === self.findIndex((candidate) => candidate.slug === product.slug)
+  );
+
+  setProducts(uniqueProducts);
+
+  // قراءة الحرفة من الرابط لو المستخدم جاي من Search أو Country.
+  // مثال: /crafts?category=Pottery
+  const searchParams = new URLSearchParams(window.location.search);
+  const categoryFromUrl = searchParams.get("category");
+
+  if (categoryFromUrl) {
+    const matchingCategory = uniqueProducts.find(
+      (product) =>
+        product.category.toLowerCase() === categoryFromUrl.toLowerCase()
+    )?.category;
+
+    if (matchingCategory) {
+      setSelectedCategory(matchingCategory);
+    }
+  }
+
+  setLoading(false);
+}, []);
   const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name
       .toLowerCase()
@@ -136,8 +146,8 @@ export default function CraftsPage() {
         ) : (
           <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProducts.map((product) => (
-              <ProductCard key={product.slug} slug={product.slug} />
-            ))}
+  <ProductCard key={product.slug} product={product} />
+))}
           </div>
         )}
       </section>

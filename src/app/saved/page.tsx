@@ -77,7 +77,7 @@ export default function SavedPage() {
                   key={slug}
                   className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)]"
                 >
-                  <a href={"/product?slug=" + slug}>
+                  <a href={`/product/${slug}`}>
                     <div
                       className={
                         "aspect-[4/3] " +

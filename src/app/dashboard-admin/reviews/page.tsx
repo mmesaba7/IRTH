@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
 import Link from "next/link";
 import { getPendingArtisanReplies, reviewArtisanReply } from "../../../lib/reviewUtils";
-import { Review } from "../../types";
+import { Review } from "@/types";
 
 export default function AdminReviewRepliesPage() {
   const router = useRouter();
