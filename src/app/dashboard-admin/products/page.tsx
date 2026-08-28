@@ -30,11 +30,6 @@ export default function AdminProductsPage() {
 
   useEffect(() => {
     // التحقق من تسجيل الدخول
-    const isAuth = document.cookie.includes("irth-admin-auth=true");
-    if (!isAuth) {
-      router.push("/dashboard-admin/login");
-      return;
-    }
 
     loadProducts();
   }, [router]);

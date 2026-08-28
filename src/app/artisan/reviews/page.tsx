@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
 import { getArtisanReviews, addArtisanReply } from "../../../lib/reviewUtils";
 import { Review } from "@/types";
+import { createClient } from "@/lib/supabase/client";
 
 export default function ArtisanReviewsPage() {
   const router = useRouter();
+  const supabase = createClient();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [replyText, setReplyText] = useState("");
@@ -16,11 +18,6 @@ export default function ArtisanReviewsPage() {
   const artisanName = "Ahmed Hassan"; // مؤقت، هنربط بالحساب لاحقاً
 
   useEffect(() => {
-    const isAuth = localStorage.getItem("irth-artisan-auth");
-    if (!isAuth) {
-      router.push("/artisan/login");
-      return;
-    }
 
     const artisanReviews = getArtisanReviews(artisanName);
     setReviews(artisanReviews);
@@ -78,10 +75,11 @@ export default function ArtisanReviewsPage() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              localStorage.removeItem("irth-artisan-auth");
-              router.push("/artisan/login");
-            }}
+            onClick={async () => {
+  await supabase.auth.signOut({ scope: "local" });
+  router.replace("/artisan/login");
+  router.refresh();
+}}
             className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
           >
             Logout
@@ -199,3 +197,4 @@ export default function ArtisanReviewsPage() {
     </main>
   );
 }
+

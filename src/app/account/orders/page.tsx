@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Header from "../../components/Header";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 // تعريف شكل الطلب
 type Order = {
@@ -29,6 +31,8 @@ export default function CustomerOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+const router = useRouter();
+const supabase = createClient();
 
   useEffect(() => {
     // جلب الطلبات من localStorage
@@ -51,6 +55,7 @@ export default function CustomerOrdersPage() {
 
   if (loading) {
     return (
+      
       <main className="min-h-screen bg-[var(--background)]">
         <Header />
         <div className="flex h-96 items-center justify-center">
@@ -78,12 +83,26 @@ export default function CustomerOrdersPage() {
               {orders.length} orders placed
             </p>
           </div>
-          <Link
-            href="/account"
-            className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)]"
-          >
-            ← Back to Account
-          </Link>
+          <div className="flex items-center gap-3">
+  <Link
+    href="/account"
+    className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)]"
+  >
+    ← Back to Account
+  </Link>
+
+  <button
+    type="button"
+    onClick={async () => {
+      await supabase.auth.signOut({ scope: "local" });
+      router.replace("/account/login");
+      router.refresh();
+    }}
+    className="rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-5 py-2 text-sm font-medium text-[var(--color-espresso)] transition hover:border-[var(--color-copper)] hover:text-[var(--color-copper)]"
+  >
+    Logout
+  </button>
+</div>
         </div>
 
         {/* عرض الطلبات */}

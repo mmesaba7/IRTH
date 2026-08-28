@@ -53,11 +53,6 @@ console.log(
   };
 
   useEffect(() => {
-    const isAuth = localStorage.getItem("irth-artisan-auth");
-    if (!isAuth) {
-      router.push("/artisan/login");
-      return;
-    }
     loadProducts();
   }, [router]);
 
@@ -165,3 +160,4 @@ console.log(
     </main>
   );
 }
+

@@ -51,11 +51,6 @@ export default function AdminPromotionsPage() {
   });
 
   useEffect(() => {
-    const isAuth = document.cookie.includes("irth-admin-auth=true");
-    if (!isAuth) {
-      router.push("/dashboard-admin/login");
-      return;
-    }
     loadCoupons();
   }, [router]);
 

@@ -28,11 +28,6 @@ export default function PayoutSettingsPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const isAuth = localStorage.getItem("irth-artisan-auth");
-    if (!isAuth) {
-      router.push("/artisan/login");
-      return;
-    }
 
     const saved = localStorage.getItem("irth-artisan-payout-settings");
     if (saved) {
@@ -200,3 +195,4 @@ export default function PayoutSettingsPage() {
     </main>
   );
 }
+

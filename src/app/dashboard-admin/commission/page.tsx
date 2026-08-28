@@ -43,11 +43,6 @@ export default function AdminCommissionPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const isAuth = document.cookie.includes("irth-admin-auth=true");
-    if (!isAuth) {
-      router.push("/dashboard-admin/login");
-      return;
-    }
 
     // تحميل الإعدادات
     const savedSettings = localStorage.getItem("irth-admin-settings");

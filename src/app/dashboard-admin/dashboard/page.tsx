@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-
+import { createClient } from "@/lib/supabase/client";
 type Order = {
   id: string;
   customer: { name: string };
@@ -15,6 +15,7 @@ type Order = {
 
 export default function DashboardAdminPage() {
   const router = useRouter();
+  const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     orders: 0,
@@ -25,12 +26,7 @@ export default function DashboardAdminPage() {
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
 
   useEffect(() => {
-    const isAuth = document.cookie.includes("irth-admin-auth=true");
-    if (!isAuth) {
-      router.push("/dashboard-admin/login");
-      return;
-    }
-
+   
     const orders: Order[] = JSON.parse(
       localStorage.getItem("irth-orders") || "[]"
     );
@@ -77,10 +73,11 @@ export default function DashboardAdminPage() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              document.cookie = "irth-admin-auth=; path=/; max-age=0";
-              router.push("/dashboard-admin/login");
-            }}
+            onClick={async () => {
+  await supabase.auth.signOut({ scope: "local" });
+  router.replace("/dashboard-admin/login");
+  router.refresh();
+}}
             className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
           >
             Logout

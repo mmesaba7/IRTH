@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
 import { products as baseProducts } from "../../data/products";
+import { createClient } from "@/lib/supabase/client";
 
 // تعريف شكل العرض
 type ArtisanPromotion = {
@@ -31,6 +32,7 @@ type Product = {
 
 export default function ArtisanPromotionsPage() {
   const router = useRouter();
+  const supabase = createClient();
   const [promotions, setPromotions] = useState<ArtisanPromotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,11 +54,6 @@ export default function ArtisanPromotionsPage() {
   });
 
   useEffect(() => {
-    const isAuth = localStorage.getItem("irth-artisan-auth");
-    if (!isAuth) {
-      router.push("/artisan/login");
-      return;
-    }
     loadData();
   }, [router]);
 
@@ -174,10 +171,11 @@ export default function ArtisanPromotionsPage() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                localStorage.removeItem("irth-artisan-auth");
-                router.push("/artisan/login");
-              }}
+              onClick={async () => {
+  await supabase.auth.signOut({ scope: "local" });
+  router.replace("/artisan/login");
+  router.refresh();
+}}
               className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
             >
               Logout
@@ -385,3 +383,4 @@ export default function ArtisanPromotionsPage() {
     </main>
   );
 }
+

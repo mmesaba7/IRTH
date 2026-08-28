@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
-
+import { createClient } from "@/lib/supabase/client";
 // نفس تعريف الطلب اللي في صفحة الدفع
 type CartItem = {
   slug: string;
@@ -30,6 +30,7 @@ type Order = {
 
 export default function ArtisanOrdersPage() {
   const router = useRouter();
+  const supabase = createClient();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -60,11 +61,6 @@ export default function ArtisanOrdersPage() {
   // أول ما الصفحة تتحمل، نجيب الطلبات
   useEffect(() => {
     // نتأكد من تسجيل الدخول
-    const isAuth = localStorage.getItem("irth-artisan-auth");
-    if (!isAuth) {
-      router.push("/artisan/login");
-      return;
-    }
     loadOrders();
   }, [router]);
 
@@ -121,10 +117,11 @@ export default function ArtisanOrdersPage() {
 
           <button
             type="button"
-            onClick={() => {
-              localStorage.removeItem("irth-artisan-auth");
-              router.push("/artisan/login");
-            }}
+            onClick={async () => {
+  await supabase.auth.signOut({ scope: "local" });
+  router.replace("/artisan/login");
+  router.refresh();
+}}
             className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
           >
             تسجيل خروج
@@ -278,3 +275,4 @@ export default function ArtisanOrdersPage() {
     </main>
   );
 }
+

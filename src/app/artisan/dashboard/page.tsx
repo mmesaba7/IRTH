@@ -4,19 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 export default function ArtisanDashboardPage() {
   const router = useRouter();
+  const supabase = createClient();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const isAuth = localStorage.getItem("irth-artisan-auth");
-    if (!isAuth) {
-      router.push("/artisan/login");
-    } else {
-      setLoading(false);
-    }
-  }, [router]);
+  setLoading(false);
+}, []);
 
   if (loading) {
     return (
@@ -57,10 +54,11 @@ export default function ArtisanDashboardPage() {
 
             <button
               type="button"
-              onClick={() => {
-                localStorage.removeItem("irth-artisan-auth");
-                router.push("/artisan/login");
-              }}
+              onClick={async () => {
+  await supabase.auth.signOut({ scope: "local" });
+  router.replace("/artisan/login");
+  router.refresh();
+}}
               className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
             >
               تسجيل خروج
@@ -159,3 +157,4 @@ export default function ArtisanDashboardPage() {
     </main>
   );
 }
+

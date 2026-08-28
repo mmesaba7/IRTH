@@ -32,11 +32,6 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     // التحقق من تسجيل الدخول
-    const isAuth = document.cookie.includes("irth-admin-auth=true");
-    if (!isAuth) {
-      router.push("/dashboard-admin/login");
-      return;
-    }
 
     // جلب الطلبات من localStorage
     const allOrders: Order[] = JSON.parse(

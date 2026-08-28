@@ -114,11 +114,6 @@ export default function ArtisanPayoutsPage() {
   };
 
   useEffect(() => {
-    const isAuth = localStorage.getItem("irth-artisan-auth");
-    if (!isAuth) {
-      router.push("/artisan/login");
-      return;
-    }
     loadPayouts();
   }, [router]);
 
@@ -306,3 +301,4 @@ export default function ArtisanPayoutsPage() {
     </main>
   );
 }
+
