@@ -1,24 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Header from "../../../../components/Header";
+import { createClient } from "@/lib/supabase/client";
 
-type Product = {
+type ProductForm = {
+  id: string;
   slug: string;
-  artisanSlug: string;
-  name: string;
-  artisan: string;
-  country: string;
-  price: number;
-  category: string;
-  accent: "terracotta" | "olive" | "copper";
-  origin: string;
-  artisanRole: string;
-  objectLabel: string;
-  description: string;
-  material: string;
-  story: string;
+  name_ar: string;
+  name_en: string;
+  description_ar: string;
+  description_en: string;
+  story_ar: string;
+  story_en: string;
+  material_ar: string;
+  material_en: string;
+  price: string;
+  quantity: string;
+  made_to_order: boolean;
+  one_of_a_kind: boolean;
+  customization: boolean;
+  lifecycle_status: string;
 };
 
 export default function EditProductPage() {
@@ -26,62 +29,163 @@ export default function EditProductPage() {
   const params = useParams();
   const slug = params.slug as string;
 
-  const [product, setProduct] = useState<Product | null>(null);
+  const [product, setProduct] = useState<ProductForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPendingReview, setIsPendingReview] = useState(false);
   const [error, setError] = useState("");
 
-  // دالة لجلب المنتج من localStorage
-  const loadProduct = () => {
-    const storedProducts: Product[] = JSON.parse(
-      localStorage.getItem("irth-artisan-products") || "[]"
-    );
-
-    const found = storedProducts.find((p) => p.slug === slug);
-    setProduct(found || null);
-    setLoading(false);
-  };
-
   useEffect(() => {
-    loadProduct();
-  }, [slug]);
+    const loadProduct = async () => {
+      const supabase = createClient();
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        router.push("/artisan/login");
+        return;
+      }
+
+      const { data, error: productError } = await supabase
+        .from("products")
+        .select(
+          "id, slug, name_ar, name_en, description_ar, description_en, story_ar, story_en, material_ar, material_en, price, quantity, made_to_order, one_of_a_kind, customization, lifecycle_status"
+        )
+        .eq("slug", slug)
+        .maybeSingle();
+
+      if (productError) {
+        console.error("Could not load product:", productError);
+        setError("تعذر تحميل المنتج.");
+        setLoading(false);
+        return;
+      }
+
+      if (!data) {
+        setProduct(null);
+        setLoading(false);
+        return;
+      }
+
+      const { data: pendingRequest, error: pendingError } = await supabase
+        .from("moderation_requests")
+        .select("id")
+        .eq("subject_type", "product")
+        .eq("subject_id", data.id)
+        .eq("action", "publish")
+        .eq("status", "pending")
+        .maybeSingle();
+
+      if (pendingError) {
+        console.error("Could not check review status:", pendingError);
+        setError("تعذر التحقق من حالة المراجعة.");
+        setLoading(false);
+        return;
+      }
+
+      setIsPendingReview(Boolean(pendingRequest));
+      setProduct({
+        id: data.id,
+        slug: data.slug,
+        name_ar: data.name_ar ?? "",
+        name_en: data.name_en ?? "",
+        description_ar: data.description_ar ?? "",
+        description_en: data.description_en ?? "",
+        story_ar: data.story_ar ?? "",
+        story_en: data.story_en ?? "",
+        material_ar: data.material_ar ?? "",
+        material_en: data.material_en ?? "",
+        price: String(data.price ?? ""),
+        quantity: String(data.quantity ?? 0),
+        made_to_order: Boolean(data.made_to_order),
+        one_of_a_kind: Boolean(data.one_of_a_kind),
+        customization: Boolean(data.customization),
+        lifecycle_status: data.lifecycle_status,
+      });
+      setLoading(false);
+    };
+
+    loadProduct();
+  }, [router, slug]);
+
+  const updateTextField = (
+    field: keyof ProductForm,
+    value: string | boolean
   ) => {
-    const { name, value } = e.target;
-    if (product) {
-      setProduct({ ...product, [name]: value });
-    }
+    setProduct((current) =>
+      current ? { ...current, [field]: value } : current
+    );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     if (!product) return;
 
-    setError("");
-    setIsSaving(true);
+    if (product.lifecycle_status !== "draft") {
+      setError("المنتج المنشور لا يمكن تعديله من هذا المسار حالياً.");
+      return;
+    }
 
-    if (!product.name || !product.description || !product.price) {
-      setError("من فضلك املأ جميع الحقول المطلوبة");
+    if (isPendingReview) {
+      setError("لا يمكن تعديل المنتج أثناء وجوده قيد المراجعة.");
+      return;
+    }
+
+    if (!product.name_ar.trim() || !product.name_en.trim()) {
+      setError("اسم المنتج بالعربي والإنجليزي مطلوب.");
+      return;
+    }
+
+    const price = Number(product.price);
+    const quantity = Number(product.quantity);
+
+    if (!Number.isFinite(price) || price < 0) {
+      setError("السعر غير صحيح.");
+      return;
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 0) {
+      setError("الكمية يجب أن تكون رقمًا صحيحًا صفر أو أكبر.");
+      return;
+    }
+
+    setIsSaving(true);
+    setError("");
+
+    const supabase = createClient();
+
+    const { error: updateError } = await supabase
+      .from("products")
+      .update({
+        name_ar: product.name_ar.trim(),
+        name_en: product.name_en.trim(),
+        description_ar: product.description_ar.trim() || null,
+        description_en: product.description_en.trim() || null,
+        story_ar: product.story_ar.trim() || null,
+        story_en: product.story_en.trim() || null,
+        material_ar: product.material_ar.trim() || null,
+        material_en: product.material_en.trim() || null,
+        price,
+        quantity,
+        made_to_order: product.made_to_order,
+        one_of_a_kind: product.one_of_a_kind,
+        customization: product.customization,
+      })
+      .eq("id", product.id);
+
+    if (updateError) {
+      console.error("Could not update product:", updateError);
+      setError("تعذر حفظ التعديلات.");
       setIsSaving(false);
       return;
     }
 
-    // نجيب كل المنتجات المخزنة
-    const storedProducts: Product[] = JSON.parse(
-      localStorage.getItem("irth-artisan-products") || "[]"
-    );
-
-    // نعدل المنتج المطلوب
-    const updatedProducts = storedProducts.map((p) =>
-      p.slug === slug ? product : p
-    );
-
-    localStorage.setItem("irth-artisan-products", JSON.stringify(updatedProducts));
-
-    setIsSaving(false);
     router.push("/artisan/products");
+    router.refresh();
   };
 
   if (loading) {
@@ -113,161 +217,185 @@ export default function EditProductPage() {
     );
   }
 
+  const editingDisabled =
+    product.lifecycle_status !== "draft" || isPendingReview;
+
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
       <Header />
 
-      <section className="mx-auto max-w-3xl px-6 py-10 md:py-16">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
-              Artisan Panel
-            </p>
-            <h1 className="mt-1 font-[var(--font-display)] text-4xl font-normal text-[var(--color-espresso)]">
-              ✏️ تعديل المنتج
-            </h1>
-            <p className="text-[var(--text-secondary)]">
-              عدل بيانات المنتج المختار
-            </p>
-          </div>
+      <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6 md:py-16">
+        <div>
+          <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
+            Artisan Panel
+          </p>
+          <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">
+            تعديل المنتج
+          </h1>
+          <p className="mt-2 text-[var(--text-secondary)]">
+            عدّل البيانات المطلوبة ثم احفظ، وبعدها ارجع وأعد إرسال المنتج للمراجعة.
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-10 space-y-6">
-          {error && (
-            <div className="rounded-[var(--radius-md)] bg-red-50 p-4 text-sm text-red-600">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-              اسم المنتج *
-            </label>
-            <input
-              type="text"
-              name="name"
-              value={product.name}
-              onChange={handleChange}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-              required
-            />
+        {editingDisabled && (
+          <div className="mt-6 rounded-[var(--radius-md)] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+            {isPendingReview
+              ? "المنتج قيد المراجعة الآن، لذلك التعديل متوقف مؤقتًا."
+              : "تعديل المنتج المنشور لم يتم اعتماد آليته النهائية بعد."}
           </div>
+        )}
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-              الوصف *
-            </label>
-            <textarea
-              name="description"
-              value={product.description}
-              onChange={handleChange}
-              rows={4}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-              required
-            />
+        {error && (
+          <div className="mt-6 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            {error}
           </div>
+        )}
 
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-                التصنيف
-              </label>
+        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Field label="اسم المنتج بالعربي">
               <input
-                type="text"
-                name="category"
-                value={product.category}
-                onChange={handleChange}
-                className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
+                value={product.name_ar}
+                onChange={(e) => updateTextField("name_ar", e.target.value)}
+                disabled={editingDisabled}
+                className={inputClass}
               />
-            </div>
+            </Field>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-                الخامة
-              </label>
+            <Field label="Product name in English">
               <input
-                type="text"
-                name="material"
-                value={product.material}
-                onChange={handleChange}
-                className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
+                value={product.name_en}
+                onChange={(e) => updateTextField("name_en", e.target.value)}
+                disabled={editingDisabled}
+                className={inputClass}
               />
-            </div>
+            </Field>
           </div>
 
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-                السعر ($) *
-              </label>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Field label="الوصف بالعربي">
+              <textarea
+                rows={5}
+                value={product.description_ar}
+                onChange={(e) => updateTextField("description_ar", e.target.value)}
+                disabled={editingDisabled}
+                className={inputClass}
+              />
+            </Field>
+
+            <Field label="Description in English">
+              <textarea
+                rows={5}
+                value={product.description_en}
+                onChange={(e) => updateTextField("description_en", e.target.value)}
+                disabled={editingDisabled}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <Field label="الخامة بالعربي">
+              <input
+                value={product.material_ar}
+                onChange={(e) => updateTextField("material_ar", e.target.value)}
+                disabled={editingDisabled}
+                className={inputClass}
+              />
+            </Field>
+
+            <Field label="Material in English">
+              <input
+                value={product.material_en}
+                onChange={(e) => updateTextField("material_en", e.target.value)}
+                disabled={editingDisabled}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <Field label="قصة المنتج بالعربي">
+              <textarea
+                rows={4}
+                value={product.story_ar}
+                onChange={(e) => updateTextField("story_ar", e.target.value)}
+                disabled={editingDisabled}
+                className={inputClass}
+              />
+            </Field>
+
+            <Field label="Product story in English">
+              <textarea
+                rows={4}
+                value={product.story_en}
+                onChange={(e) => updateTextField("story_en", e.target.value)}
+                disabled={editingDisabled}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <Field label="السعر">
               <input
                 type="number"
-                name="price"
-                value={product.price}
-                onChange={handleChange}
-                className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-                required
                 min="0"
                 step="0.01"
+                value={product.price}
+                onChange={(e) => updateTextField("price", e.target.value)}
+                disabled={editingDisabled}
+                className={inputClass}
               />
-            </div>
+            </Field>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-                اللون المميز
-              </label>
-              <select
-                name="accent"
-                value={product.accent}
-                onChange={handleChange}
-                className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-              >
-                <option value="terracotta">Terracotta</option>
-                <option value="olive">Olive</option>
-                <option value="copper">Copper</option>
-              </select>
-            </div>
+            <Field label="الكمية">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={product.quantity}
+                onChange={(e) => updateTextField("quantity", e.target.value)}
+                disabled={editingDisabled}
+                className={inputClass}
+              />
+            </Field>
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-              بلد المنشأ
-            </label>
-            <input
-              type="text"
-              name="origin"
-              value={product.origin}
-              onChange={handleChange}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
+          <div className="grid gap-3 sm:grid-cols-3">
+            <CheckField
+              label="يصنع حسب الطلب"
+              checked={product.made_to_order}
+              disabled={editingDisabled}
+              onChange={(checked) => updateTextField("made_to_order", checked)}
+            />
+            <CheckField
+              label="قطعة فريدة"
+              checked={product.one_of_a_kind}
+              disabled={editingDisabled}
+              onChange={(checked) => updateTextField("one_of_a_kind", checked)}
+            />
+            <CheckField
+              label="قابل للتخصيص"
+              checked={product.customization}
+              disabled={editingDisabled}
+              onChange={(checked) => updateTextField("customization", checked)}
             />
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-              قصة المنتج
-            </label>
-            <textarea
-              name="story"
-              value={product.story}
-              onChange={handleChange}
-              rows={3}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-            />
-          </div>
-
-          <div className="flex gap-4 pt-4">
+          <div className="flex flex-col gap-3 pt-3 sm:flex-row">
             <button
               type="submit"
-              disabled={isSaving}
-              className="flex-1 rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:opacity-50"
+              disabled={editingDisabled || isSaving}
+              className="rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-3 text-sm font-medium text-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSaving ? "جاري الحفظ..." : "💾 حفظ التغييرات"}
+              {isSaving ? "جاري الحفظ..." : "حفظ التغييرات"}
             </button>
 
             <button
               type="button"
               onClick={() => router.push("/artisan/products")}
-              className="flex-1 rounded-[var(--radius-md)] border border-[var(--border-soft)] px-6 py-4 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-muted)]"
+              className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-6 py-3 text-sm text-[var(--text-secondary)]"
             >
               إلغاء
             </button>
@@ -275,5 +403,49 @@ export default function EditProductPage() {
         </form>
       </section>
     </main>
+  );
+}
+
+const inputClass =
+  "w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-60";
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function CheckField({
+  label,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--border-soft)] p-4 text-sm text-[var(--text-secondary)]">
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      {label}
+    </label>
   );
 }
