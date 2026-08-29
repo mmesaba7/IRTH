@@ -5,7 +5,9 @@ if (-not (Test-Path $path)) {
   throw "Could not find $path. Run this script from the IRTH repository root."
 }
 
-$content = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
+$rawContent = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
+$originalNewLine = if ($rawContent.Contains("`r`n")) { "`r`n" } else { "`n" }
+$content = $rawContent.Replace("`r`n", "`n")
 
 function Replace-Exact {
   param(
@@ -14,11 +16,14 @@ function Replace-Exact {
     [string]$Label
   )
 
-  if (-not $content.Contains($Old)) {
+  $oldNormalized = $Old.Replace("`r`n", "`n")
+  $newNormalized = $New.Replace("`r`n", "`n")
+
+  if (-not $content.Contains($oldNormalized)) {
     throw "Expected text not found for: $Label"
   }
 
-  $script:content = $content.Replace($Old, $New)
+  $script:content = $content.Replace($oldNormalized, $newNormalized)
 }
 
 Replace-Exact @'
@@ -243,10 +248,12 @@ Replace-Exact @'
 * Confirmed S15.1 — Market & Pricing Foundation as the next task.
 '@ 'Change log'
 
-# Remove accidental triple blank lines created by deleting the technical-debt bullet.
-$content = $content -replace "Known items:\r?\n\r?\n\r?\n", "Known items:`r`n`r`n"
+$content = $content -replace "Known items:\n\n\n", "Known items:`n`n"
 
-# Write UTF-8 without BOM to preserve the repository's text encoding cleanly.
+if ($originalNewLine -eq "`r`n") {
+  $content = $content.Replace("`n", "`r`n")
+}
+
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($path, $content, $utf8NoBom)
 
