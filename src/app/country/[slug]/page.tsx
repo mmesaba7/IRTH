@@ -125,12 +125,12 @@ export default function CountryPage() {
           <div className="mt-10 flex flex-wrap gap-8 border-t border-[var(--color-ivory)]/10 pt-7">
             <div><p className="text-2xl font-semibold text-[var(--color-copper)]">{products.length}</p><p className="mt-1 text-sm text-[var(--color-ivory)]/60">منتجات حرفية</p></div>
             <div><p className="text-2xl font-semibold text-[var(--color-copper)]">{artisans.length}</p><p className="mt-1 text-sm text-[var(--color-ivory)]/60">حرفي وحرفية</p></div>
-            <div><p className="text-2xl font-semibold text-[var(--color-copper)]">{country.crafts.length}</p><p className="mt-1 text-sm text-[var(--color-ivory)]/60">حرف نشطة</p></div>
+            <div><p className="text-2xl font-semibold text-[var(--color-copper)]">{country.craftOptions.length}</p><p className="mt-1 text-sm text-[var(--color-ivory)]/60">حرف نشطة</p></div>
           </div>
         </div>
       </section>
 
-      {country.crafts.length > 0 && (
+      {country.craftOptions.length > 0 && (
         <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -141,13 +141,13 @@ export default function CountryPage() {
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            {country.crafts.map((craft) => (
+            {country.craftOptions.map((craft) => (
               <Link
-                key={craft}
-                href={`/crafts?category=${encodeURIComponent(craft)}&country=${countryFilter}`}
+                key={craft.value}
+                href={`/crafts?category=${encodeURIComponent(craft.value)}&country=${countryFilter}`}
                 className="rounded-full border border-[var(--border-soft)] bg-[var(--surface)] px-5 py-3 text-sm text-[var(--color-espresso)] hover:border-[var(--color-copper)]"
               >
-                {craft}
+                {craft.label}
               </Link>
             ))}
           </div>
