@@ -78,6 +78,7 @@ export type PublicCatalogCountry = {
   culturalDescription?: string;
   culturalVideo?: string;
   crafts: string[];
+  craftOptions: Array<{ label: string; value: string }>;
   searchTerms: string[];
 };
 
@@ -157,9 +158,7 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
     artisanCraftsResult.error ??
     productsResult.error;
 
-  if (firstError) {
-    throw firstError;
-  }
+  if (firstError) throw firstError;
 
   const countryRows = (countriesResult.data ?? []) as DbCountry[];
   const craftRows = (craftsResult.data ?? []) as DbCraft[];
@@ -174,18 +173,15 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
     (artisan) =>
       countryMap.has(artisan.country_id) && craftMap.has(artisan.primary_craft_id)
   );
-
   const artisanRowMap = new Map(
     visibleArtisanRows.map((artisan) => [artisan.id, artisan])
   );
 
   const craftIdsByArtisan = new Map<string, Set<string>>();
-
   for (const relation of artisanCraftRows) {
     if (!artisanRowMap.has(relation.artisan_id) || !craftMap.has(relation.craft_id)) {
       continue;
     }
-
     const craftIds = craftIdsByArtisan.get(relation.artisan_id) ?? new Set<string>();
     craftIds.add(relation.craft_id);
     craftIdsByArtisan.set(relation.artisan_id, craftIds);
@@ -194,10 +190,8 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
   const artisans: PublicCatalogArtisan[] = visibleArtisanRows.map((artisan) => {
     const country = countryMap.get(artisan.country_id)!;
     const mainCraft = craftMap.get(artisan.primary_craft_id)!;
-    const additionalCraftIds = [...(craftIdsByArtisan.get(artisan.id) ?? [])].filter(
-      (craftId) => craftId !== artisan.primary_craft_id
-    );
-    const additionalCrafts = additionalCraftIds
+    const additionalCrafts = [...(craftIdsByArtisan.get(artisan.id) ?? [])]
+      .filter((craftId) => craftId !== artisan.primary_craft_id)
       .map((craftId) => craftMap.get(craftId))
       .filter((craft): craft is DbCraft => Boolean(craft));
 
@@ -309,15 +303,12 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
     });
 
   const countryCraftIds = new Map<string, Set<string>>();
-
   for (const artisan of visibleArtisanRows) {
     const craftIds = countryCraftIds.get(artisan.country_id) ?? new Set<string>();
     craftIds.add(artisan.primary_craft_id);
-
     for (const craftId of craftIdsByArtisan.get(artisan.id) ?? []) {
       craftIds.add(craftId);
     }
-
     countryCraftIds.set(artisan.country_id, craftIds);
   }
 
@@ -326,7 +317,10 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
     const relatedCrafts = [...(countryCraftIds.get(country.id) ?? [])]
       .map((craftId) => craftMap.get(craftId))
       .filter((craft): craft is DbCraft => Boolean(craft));
-    const craftNames = relatedCrafts.map((craft) => craft.name_ar || craft.name_en);
+    const craftOptions = relatedCrafts.map((craft) => ({
+      label: craft.name_ar || craft.name_en,
+      value: craft.name_en,
+    }));
 
     return {
       id: country.id,
@@ -336,7 +330,8 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
       heroImage: editorial?.heroImage,
       culturalDescription: editorial?.culturalDescription,
       culturalVideo: editorial?.culturalVideo,
-      crafts: craftNames,
+      crafts: craftOptions.map((craft) => craft.label),
+      craftOptions,
       searchTerms: [
         country.name_ar || country.name_en,
         country.name_en,
