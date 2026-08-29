@@ -9,75 +9,22 @@ $rawContent = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
 $originalNewLine = if ($rawContent.Contains("`r`n")) { "`r`n" } else { "`n" }
 $content = $rawContent.Replace("`r`n", "`n")
 
-function Replace-Exact {
+function Replace-Section {
   param(
-    [string]$Old,
-    [string]$New,
-    [string]$Label
+    [int]$Number,
+    [int]$NextNumber,
+    [string]$Replacement
   )
 
-  $oldNormalized = $Old.Replace("`r`n", "`n")
-  $newNormalized = $New.Replace("`r`n", "`n")
-
-  if (-not $content.Contains($oldNormalized)) {
-    throw "Expected text not found for: $Label"
+  $pattern = "(?ms)^# $Number\..*?(?=^# $NextNumber\.)"
+  if (-not [regex]::IsMatch($content, $pattern)) {
+    throw "Section $Number could not be located."
   }
 
-  $script:content = $content.Replace($oldNormalized, $newNormalized)
+  $script:content = [regex]::Replace($content, $pattern, $Replacement.TrimStart("`n") + "`n`n---`n`n")
 }
 
-Replace-Exact @'
-# 44. Database Migration Drift
-
-**Status: ⚠️ MUST FIX BEFORE LARGE NEW MODULES**
-
-Important audit finding:
-
-The live Supabase database contains migrations that are newer than the migration files currently committed in GitHub.
-
-GitHub migration history currently ends around:
-
-```text
-20260828145001_allow_customer_self_role.sql
-```
-
-Live Supabase also contains later migrations for:
-
-* Security helper hardening
-* Product Approval
-* Product moderation security
-* Artisan status
-* Public product visibility
-* Product media visibility
-* Promotion foundation
-* Promotion RPC hardening
-* Promotion policy cleanup
-* Public table grant hardening
-* Public marketplace visibility chain
-* Anonymous artisan column hardening
-
-This means:
-
-```text
-Git migration history
-≠
-Live database migration history
-```
-
-This is called:
-
-> Schema Drift
-
-Before adding major transactional tables, repository migration history should be reconciled with the live database.
-
-Goal:
-
-```text
-Git Repository
-      =
-Reproducible Database Structure
-```
-'@ @'
+$section44 = @'
 # 44. Database Migration Reconciliation
 
 **Status: CLOSED ✅**
@@ -117,23 +64,35 @@ Reproducible database history
         =
 Live migration history
 ```
-'@ 'Section 44'
+'@
+Replace-Section 44 45 $section44
 
-Replace-Exact '* Supabase migration history must be reconciled with Git ⚠️' '' 'Technical debt migration item'
+# Remove the now-resolved migration-drift technical debt line without relying on emoji encoding.
+$content = [regex]::Replace($content, '(?m)^\* Supabase migration history must be reconciled with Git.*\n?', '')
 
-Replace-Exact '**Status: RECOMMENDED / NOT YET CLOSED**' '**Status: CLOSED ✅**' 'S15.0 status'
+$section51 = @'
+# 51. Recommended First Task
 
-Replace-Exact @'
-Expected result:
+## S15.0 — Database Migration Reconciliation
+
+**Status: CLOSED ✅**
+
+Goal:
+
+Reconcile:
 
 ```text
-Fresh database
-+
-Repository migrations
-=
-Expected IRTH database structure
+Live Supabase migration history
 ```
-'@ @'
+
+with:
+
+```text
+supabase/migrations/
+```
+
+inside Git.
+
 Expected result:
 
 ```text
@@ -170,22 +129,10 @@ Reproducible database history
         =
 Live migration history
 ```
-'@ 'S15.0 completion details'
+'@
+Replace-Section 51 52 $section51
 
-Replace-Exact @'
-# 59. CURRENT STATUS
-
-```text
-LAST CLOSED MAJOR MILESTONE:
-S14 — Public Marketplace DB Integration ✅
-
-CURRENT MAJOR POSITION:
-Marketplace Core Completed
-
-NEXT MAJOR PHASE:
-Shopping Foundation
-```
-'@ @'
+$section59 = @'
 # 59. CURRENT STATUS
 
 ```text
@@ -198,25 +145,10 @@ Shopping Foundation
 NEXT TASK:
 S15.1 — Market & Pricing Foundation
 ```
-'@ 'Current status'
+'@
+Replace-Section 59 60 $section59
 
-Replace-Exact @'
-# 60. CURRENT TASK
-
-Recommended current task:
-
-```text
-S15.0 — Database Migration Reconciliation
-```
-
-Status:
-
-```text
-NOT STARTED
-```
-
-This task should be completed before creating new Market / Cart / Order financial structures.
-'@ @'
+$section60 = @'
 # 60. CURRENT TASK
 
 ```text
@@ -232,12 +164,18 @@ READY FOR DISCUSSION / DECISIONS
 Before implementation, review the approved Market architecture and identify any remaining product decisions.
 
 Do NOT assume a first launch market without explicit approval.
-'@ 'Current task'
+'@
+Replace-Section 60 61 $section60
 
-Replace-Exact @'
-* Recommended Database Migration Reconciliation as first next task.
-'@ @'
-* Recommended Database Migration Reconciliation as first next task.
+# Add the completion notes once, anchored to the existing final recommendation line.
+if ($content -notmatch 'Completed S15\.0 — Database Migration Reconciliation\.') {
+  $anchorPattern = '(?m)^(\* Recommended Database Migration Reconciliation as first next task\.)$'
+  if (-not [regex]::IsMatch($content, $anchorPattern)) {
+    throw 'Change Log anchor could not be located.'
+  }
+
+  $addition = @'
+$1
 * Completed S15.0 — Database Migration Reconciliation.
 * Recovered missing Live migration history into Git.
 * Reconstructed missing Inventory, Media, RLS helper, and ACL foundations.
@@ -246,9 +184,9 @@ Replace-Exact @'
 * Hardened public Product Storage visibility.
 * Applied and verified the Storage security hardening on Live Supabase.
 * Confirmed S15.1 — Market & Pricing Foundation as the next task.
-'@ 'Change log'
-
-$content = $content -replace "Known items:\n\n\n", "Known items:`n`n"
+'@
+  $content = [regex]::Replace($content, $anchorPattern, $addition.TrimStart("`n"))
+}
 
 if ($originalNewLine -eq "`r`n") {
   $content = $content.Replace("`n", "`r`n")
