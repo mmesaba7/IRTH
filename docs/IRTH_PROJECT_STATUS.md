@@ -1229,55 +1229,44 @@ is Post-MVP.
 
 ---
 
-# 44. Database Migration Drift
+# 44. Database Migration Reconciliation
 
-**Status: ⚠️ MUST FIX BEFORE LARGE NEW MODULES**
+**Status: CLOSED ✅**
 
-Important audit finding:
+The migration drift identified during the project audit has been reconciled.
 
-The live Supabase database contains migrations that are newer than the migration files currently committed in GitHub.
+Completed:
 
-GitHub migration history currently ends around:
+* Recovered missing migration files from Live Supabase migration history.
+* Reconstructed missing Inventory, Product Media, Media Reorder, Artisan Product Read, RLS Auto-Enable, and ACL foundations.
+* Verified a fresh Local database replay from repository migration history.
+* Reconciled Local and Remote migration history.
+* Reconstructed Live table, function, and default privilege state where required.
+* Restored safe anonymous Artisan Profile column-level grants.
+* Reconciled Promotion RPC privileges.
+* Hardened public Product Storage visibility.
+* Applied and verified the Storage hardening on Live Supabase.
+
+Current public Product Storage access requires:
 
 ```text
-20260828145001_allow_customer_self_role.sql
+Published Product
++
+Active Artisan
++
+Active Country
++
+Active Craft
 ```
 
-Live Supabase also contains later migrations for:
-
-* Security helper hardening
-* Product Approval
-* Product moderation security
-* Artisan status
-* Public product visibility
-* Product media visibility
-* Promotion foundation
-* Promotion RPC hardening
-* Promotion policy cleanup
-* Public table grant hardening
-* Public marketplace visibility chain
-* Anonymous artisan column hardening
-
-This means:
+Result:
 
 ```text
 Git migration history
-≠
-Live database migration history
-```
-
-This is called:
-
-> Schema Drift
-
-Before adding major transactional tables, repository migration history should be reconciled with the live database.
-
-Goal:
-
-```text
-Git Repository
-      =
-Reproducible Database Structure
+        =
+Reproducible database history
+        =
+Live migration history
 ```
 
 ---
@@ -1343,7 +1332,6 @@ Any change to Auth security settings should be discussed before changing product
 
 Known items:
 
-* Supabase migration history must be reconciled with Git ⚠️
 * Admin Artisans still prototype
 * Admin Countries still prototype
 * Admin Crafts still prototype
@@ -1506,7 +1494,7 @@ This numbering is a project-management recommendation and is not itself an offic
 
 ## S15.0 — Database Migration Reconciliation
 
-**Status: RECOMMENDED / NOT YET CLOSED**
+**Status: CLOSED ✅**
 
 Goal:
 
@@ -1524,8 +1512,6 @@ supabase/migrations/
 
 inside Git.
 
-This should happen before creating new major commerce tables.
-
 Expected result:
 
 ```text
@@ -1534,6 +1520,33 @@ Fresh database
 Repository migrations
 =
 Expected IRTH database structure
+```
+
+Completed:
+
+* Recovered missing migration files from Live Supabase history.
+* Reconstructed missing Inventory, Product Media, Media Reorder, Artisan Product Read, RLS Auto-Enable, and ACL foundations.
+* Verified fresh Local database replay from migration history.
+* Reconciled Local and Remote migration history.
+* Reconstructed Live table, function, and default privilege state.
+* Fixed anonymous Artisan Profile column-level grants.
+* Reconciled Promotion RPC privileges.
+* Hardened public Product Storage visibility to require:
+  * Published product
+  * Active artisan
+  * Active country
+  * Active craft
+* Applied the Storage security hardening to Live Supabase.
+* Verified the resulting Live Storage policy.
+
+Result:
+
+```text
+Git migration history
+        =
+Reproducible database history
+        =
+Live migration history
 ```
 
 ---
@@ -1814,32 +1827,32 @@ Implementation
 
 ```text
 LAST CLOSED MAJOR MILESTONE:
-S14 — Public Marketplace DB Integration ✅
+S15.0 — Database Migration Reconciliation ✅
 
 CURRENT MAJOR POSITION:
-Marketplace Core Completed
-
-NEXT MAJOR PHASE:
 Shopping Foundation
+
+NEXT TASK:
+S15.1 — Market & Pricing Foundation
 ```
 
 ---
 
 # 60. CURRENT TASK
 
-Recommended current task:
-
 ```text
-S15.0 — Database Migration Reconciliation
+S15.1 — Market & Pricing Foundation
 ```
 
 Status:
 
 ```text
-NOT STARTED
+READY FOR DISCUSSION / DECISIONS
 ```
 
-This task should be completed before creating new Market / Cart / Order financial structures.
+Before implementation, review the approved Market architecture and identify any remaining product decisions.
+
+Do NOT assume a first launch market without explicit approval.
 
 ---
 
@@ -1960,3 +1973,11 @@ Add important milestones to the Change Log.
 * Confirmed current design is Functional Design Foundation, not Final Product Design.
 * Recommended Shopping Foundation as next major implementation phase.
 * Recommended Database Migration Reconciliation as first next task.
+* Completed S15.0 — Database Migration Reconciliation.
+* Recovered missing Live migration history into Git.
+* Reconstructed missing Inventory, Media, RLS helper, and ACL foundations.
+* Verified full fresh Local database replay.
+* Reconciled Local and Remote migration history.
+* Hardened public Product Storage visibility.
+* Applied and verified the Storage security hardening on Live Supabase.
+* Confirmed S15.1 — Market & Pricing Foundation as the next task.
