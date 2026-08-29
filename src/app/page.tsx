@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import Header from "./components/Header";
@@ -85,40 +85,46 @@ type HomeArtisan = {
   profileImage: string | null;
 };
 
+type HomeOffer = {
+  promotion_id: string;
+  source_type: "irth" | "artisan";
+  discount_type: "percentage" | "fixed";
+  discount_value: number | string;
+  start_at: string;
+  end_at: string;
+  product_id: string;
+  product_slug: string;
+  product_name_ar: string | null;
+  product_name_en: string;
+  product_price: number | string;
+  artisan_slug: string;
+  artisan_name_ar: string | null;
+  artisan_name_en: string;
+  craft_name_ar: string | null;
+  craft_name_en: string;
+  country_name_ar: string | null;
+  country_name_en: string;
+};
+
 export default function HomePage() {
+  const supabase = useMemo(() => createClient(), []);
   const [products, setProducts] = useState<Product[]>([]);
   const [recentlyViewed, setRecentlyViewed] = useState<Product[]>([]);
   const [countries, setCountries] = useState<HomeCountry[]>([]);
   const [crafts, setCrafts] = useState<HomeCraft[]>([]);
   const [artisans, setArtisans] = useState<HomeArtisan[]>([]);
+  const [offers, setOffers] = useState<HomeOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
 
-    const resolveRecentlyViewed = (publicProducts: Product[]) => {
-      const recentlyViewedSlugs = JSON.parse(
-        localStorage.getItem("irth-recently-viewed") || "[]"
-      ) as string[];
-
-      const recentProducts = recentlyViewedSlugs
-        .map((productSlug) =>
-          publicProducts.find((product) => product.slug === productSlug)
-        )
-        .filter((product): product is Product => Boolean(product))
-        .slice(0, 4);
-
-      setRecentlyViewed(recentProducts);
-    };
-
-    const loadHomepage = async () => {
+    async function loadHomepage() {
       setLoading(true);
       setError("");
 
-      const supabase = createClient();
-
-      const [countriesResult, craftsResult, artisansResult, productsResult] =
+      const [countriesResult, craftsResult, artisansResult, productsResult, offersResult] =
         await Promise.all([
           supabase
             .from("countries")
@@ -144,6 +150,7 @@ export default function HomePage() {
             )
             .eq("lifecycle_status", "published")
             .order("created_at", { ascending: false }),
+          supabase.rpc("get_active_promotions"),
         ]);
 
       if (cancelled) return;
@@ -165,6 +172,10 @@ export default function HomePage() {
         return;
       }
 
+      if (offersResult.error) {
+        console.error("Could not load active promotions:", offersResult.error);
+      }
+
       const countryRows = (countriesResult.data ?? []) as DbCountry[];
       const craftRows = (craftsResult.data ?? []) as DbCraft[];
       const artisanRows = (artisansResult.data ?? []) as DbArtisan[];
@@ -172,8 +183,6 @@ export default function HomePage() {
 
       const countryMap = new Map(countryRows.map((country) => [country.id, country]));
       const craftMap = new Map(craftRows.map((craft) => [craft.id, craft]));
-
-      // A public homepage must not surface artisans belonging to an inactive country.
       const visibleArtisanRows = artisanRows.filter((artisan) =>
         countryMap.has(artisan.country_id)
       );
@@ -261,29 +270,31 @@ export default function HomePage() {
         };
       });
 
+      const recentlyViewedSlugs = JSON.parse(
+        localStorage.getItem("irth-recently-viewed") || "[]"
+      ) as string[];
+      const recentProducts = recentlyViewedSlugs
+        .map((productSlug) =>
+          mappedProducts.find((product) => product.slug === productSlug)
+        )
+        .filter((product): product is Product => Boolean(product))
+        .slice(0, 4);
+
       setCountries(mappedCountries);
       setCrafts(mappedCrafts);
       setArtisans(mappedArtisans);
       setProducts(mappedProducts);
-      resolveRecentlyViewed(mappedProducts);
+      setRecentlyViewed(recentProducts);
+      setOffers(((offersResult.data ?? []) as HomeOffer[]).slice(0, 6));
       setLoading(false);
-    };
+    }
 
     void loadHomepage();
 
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === "irth-recently-viewed") {
-        resolveRecentlyViewed(products);
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-
     return () => {
       cancelled = true;
-      window.removeEventListener("storage", handleStorageChange);
     };
-  }, []);
+  }, [supabase]);
 
   const selectedProducts = products.slice(0, 6);
   const featuredArtisan = artisans[0];
@@ -318,8 +329,7 @@ export default function HomePage() {
               <br className="hidden sm:block" /> behind the heritage.
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--color-ivory)]/70 md:text-lg">
-              Explore authentic handmade work, meet the artisans who preserve
-              traditional knowledge, and discover the places and stories behind every piece.
+              Explore authentic handmade work, meet the artisans who preserve traditional knowledge, and discover the places and stories behind every piece.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/explore" className="btn-primary">
@@ -334,11 +344,6 @@ export default function HomePage() {
           <div className="relative mx-auto aspect-[4/5] w-full max-w-[420px]">
             <div className="absolute inset-0 rotate-3 rounded-[var(--radius-xl)] bg-[var(--color-copper)]/20" />
             <div className="absolute inset-5 -rotate-2 overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-ivory)]/15 bg-[var(--color-olive)]">
-              <div className="absolute inset-0 opacity-15">
-                <div className="absolute left-8 top-10 h-24 w-24 rounded-full border border-[var(--color-ivory)]" />
-                <div className="absolute bottom-10 right-8 h-20 w-20 rotate-45 border border-[var(--color-ivory)]" />
-                <div className="absolute left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[var(--color-ivory)]" />
-              </div>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="relative h-48 w-36 rounded-[42%_42%_36%_36%] bg-[var(--color-ivory)]/85 shadow-[var(--shadow-elevated)]">
                   <div className="absolute left-1/2 top-[-18px] h-14 w-16 -translate-x-1/2 rounded-full bg-[var(--color-ivory)]/85" />
@@ -365,7 +370,7 @@ export default function HomePage() {
             <p className="text-sm font-medium text-[var(--color-espresso)]">Search IRTH</p>
             <p className="mt-0.5 text-sm text-[var(--text-muted)]">Products, crafts, artisans, countries...</p>
           </div>
-          <span className="text-[var(--color-copper)] transition-transform group-hover:translate-x-1">→</span>
+          <span className="text-[var(--color-copper)]">→</span>
         </Link>
 
         {error && (
@@ -378,112 +383,120 @@ export default function HomePage() {
       {crafts.length > 0 && (
         <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
           <div className="flex items-end justify-between gap-5">
-            <div className="max-w-2xl">
+            <div>
               <p className="section-eyebrow">Explore by craft</p>
-              <h2 className="mt-3 font-[var(--font-display)] text-3xl font-normal text-[var(--color-espresso)] md:text-5xl">Begin with the craft.</h2>
-              <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--text-secondary)] md:text-base">
-                Discover handmade work through traditional techniques, materials, and generations of knowledge.
-              </p>
+              <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Begin with the craft.</h2>
             </div>
-            <Link href="/crafts" className="hidden shrink-0 text-sm font-medium text-[var(--color-copper)] hover:underline sm:block">All crafts →</Link>
+            <Link href="/crafts" className="text-sm font-medium text-[var(--color-copper)] hover:underline">All crafts →</Link>
           </div>
 
-          <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {crafts.map((craft, index) => {
-              const backgrounds = [
-                "bg-[var(--color-terracotta)]",
-                "bg-[var(--color-olive)]",
-                "bg-[var(--color-copper)]",
-              ];
-
-              return (
-                <Link
-                  key={craft.id}
-                  href={`/crafts?category=${encodeURIComponent(craft.filterName)}`}
-                  className="group overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
-                >
-                  <div className={`relative aspect-square ${backgrounds[index % backgrounds.length]}`}>
-                    <div className="absolute inset-0 opacity-10">
-                      <div className="absolute left-4 top-4 h-12 w-12 rounded-full border border-[var(--color-ivory)]" />
-                      <div className="absolute bottom-5 right-5 h-9 w-9 rotate-45 border border-[var(--color-ivory)]" />
-                    </div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="h-20 w-16 rounded-[40%] bg-[var(--color-ivory)]/75 transition-transform duration-300 group-hover:scale-105" />
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <p className="font-[var(--font-display)] text-lg text-[var(--color-espresso)]">{craft.name}</p>
-                    <p className="mt-1 text-xs text-[var(--color-copper)]">Explore →</p>
-                  </div>
-                </Link>
-              );
-            })}
+          <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+            {crafts.map((craft) => (
+              <Link
+                key={craft.id}
+                href={`/crafts?category=${encodeURIComponent(craft.filterName)}`}
+                className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
+              >
+                <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">{craft.name}</p>
+                <p className="mt-2 text-xs text-[var(--color-copper)]">Explore →</p>
+              </Link>
+            ))}
           </div>
-
-          <Link href="/crafts" className="mt-6 inline-block text-sm font-medium text-[var(--color-copper)] sm:hidden">View all crafts →</Link>
         </section>
       )}
 
       {countries.length > 0 && (
         <section className="border-y border-[var(--border-soft)] bg-[var(--surface-muted)]">
           <div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-            <div className="flex items-end justify-between gap-5">
-              <div className="max-w-2xl">
-                <p className="section-eyebrow">Explore by place</p>
-                <h2 className="mt-3 font-[var(--font-display)] text-3xl font-normal text-[var(--color-espresso)] md:text-5xl">Heritage shaped by place.</h2>
-                <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--text-secondary)] md:text-base">
-                  Discover countries through the crafts, artisans, materials, and stories rooted in them.
-                </p>
-              </div>
-              <Link href="/countries" className="hidden shrink-0 text-sm font-medium text-[var(--color-copper)] hover:underline sm:block">All countries →</Link>
+            <div>
+              <p className="section-eyebrow">Explore by place</p>
+              <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Heritage shaped by place.</h2>
             </div>
 
-            <div className="mt-8 grid gap-5 md:grid-cols-3">
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {countries.map((country) => (
                 <Link
                   key={country.id}
                   href={`/country/${country.slug}`}
-                  className="group relative min-h-[300px] overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-espresso)] text-[var(--color-ivory)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-elevated)]"
+                  className="relative min-h-[230px] overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-espresso)] p-6 text-[var(--color-ivory)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elevated)]"
                 >
-                  {country.heroImage ? (
-                    <div
-                      className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.03]"
-                      style={{ backgroundImage: `url("${country.heroImage}")` }}
-                    />
-                  ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-espresso)] to-[var(--color-copper)]" />
+                  {country.heroImage && (
+                    <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{ backgroundImage: `url("${country.heroImage}")` }} />
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-espresso)] via-[var(--color-espresso)]/40 to-transparent" />
-                  <div className="absolute inset-x-0 bottom-0 p-6">
+                  <div className="relative z-10 flex h-full flex-col justify-end">
                     <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-copper)]">Country</p>
                     <h3 className="mt-2 font-[var(--font-display)] text-3xl">{country.name}</h3>
                     <p className="mt-1 text-sm text-[var(--color-ivory)]/65">{country.nameEn}</p>
-                    <p className="mt-5 text-sm font-medium text-[var(--color-copper)]">Explore country →</p>
                   </div>
                 </Link>
               ))}
             </div>
+          </div>
+        </section>
+      )}
 
-            <Link href="/countries" className="mt-6 inline-block text-sm font-medium text-[var(--color-copper)] sm:hidden">View all countries →</Link>
+      {offers.length > 0 && (
+        <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+          <div className="flex items-end justify-between gap-5">
+            <div>
+              <p className="section-eyebrow">Current offers</p>
+              <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">عروض معتمدة وفعالة.</h2>
+              <p className="mt-3 text-sm text-[var(--text-secondary)]">تظهر هنا فقط العروض المعتمدة والمفعلة والواقعة داخل مدتها.</p>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {offers.map((offer) => (
+              <Link
+                key={`${offer.promotion_id}-${offer.product_id}`}
+                href={`/product/${offer.product_slug}`}
+                className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium text-[var(--color-espresso)]">
+                    {offer.source_type === "irth" ? "IRTH Offer" : "Artisan Offer"}
+                  </span>
+                  <span className="text-lg font-semibold text-[var(--color-copper)]">
+                    {offer.discount_type === "percentage"
+                      ? `${Number(offer.discount_value)}% OFF`
+                      : `$${Number(offer.discount_value).toFixed(2)} OFF`}
+                  </span>
+                </div>
+
+                <h3 className="mt-5 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
+                  {offer.product_name_ar || offer.product_name_en}
+                </h3>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  {offer.artisan_name_ar || offer.artisan_name_en} · {offer.country_name_ar || offer.country_name_en}
+                </p>
+                <p className="mt-3 text-sm text-[var(--text-muted)]">
+                  السعر الأصلي: ${Number(offer.product_price).toFixed(2)}
+                </p>
+                <p className="mt-4 text-xs text-[var(--text-muted)]">
+                  حتى {new Date(offer.end_at).toLocaleString("ar-EG")}
+                </p>
+              </Link>
+            ))}
           </div>
         </section>
       )}
 
       {selectedProducts.length > 0 && (
-        <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-          <div className="flex items-end justify-between gap-5">
-            <div className="max-w-2xl">
-              <p className="section-eyebrow">From the marketplace</p>
-              <h2 className="mt-3 font-[var(--font-display)] text-3xl font-normal text-[var(--color-espresso)] md:text-5xl">Stories you can take home.</h2>
-              <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)] md:text-base">Handmade pieces shaped by craft, place, and the individual maker.</p>
+        <section className="border-t border-[var(--border-soft)]">
+          <div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+            <div className="flex items-end justify-between gap-5">
+              <div>
+                <p className="section-eyebrow">From the marketplace</p>
+                <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Stories you can take home.</h2>
+              </div>
+              <Link href="/crafts" className="text-sm font-medium text-[var(--color-copper)] hover:underline">View all →</Link>
             </div>
-            <Link href="/crafts" className="hidden shrink-0 text-sm font-medium text-[var(--color-copper)] hover:underline sm:block">View all →</Link>
-          </div>
 
-          <div className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
-            {selectedProducts.map((product) => (
-              <ProductCard key={product.slug} product={product} />
-            ))}
+            <div className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
+              {selectedProducts.map((product) => (
+                <ProductCard key={product.slug} product={product} />
+              ))}
+            </div>
           </div>
         </section>
       )}
@@ -491,29 +504,26 @@ export default function HomePage() {
       {featuredArtisan && (
         <section className="overflow-hidden bg-[var(--color-olive)] text-[var(--color-ivory)]">
           <div className="mx-auto grid max-w-[var(--container-max)] md:grid-cols-2">
-            <div className="relative min-h-[360px] overflow-hidden md:min-h-[520px]">
+            <div className="relative min-h-[340px] overflow-hidden">
               {featuredArtisan.profileImage ? (
                 <img src={featuredArtisan.profileImage} alt={featuredArtisan.name} className="absolute inset-0 h-full w-full object-cover" />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="flex h-44 w-44 items-center justify-center rounded-full bg-[var(--color-ivory)]/90 p-6 text-center shadow-[var(--shadow-elevated)]">
+                  <div className="flex h-44 w-44 items-center justify-center rounded-full bg-[var(--color-ivory)]/90 p-6 text-center">
                     <span className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{featuredArtisan.name}</span>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="flex items-center px-6 py-14 md:px-12 lg:px-16">
-              <div className="max-w-xl">
+            <div className="flex items-center px-6 py-14 md:px-12">
+              <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-antique-gold)]">Meet the maker</p>
-                <h2 className="mt-4 font-[var(--font-display)] text-4xl font-normal leading-tight md:text-5xl">{featuredArtisan.name}</h2>
+                <h2 className="mt-4 font-[var(--font-display)] text-4xl md:text-5xl">{featuredArtisan.name}</h2>
                 <p className="mt-2 text-sm text-[var(--color-ivory)]/65">{featuredArtisan.mainCraft} · {featuredArtisan.country}</p>
-                {featuredArtisan.bio && <p className="mt-6 text-base leading-8 text-[var(--color-ivory)]/80">{featuredArtisan.bio}</p>}
+                <p className="mt-6 text-base leading-8 text-[var(--color-ivory)]/80">{featuredArtisan.bio}</p>
                 {featuredArtisan.story && <p className="mt-5 line-clamp-4 text-sm leading-7 text-[var(--color-ivory)]/65">{featuredArtisan.story}</p>}
-                <div className="mt-8 flex flex-wrap gap-4">
-                  <Link href={`/artisan/${featuredArtisan.slug}`} className="btn-light">Meet the artisan →</Link>
-                  <Link href="/artisans" className="inline-flex min-h-[46px] items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-ivory)]/30 px-5 text-sm font-semibold text-[var(--color-ivory)] transition-colors hover:border-[var(--color-antique-gold)] hover:text-[var(--color-antique-gold)]">All artisans</Link>
-                </div>
+                <Link href={`/artisan/${featuredArtisan.slug}`} className="btn-light mt-8">Meet the artisan →</Link>
               </div>
             </div>
           </div>
@@ -522,28 +532,15 @@ export default function HomePage() {
 
       {artisans.length > 1 && (
         <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-          <div className="flex items-end justify-between gap-5">
-            <div>
-              <p className="section-eyebrow">Makers of IRTH</p>
-              <h2 className="mt-3 font-[var(--font-display)] text-3xl font-normal text-[var(--color-espresso)] md:text-5xl">Meet more artisans.</h2>
-            </div>
-            <Link href="/artisans" className="hidden text-sm font-medium text-[var(--color-copper)] hover:underline sm:block">View all →</Link>
-          </div>
-
+          <p className="section-eyebrow">Makers of IRTH</p>
+          <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Meet more artisans.</h2>
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {artisans.map((artisan) => (
-              <Link
-                key={artisan.id}
-                href={`/artisan/${artisan.slug}`}
-                className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
-              >
+              <Link key={artisan.id} href={`/artisan/${artisan.slug}`} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
                 <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">{artisan.country} · {artisan.region}</p>
                 <h3 className="mt-2 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{artisan.name}</h3>
                 <p className="mt-1 text-sm font-medium text-[var(--color-copper)]">{artisan.mainCraft}</p>
                 {artisan.bio && <p className="mt-4 line-clamp-3 text-sm leading-6 text-[var(--text-secondary)]">{artisan.bio}</p>}
-                <div className="mt-5 flex justify-end border-t border-[var(--border-soft)] pt-4">
-                  <span className="text-sm font-medium text-[var(--color-copper)] transition-transform group-hover:translate-x-1">View artisan →</span>
-                </div>
               </Link>
             ))}
           </div>
@@ -551,30 +548,18 @@ export default function HomePage() {
       )}
 
       <section className="border-y border-[var(--border-soft)] bg-[var(--surface-muted)]">
-        <div className="mx-auto grid max-w-[var(--container-max)] gap-10 px-5 py-14 md:grid-cols-[0.9fr_1.1fr] md:items-center md:px-6 md:py-20">
-          <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-terracotta)]">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <p className="max-w-xs px-8 text-center font-[var(--font-display)] text-3xl leading-tight text-[var(--color-espresso)]">Every object carries the trace of a person, a place, and a tradition.</p>
-            </div>
-          </div>
-          <div className="max-w-xl">
-            <p className="section-eyebrow">Heritage stories</p>
-            <h2 className="mt-3 font-[var(--font-display)] text-4xl font-normal leading-tight text-[var(--color-espresso)] md:text-5xl">More than an object.</h2>
-            <p className="mt-5 text-base leading-8 text-[var(--text-secondary)]">Explore the people, materials, places, and traditions behind handmade work. IRTH connects the object you see with the heritage that shaped it.</p>
-            <Link href="/stories" className="btn-secondary mt-7">Discover the stories →</Link>
-          </div>
+        <div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+          <p className="section-eyebrow">Heritage stories</p>
+          <h2 className="mt-3 font-[var(--font-display)] text-4xl text-[var(--color-espresso)] md:text-5xl">More than an object.</h2>
+          <p className="mt-5 max-w-2xl text-base leading-8 text-[var(--text-secondary)]">Explore the people, materials, places, and traditions behind handmade work.</p>
+          <Link href="/stories" className="btn-secondary mt-7">Discover the stories →</Link>
         </div>
       </section>
 
       {recentlyViewed.length > 0 && (
         <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-          <div className="flex items-end justify-between gap-5">
-            <div>
-              <p className="section-eyebrow">Continue exploring</p>
-              <h2 className="mt-3 font-[var(--font-display)] text-3xl font-normal text-[var(--color-espresso)] md:text-5xl">Recently viewed.</h2>
-            </div>
-            <Link href="/recently-viewed" className="hidden text-sm font-medium text-[var(--color-copper)] hover:underline sm:block">View history →</Link>
-          </div>
+          <p className="section-eyebrow">Continue exploring</p>
+          <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Recently viewed.</h2>
           <div className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-4">
             {recentlyViewed.map((product) => (
               <ProductCard key={product.slug} product={product} />
@@ -584,51 +569,28 @@ export default function HomePage() {
       )}
 
       <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-        <div className="relative overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-espresso)] px-6 py-12 text-center text-[var(--color-ivory)] md:px-12 md:py-16">
-          <div className="relative z-10 mx-auto max-w-2xl">
-            <p className="section-eyebrow">Explore IRTH</p>
-            <h2 className="mt-4 font-[var(--font-display)] text-4xl font-normal leading-tight md:text-5xl">Begin anywhere.</h2>
-            <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[var(--color-ivory)]/70">Start with a craft, a country, an artisan, or a story.</p>
-            <Link href="/explore" className="btn-primary mt-7">Discover IRTH →</Link>
-          </div>
+        <div className="rounded-[var(--radius-xl)] bg-[var(--color-espresso)] px-6 py-12 text-center text-[var(--color-ivory)] md:py-16">
+          <p className="section-eyebrow">Explore IRTH</p>
+          <h2 className="mt-4 font-[var(--font-display)] text-4xl md:text-5xl">Begin anywhere.</h2>
+          <p className="mx-auto mt-4 max-w-xl text-base text-[var(--color-ivory)]/70">Start with a craft, a country, an artisan, or a story.</p>
+          <Link href="/explore" className="btn-primary mt-7">Discover IRTH →</Link>
         </div>
       </section>
 
       <footer className="border-t border-[var(--color-ivory)]/10 bg-[var(--color-espresso)] text-[var(--color-ivory)]">
-        <div className="mx-auto max-w-[var(--container-max)] px-5 py-12 md:px-6 md:py-16">
-          <div className="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr] md:gap-12">
-            <div className="max-w-md">
-              <p className="font-[var(--font-display)] text-3xl tracking-[0.08em]">IRTH</p>
-              <p className="mt-4 text-sm leading-7 text-[var(--color-ivory)]/60">A marketplace for authentic handmade crafts, the artisans who make them, and the heritage they carry.</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-copper)]">Connect</p>
-              <div className="mt-4 flex flex-col gap-3 text-sm text-[var(--color-ivory)]/65">
-                <span>Instagram</span><span>Facebook</span><span>TikTok</span><span>YouTube</span><span>LinkedIn</span><span>Email</span>
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-copper)]">Help</p>
-              <div className="mt-4 flex flex-col gap-3 text-sm text-[var(--color-ivory)]/65">
-                <span>Contact</span><span>Shipping</span><span>Returns &amp; Refunds</span><span>Privacy</span><span>Terms</span>
-              </div>
-            </div>
-          </div>
-          <div className="mt-12 border-t border-[var(--color-ivory)]/10 pt-6">
-            <div className="flex flex-col gap-3 text-xs text-[var(--color-ivory)]/40 sm:flex-row sm:items-center sm:justify-between">
-              <p>IRTH · Heritage · Craft · Human</p>
-              <p>© 2026 IRTH. All rights reserved.</p>
-            </div>
-          </div>
+        <div className="mx-auto max-w-[var(--container-max)] px-5 py-12 md:px-6">
+          <p className="font-[var(--font-display)] text-3xl tracking-[0.08em]">IRTH</p>
+          <p className="mt-4 max-w-xl text-sm leading-7 text-[var(--color-ivory)]/60">A marketplace for authentic handmade crafts, the artisans who make them, and the heritage they carry.</p>
+          <div className="mt-10 border-t border-[var(--color-ivory)]/10 pt-6 text-xs text-[var(--color-ivory)]/40">© 2026 IRTH. All rights reserved.</div>
         </div>
       </footer>
 
       <nav className="bottom-nav md:hidden">
-        <Link href="/" className="active"><span>🏠</span>Home</Link>
-        <Link href="/search"><span>🔎</span>Search</Link>
-        <Link href="/explore"><span>🧭</span>Explore</Link>
-        <Link href="/saved"><span>❤️</span>Saved</Link>
-        <Link href="/account"><span>👤</span>Account</Link>
+        <Link href="/" className="active"><span>🏠</span> Home</Link>
+        <Link href="/search"><span>🔎</span> Search</Link>
+        <Link href="/explore"><span>🧭</span> Explore</Link>
+        <Link href="/saved"><span>❤️</span> Saved</Link>
+        <Link href="/account"><span>👤</span> Account</Link>
       </nav>
     </main>
   );
