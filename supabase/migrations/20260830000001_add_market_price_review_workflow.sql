@@ -81,7 +81,7 @@ with check (
   )
 );
 
-create or replace function private.review_product_market_price_request(
+create or replace function public.review_product_market_price_request(
   target_request_id uuid,
   target_status text,
   target_admin_note text default null
@@ -96,7 +96,7 @@ declare
   target_market_id uuid;
   target_price numeric;
 begin
-  if not private.is_super_admin() then
+  if (select auth.uid()) is null or not private.is_super_admin() then
     raise exception 'not authorized';
   end if;
 
@@ -192,8 +192,8 @@ begin
 end;
 $$;
 
-revoke all on function private.review_product_market_price_request(uuid, text, text)
+revoke all on function public.review_product_market_price_request(uuid, text, text)
   from public;
 
-grant execute on function private.review_product_market_price_request(uuid, text, text)
+grant execute on function public.review_product_market_price_request(uuid, text, text)
   to authenticated;
