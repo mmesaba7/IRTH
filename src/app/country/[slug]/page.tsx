@@ -319,6 +319,8 @@ export default function CountryPage() {
     );
   }
 
+  const countryFilter = encodeURIComponent(country.nameEn);
+
   return (
     <main className="min-h-screen bg-[var(--background)] pb-24 text-[var(--text-primary)]">
       <Header />
@@ -398,7 +400,10 @@ export default function CountryPage() {
                 حرف {country.name}
               </h2>
             </div>
-            <Link href="/crafts" className="shrink-0 text-sm font-medium text-[var(--color-copper)] hover:underline">
+            <Link
+              href={`/crafts?country=${countryFilter}`}
+              className="shrink-0 text-sm font-medium text-[var(--color-copper)] hover:underline"
+            >
               View all →
             </Link>
           </div>
@@ -407,7 +412,7 @@ export default function CountryPage() {
             {crafts.map((craft) => (
               <Link
                 key={craft}
-                href={`/crafts?category=${encodeURIComponent(craft)}`}
+                href={`/crafts?category=${encodeURIComponent(craft)}&country=${countryFilter}`}
                 className="rounded-full border border-[var(--border-soft)] bg-[var(--surface)] px-5 py-3 text-sm font-medium text-[var(--color-espresso)] transition-colors hover:border-[var(--color-copper)] hover:text-[var(--color-copper)]"
               >
                 {craft}
@@ -503,7 +508,10 @@ export default function CountryPage() {
                 منتجات من {country.name}
               </h2>
             </div>
-            <Link href="/crafts" className="shrink-0 text-sm font-medium text-[var(--color-copper)] hover:underline">
+            <Link
+              href={`/crafts?country=${countryFilter}`}
+              className="shrink-0 text-sm font-medium text-[var(--color-copper)] hover:underline"
+            >
               View all →
             </Link>
           </div>
