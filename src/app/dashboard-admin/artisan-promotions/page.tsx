@@ -1,109 +1,247 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
-// تعريف شكل عرض الحرفي
-type ArtisanPromotion = {
+type PromotionRow = {
   id: string;
-  artisanName: string;
-  type: "percentage" | "fixed";
-  value: number;
-  productSlugs: string[];
-  startDate: string;
-  endDate: string;
-  status: "pending" | "approved" | "rejected" | "active" | "inactive";
-  adminNote?: string;
-  createdAt: string;
-  updatedAt?: string;
+  artisan_id: string;
+  discount_type: "percentage" | "fixed";
+  discount_value: number | string;
+  approval_status: "pending" | "approved" | "rejected";
+  is_enabled: boolean;
+  start_at: string;
+  end_at: string;
+  admin_note: string | null;
+  created_at: string;
 };
 
-// تعريف شكل المنتج (للعرض)
-type Product = {
-  slug: string;
-  name: string;
-  artisan: string;
-  price: number;
+type PromotionProductRow = {
+  promotion_id: string;
+  product_id: string;
 };
+
+type ProductRow = {
+  id: string;
+  name_ar: string | null;
+  name_en: string;
+};
+
+type ArtisanRow = {
+  id: string;
+  name_ar: string | null;
+  name_en: string;
+};
+
+type ReviewItem = PromotionRow & {
+  artisanName: string;
+  productNames: string[];
+};
+
+function displayStatus(item: PromotionRow) {
+  if (item.approval_status === "pending") return "Pending";
+  if (item.approval_status === "rejected") return "Rejected";
+  if (!item.is_enabled) return "Disabled";
+
+  const now = Date.now();
+  if (now < new Date(item.start_at).getTime()) return "Scheduled";
+  if (now >= new Date(item.end_at).getTime()) return "Expired";
+  return "Active";
+}
 
 export default function AdminArtisanPromotionsPage() {
   const router = useRouter();
-  const [promotions, setPromotions] = useState<ArtisanPromotion[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const supabase = useMemo(() => createClient(), []);
+
+  const [items, setItems] = useState<ReviewItem[]>([]);
+  const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [notes, setNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [selectedPromo, setSelectedPromo] = useState<ArtisanPromotion | null>(null);
-  const [adminNote, setAdminNote] = useState("");
 
-  useEffect(() => {
-    loadData();
-  }, [router]);
+  const loadData = async () => {
+    setLoading(true);
+    setError("");
 
-  const loadData = () => {
-    // ١- جلب العروض
-    const storedPromotions: ArtisanPromotion[] = JSON.parse(
-      localStorage.getItem("irth-artisan-promotions") || "[]"
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      router.replace("/dashboard-admin/login");
+      return;
+    }
+
+    const { data: promotionData, error: promotionError } = await supabase
+      .from("promotions")
+      .select(
+        "id, artisan_id, discount_type, discount_value, approval_status, is_enabled, start_at, end_at, admin_note, created_at"
+      )
+      .eq("source_type", "artisan")
+      .order("created_at", { ascending: false });
+
+    if (promotionError) {
+      console.error("Could not load artisan promotions:", promotionError);
+      setError("تعذر تحميل عروض الحرفيين.");
+      setLoading(false);
+      return;
+    }
+
+    const promotions = (promotionData ?? []) as PromotionRow[];
+    if (promotions.length === 0) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
+    const promotionIds = promotions.map((promotion) => promotion.id);
+    const artisanIds = [...new Set(promotions.map((promotion) => promotion.artisan_id))];
+
+    const [linksResult, artisansResult] = await Promise.all([
+      supabase
+        .from("promotion_products")
+        .select("promotion_id, product_id")
+        .in("promotion_id", promotionIds),
+      supabase
+        .from("artisan_profiles")
+        .select("id, name_ar, name_en")
+        .in("id", artisanIds),
+    ]);
+
+    if (linksResult.error || artisansResult.error) {
+      console.error("Could not load promotion relations:", {
+        links: linksResult.error,
+        artisans: artisansResult.error,
+      });
+      setError("تعذر تحميل تفاصيل العروض.");
+      setLoading(false);
+      return;
+    }
+
+    const links = (linksResult.data ?? []) as PromotionProductRow[];
+    const productIds = [...new Set(links.map((link) => link.product_id))];
+
+    let products: ProductRow[] = [];
+    if (productIds.length > 0) {
+      const { data: productData, error: productError } = await supabase
+        .from("products")
+        .select("id, name_ar, name_en")
+        .in("id", productIds);
+
+      if (productError) {
+        console.error("Could not load promotion products:", productError);
+        setError("تعذر تحميل منتجات العروض.");
+        setLoading(false);
+        return;
+      }
+
+      products = (productData ?? []) as ProductRow[];
+    }
+
+    const artisanMap = new Map(
+      ((artisansResult.data ?? []) as ArtisanRow[]).map((artisan) => [artisan.id, artisan])
     );
-    setPromotions(storedPromotions);
+    const productMap = new Map(products.map((product) => [product.id, product]));
 
-    // ٢- جلب المنتجات (للعرض)
-    const storedProducts: Product[] = JSON.parse(
-      localStorage.getItem("irth-artisan-products") || "[]"
+    setItems(
+      promotions.map((promotion) => {
+        const artisan = artisanMap.get(promotion.artisan_id);
+        return {
+          ...promotion,
+          artisanName: artisan?.name_ar || artisan?.name_en || "Unknown artisan",
+          productNames: links
+            .filter((link) => link.promotion_id === promotion.id)
+            .map((link) => productMap.get(link.product_id))
+            .filter((product): product is ProductRow => Boolean(product))
+            .map((product) => product.name_ar || product.name_en),
+        };
+      })
     );
-    // نضيف المنتجات الأساسية كمان
-    import("../../data/products").then((module) => {
-      const baseProducts = Object.values(module.products);
-      const allProducts = [...baseProducts, ...storedProducts];
-      setProducts(allProducts);
-    });
 
     setLoading(false);
   };
 
-  const handleReview = (id: string, action: "approved" | "rejected") => {
-    const updated: ArtisanPromotion[] = promotions.map((p) => {
-  if (p.id !== id) {
-    return p;
-  }
+  useEffect(() => {
+    void loadData();
+  }, []);
 
-  return {
-    ...p,
-    status: action,
-    adminNote,
-    updatedAt: new Date().toISOString(),
+  const reviewPromotion = async (
+    promotionId: string,
+    decision: "approved" | "rejected"
+  ) => {
+    const note = notes[promotionId]?.trim() || "";
+
+    if (decision === "rejected" && !note) {
+      setError("سبب الرفض مطلوب.");
+      return;
+    }
+
+    setBusyId(promotionId);
+    setError("");
+    setMessage("");
+
+    const { error: reviewError } = await supabase.rpc("review_artisan_promotion", {
+      p_promotion_id: promotionId,
+      p_decision: decision,
+      p_admin_note: note || null,
+    });
+
+    if (reviewError) {
+      console.error("Could not review artisan promotion:", reviewError);
+      setError("تعذر تحديث قرار المراجعة.");
+      setBusyId(null);
+      return;
+    }
+
+    setMessage(decision === "approved" ? "تم اعتماد العرض." : "تم رفض العرض وتسجيل السبب.");
+    setNotes((current) => ({ ...current, [promotionId]: "" }));
+    setBusyId(null);
+    await loadData();
   };
-});
 
-    localStorage.setItem("irth-artisan-promotions", JSON.stringify(updated));
-    setPromotions(updated);
-    setSelectedPromo(null);
-    setAdminNote("");
-    setMessage(`✅ تم ${action === "approved" ? "اعتماد" : "رفض"} العرض بنجاح`);
-    setTimeout(() => setMessage(""), 3000);
+  const toggleEnabled = async (item: ReviewItem) => {
+    setBusyId(item.id);
+    setError("");
+    setMessage("");
+
+    const { error: toggleError } = await supabase.rpc("set_promotion_enabled", {
+      p_promotion_id: item.id,
+      p_is_enabled: !item.is_enabled,
+    });
+
+    if (toggleError) {
+      console.error("Could not change promotion state:", toggleError);
+      setError("تعذر تغيير حالة العرض.");
+      setBusyId(null);
+      return;
+    }
+
+    setMessage(item.is_enabled ? "تم إيقاف العرض." : "تم تشغيل العرض.");
+    setBusyId(null);
+    await loadData();
   };
 
-  // فلترة العروض المعلقة
-  const pendingPromotions = promotions.filter((p) => p.status === "pending");
-
-  // فلترة العروض المعتمدة
-  const approvedPromotions = promotions.filter(
-    (p) => p.status === "active" || p.status === "approved"
+  const filteredItems = items.filter((item) =>
+    filter === "all" ? true : item.approval_status === filter
   );
 
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[var(--background)]">
-        <p className="text-[var(--text-secondary)]">جاري التحميل...</p>
+        <p className="text-[var(--text-secondary)]">جاري تحميل عروض الحرفيين...</p>
       </div>
     );
   }
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
-      <div className="mx-auto max-w-[var(--container-max)] px-6 py-10">
-        {/* رأس الصفحة */}
-        <div className="flex flex-col items-start justify-between gap-4 border-b border-[var(--border-soft)] pb-6 sm:flex-row sm:items-center">
+      <section className="mx-auto max-w-[var(--container-max)] px-5 py-10 md:px-6">
+        <div className="flex flex-col gap-4 border-b border-[var(--border-soft)] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
               Admin Panel
@@ -111,183 +249,148 @@ export default function AdminArtisanPromotionsPage() {
             <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">
               مراجعة عروض الحرفيين
             </h1>
-            <p className="text-sm text-[var(--text-secondary)]">
-              {pendingPromotions.length} عروض في انتظار المراجعة
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              الموافقة مطلوبة قبل ظهور أي عرض Artisan للعملاء.
             </p>
           </div>
+
           <Link
             href="/dashboard-admin/dashboard"
-            className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)]"
+            className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)]"
           >
             ← Back
           </Link>
         </div>
 
-        {/* رسالة التحديث */}
         {message && (
-          <div className="mt-4 rounded-[var(--radius-md)] bg-green-50 p-3 text-sm text-green-700">
+          <div className="mt-6 rounded-[var(--radius-md)] border border-green-200 bg-green-50 p-4 text-sm text-green-700">
             {message}
           </div>
         )}
 
-        {/* العروض المعلقة */}
-        <div className="mt-8">
-          <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
-            في انتظار المراجعة
-          </h2>
-          {pendingPromotions.length === 0 ? (
-            <div className="mt-4 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-6 text-center text-[var(--text-secondary)]">
-              🎉 مفيش عروض في انتظار المراجعة
+        {error && (
+          <div className="mt-6 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-wrap gap-2">
+          {([
+            ["pending", "Pending"],
+            ["approved", "Approved"],
+            ["rejected", "Rejected"],
+            ["all", "All"],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setFilter(value)}
+              className={`rounded-full px-4 py-2 text-xs font-medium ${
+                filter === value
+                  ? "bg-[var(--color-espresso)] text-[var(--color-ivory)]"
+                  : "bg-[var(--surface-muted)] text-[var(--text-secondary)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-8 space-y-5">
+          {filteredItems.length === 0 ? (
+            <div className="rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-8 text-center text-[var(--text-secondary)]">
+              لا توجد عروض في هذه الحالة.
             </div>
           ) : (
-            <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {pendingPromotions.map((promo) => {
-                const promoProducts = products.filter((p) =>
-                  promo.productSlugs.includes(p.slug)
-                );
-                return (
-                  <div
-                    key={promo.id}
-                    className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:shadow-[var(--shadow-card)]"
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium text-[var(--color-espresso)]">
-                        {promo.artisanName}
-                      </p>
-                      <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-700">
-                        قيد المراجعة
-                      </span>
-                    </div>
+            filteredItems.map((item) => {
+              const status = displayStatus(item);
+              const busy = busyId === item.id;
 
-                    <div className="mt-3 space-y-2 text-sm">
-                      <p>
-                        <span className="text-[var(--text-muted)]">النوع:</span>{" "}
-                        {promo.type === "percentage" ? "نسبة مئوية" : "مبلغ ثابت"}
-                      </p>
-                      <p>
-                        <span className="text-[var(--text-muted)]">قيمة الخصم:</span>{" "}
-                        <span className="font-medium text-[var(--color-copper)]">
-                          {promo.type === "percentage"
-                            ? `${promo.value}%`
-                            : `${promo.value}$`}
+              return (
+                <article
+                  key={item.id}
+                  className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 sm:p-6"
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
+                          {item.artisanName}
+                        </h2>
+                        <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium">
+                          {status}
                         </span>
+                      </div>
+
+                      <p className="mt-3 font-medium text-[var(--color-copper)]">
+                        {item.discount_type === "percentage"
+                          ? `${Number(item.discount_value)}% خصم`
+                          : `$${Number(item.discount_value).toFixed(2)} خصم`}
                       </p>
-                      <p>
-                        <span className="text-[var(--text-muted)]">المنتجات:</span>{" "}
-                        {promoProducts.map((p) => p.name).join(", ") ||
-                          promo.productSlugs.join(", ")}
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                        المنتجات: {item.productNames.join("، ") || "—"}
                       </p>
-                      <p>
-                        <span className="text-[var(--text-muted)]">المدة:</span>{" "}
-                        {new Date(promo.startDate).toLocaleDateString("ar-EG")} →{" "}
-                        {new Date(promo.endDate).toLocaleDateString("ar-EG")}
+                      <p className="mt-2 text-xs text-[var(--text-muted)]">
+                        {new Date(item.start_at).toLocaleString("ar-EG")} → {new Date(item.end_at).toLocaleString("ar-EG")}
                       </p>
                     </div>
 
-                    <div className="mt-4 space-y-3">
+                    {item.approval_status === "approved" && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => toggleEnabled(item)}
+                        className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-4 py-2 text-sm disabled:opacity-60"
+                      >
+                        {item.is_enabled ? "إيقاف العرض" : "تشغيل العرض"}
+                      </button>
+                    )}
+                  </div>
+
+                  {item.approval_status === "pending" && (
+                    <div className="mt-5 border-t border-[var(--border-soft)] pt-5">
                       <textarea
-                        placeholder="ملاحظة (اختياري)"
-                        value={selectedPromo?.id === promo.id ? adminNote : ""}
-                        onChange={(e) => {
-                          setSelectedPromo(promo);
-                          setAdminNote(e.target.value);
-                        }}
-                        className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-3 py-2 text-sm outline-none focus:border-[var(--color-copper)]"
+                        value={notes[item.id] || ""}
+                        onChange={(event) =>
+                          setNotes((current) => ({ ...current, [item.id]: event.target.value }))
+                        }
+                        placeholder="سبب الرفض مطلوب عند الرفض"
                         rows={2}
+                        className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm"
                       />
-                      <div className="flex gap-2">
+
+                      <div className="mt-3 flex flex-wrap gap-2">
                         <button
-                          onClick={() => handleReview(promo.id, "approved")}
-                          className="flex-1 rounded-[var(--radius-md)] bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => reviewPromotion(item.id, "approved")}
+                          className="rounded-[var(--radius-md)] bg-green-600 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-60"
                         >
-                          ✅ موافقة
+                          اعتماد
                         </button>
                         <button
-                          onClick={() => handleReview(promo.id, "rejected")}
-                          className="flex-1 rounded-[var(--radius-md)] bg-red-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => reviewPromotion(item.id, "rejected")}
+                          className="rounded-[var(--radius-md)] bg-red-600 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-60"
                         >
-                          ❌ رفض
+                          رفض
                         </button>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  )}
 
-        {/* العروض المعتمدة */}
-        <div className="mt-16">
-          <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
-            العروض المعتمدة
-          </h2>
-          {approvedPromotions.length === 0 ? (
-            <div className="mt-4 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-6 text-center text-[var(--text-secondary)]">
-              مفيش عروض معتمدة حتى الآن
-            </div>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <div className="min-w-full rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)]">
-                <div className="grid grid-cols-6 gap-4 border-b border-[var(--border-soft)] bg-[var(--surface-muted)] px-6 py-3 text-xs font-medium uppercase tracking-[0.1em] text-[var(--text-muted)]">
-                  <span>الحرفي</span>
-                  <span>الخصم</span>
-                  <span>المنتجات</span>
-                  <span>المدة</span>
-                  <span>الحالة</span>
-                  <span className="text-center">ملاحظة</span>
-                </div>
-
-                {approvedPromotions.map((promo) => {
-                  const promoProducts = products.filter((p) =>
-                    promo.productSlugs.includes(p.slug)
-                  );
-                  const isActive = new Date(promo.endDate) >= new Date();
-
-                  return (
-                    <div
-                      key={promo.id}
-                      className="grid grid-cols-6 gap-4 border-b border-[var(--border-soft)] px-6 py-4 text-sm last:border-0 hover:bg-[var(--surface-muted)]"
-                    >
-                      <span className="font-medium text-[var(--color-espresso)]">
-                        {promo.artisanName}
-                      </span>
-                      <span className="text-[var(--color-copper)]">
-                        {promo.type === "percentage"
-                          ? `${promo.value}%`
-                          : `${promo.value}$`}
-                      </span>
-                      <span className="text-xs text-[var(--text-secondary)]">
-                        {promoProducts.map((p) => p.name).join(", ") ||
-                          promo.productSlugs.length + " منتج"}
-                      </span>
-                      <span className="text-xs">
-                        {new Date(promo.startDate).toLocaleDateString("ar-EG")}
-                        <br />
-                        → {new Date(promo.endDate).toLocaleDateString("ar-EG")}
-                      </span>
-                      <span>
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs font-medium ${
-                            isActive
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {isActive ? "نشط" : "منتهي"}
-                        </span>
-                      </span>
-                      <span className="text-center text-xs text-[var(--text-muted)]">
-                        {promo.adminNote || "—"}
-                      </span>
+                  {item.admin_note && (
+                    <div className="mt-4 rounded-[var(--radius-md)] bg-red-50 p-3 text-sm text-red-700">
+                      <strong>ملاحظة الإدارة:</strong> {item.admin_note}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                  )}
+                </article>
+              );
+            })
           )}
         </div>
-      </div>
+      </section>
     </main>
   );
 }
