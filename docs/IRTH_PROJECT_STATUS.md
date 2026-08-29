@@ -2,7 +2,7 @@
 
 **Project:** IRTH
 **Document Purpose:** Current implementation status of the IRTH MVP
-**Last Updated:** 29 August 2026
+**Last Updated:** 30 August 2026
 
 ---
 
@@ -78,7 +78,7 @@ Current high-level state:
 Foundation                  ✅ Core implemented
 Identity & Structure        🟨 Mostly implemented
 Marketplace                 ✅ Core implemented
-Shopping                    ⬜ Real implementation not started
+Shopping                    🟨 Foundation in progress
 Orders                      ⬜ Prototype only
 Money                       ⬜ Prototype / not implemented
 Testing & Final Polish      ⬜ Later
@@ -91,7 +91,7 @@ Discovery / Marketplace
         ✅
         ↓
 Secure Shopping
-        ← NEXT MAJOR PHASE
+        ← CURRENT MAJOR PHASE
         ↓
 Orders
         ↓
@@ -420,7 +420,8 @@ Real product database supports:
 * English story
 * Arabic material
 * English material
-* Price
+* Legacy product-level price
+* Market-specific prices
 * Quantity
 * Dimensions
 * Weight
@@ -513,6 +514,10 @@ Active Craft
 +
 Active Country
 ```
+
+Important future integration note:
+
+Fixed-value discounts are currency-dependent. Their market behavior must be explicitly resolved before secure market-aware promotion calculation is implemented.
 
 ---
 
@@ -754,9 +759,11 @@ The existence of an Admin page does NOT mean its business module is complete.
 
 # 25. Shopping — Current State
 
-The real Shopping system has NOT been built yet.
+The real Shopping transaction system has NOT been built yet.
 
-This is the next major project phase.
+Market & Pricing Foundation is now real and tested.
+
+Secure Cart, Market Selection, Checkout, Orders, Shipping, and Payments still require implementation.
 
 ---
 
@@ -955,13 +962,17 @@ Still not decided:
 
 ---
 
-# 33. Market & Pricing Gap
+# 33. Market & Pricing Foundation
 
-This is a major architecture gap that must be solved before secure Cart.
+**Status: CLOSED ✅**
 
-Approved project direction is:
+Implemented architecture:
 
 ```text
+Country
+  ≠
+Market
+
 Product
    ↓
 Market
@@ -969,42 +980,72 @@ Market
 Price
 ```
 
-A product may have different market prices.
+Implemented:
 
-Example concept:
+* Separate `markets` entity for commercial market configuration.
+* Separate `product_market_prices` entity for Product → Market → Price.
+* One local ISO currency code per market in MVP.
+* Market-specific prices are stored directly; no automatic FX conversion engine.
+* Market activation is independent from Country activation.
+* No launch market was assumed or seeded.
+* Product market availability can be controlled through active/inactive market-price rows.
+* Public users can read active markets only.
+* Artisans can read inactive markets for price preparation without exposing those markets publicly.
+* Approved live market prices cannot be directly changed by artisans.
+
+Price change workflow:
 
 ```text
-Product A
-
-Egypt   → EGP price
-Saudi   → SAR price
-UAE     → AED price
+Artisan proposes market price
+        ↓
+Moderation Request: pending
+        ↓
+Existing live price remains unchanged
+        ↓
+Super Admin approves / rejects
+        ↓
+Approved price becomes live atomically
 ```
 
-Market-specific pricing is NOT simply automatic currency conversion.
+Additional protections:
+
+* Only one pending price request per Product + Market.
+* Proposed prices must be positive.
+* Approval is performed by an authenticated Super Admin RPC with server-side authorization.
+* Approval/rejection and live-price update are atomic.
+
+Controlled transaction tests passed for:
+
+* Artisan price-request submission.
+* Pending request preserving the existing live price.
+* Duplicate pending request blocking.
+* Super Admin approval applying the proposed price.
+* Moderation reviewer/status update.
+* Inactive-market pricing preparation by Artisan.
+* Inactive market remaining hidden from anonymous users.
+
+All controlled test data was rolled back.
 
 ---
 
 # 34. Current Database Pricing
 
-Current `products` table still contains:
-
-```text
-price numeric
-```
-
-as one product-level price.
-
-The live database currently does NOT contain:
+The live database now contains:
 
 ```text
 markets
 product_market_prices
 ```
 
-or equivalent market-pricing structures.
+The legacy `products.price` column is intentionally still present temporarily.
 
-Therefore Market & Pricing Foundation must be designed before secure Cart.
+It has NOT been backfilled into any market because the existing values do not carry reliable market/currency identity.
+
+Approved transition rule:
+
+> Do not guess a market or currency for legacy product prices.
+
+The legacy column should only be retired after a verified migration/backfill strategy exists.
 
 ---
 
@@ -1273,12 +1314,9 @@ Live migration history
 
 # 45. Existing Database Does NOT Yet Have
 
-At the time of this audit, the live database does NOT yet contain real transactional modules for:
+At the time of this update, the live database does NOT yet contain real transactional modules for:
 
 ```text
-markets
-product_market_prices
-
 carts
 cart_items
 
@@ -1346,7 +1384,8 @@ Known items:
 * Full bilingual UI is incomplete
 * Search v0.1 is incomplete
 * Market Selector is missing
-* Market pricing structure is missing
+* Legacy `products.price` remains temporarily and must not be trusted as a market-aware commerce price
+* Fixed-value promotion behavior across different market currencies still requires an explicit rule before secure promotion calculation
 
 These should be addressed according to dependency order rather than all at once.
 
@@ -1386,6 +1425,13 @@ Do NOT automatically reopen these decisions:
 * Start with one Courier.
 * Search ranking remains simple for MVP.
 * Advanced AI recommendations/search are Post-MVP.
+* Country and Market are separate concepts.
+* Market activation is independent from Country activation.
+* One local currency per Market in MVP.
+* Product prices are Market-specific and are not automatic currency conversion.
+* Published market-price changes require IRTH review while the previous approved price remains live.
+* Artisans may prepare prices for inactive markets without exposing those markets publicly.
+* No first Launch Market is assumed without explicit approval.
 
 ---
 
@@ -1476,17 +1522,30 @@ Must be decided before final Shopping discount calculation.
 
 ---
 
+## Fixed Promotion Amount Across Markets
+
+Fixed-value discounts depend on currency.
+
+The rule for applying or scoping fixed-value promotions across markets has not yet been approved.
+
+This must be resolved before market-aware promotion calculation is used in secure Shopping.
+
+---
+
 # 50. Recommended Next Phase
 
-Proposed organizational name:
+Approved working phase:
 
 ```text
 S15 — Shopping Foundation
 ```
 
-IMPORTANT:
+Current completed tasks:
 
-This numbering is a project-management recommendation and is not itself an official Specification section unless explicitly approved.
+```text
+S15.0 — Database Migration Reconciliation ✅
+S15.1 — Market & Pricing Foundation ✅
+```
 
 ---
 
@@ -1551,56 +1610,61 @@ Live migration history
 
 ---
 
-# 52. Recommended Task After Migration Reconciliation
+# 52. Market & Pricing Foundation
 
 ## S15.1 — Market & Pricing Foundation
 
-Reason:
+**Status: CLOSED ✅**
 
-Secure Cart cannot be designed correctly before the system knows:
+Goal:
 
-```text
-Which Market?
-      ↓
-Which Currency?
-      ↓
-Which Product Price?
-      ↓
-Is Product available?
-      ↓
-Shipping rules?
-      ↓
-Promotion?
-```
+Establish the trusted Market-aware pricing layer required before Secure Cart.
 
-Therefore:
+Completed:
+
+* Created `markets`.
+* Created `product_market_prices`.
+* Kept Country separate from Market.
+* Kept Market activation independent from Country activation.
+* Added ISO currency code per Market.
+* Added Market-specific Product prices with no automatic FX conversion.
+* Kept legacy `products.price` temporarily without guessing its market/currency.
+* Reused `moderation_requests` for Artisan market-price proposals.
+* Added one-pending-request-per-Product+Market protection.
+* Added atomic Super Admin approval/rejection RPC.
+* Preserved the previous live price while a new price is pending review.
+* Allowed Artisans to prepare pricing for inactive markets while keeping those markets hidden from public users.
+* Added and reviewed RLS/grants for Markets, prices, and moderation workflow.
+* Tested active-market price review flow in controlled transactions.
+* Tested inactive-market price preparation and anonymous visibility isolation.
+* Reconciled Git and Supabase migration history after implementation.
+
+No first Launch Market was selected or assumed.
+
+Result:
 
 ```text
 Market
-   ↓
-Trusted Price
-   ↓
-Secure Cart
-   ↓
-Checkout
-   ↓
-Real Order
+  ↓
+Trusted Market Price
+  ↓
+Ready for Market Selection
+  ↓
+Secure Cart later
 ```
-
-is preferred over building Cart around the current global `products.price`.
 
 ---
 
 # 53. Proposed Shopping Sequence
 
-Recommended sequence:
+Current implementation sequence:
 
 ```text
 S15.0
-Database Migration Reconciliation
+Database Migration Reconciliation ✅
         ↓
 S15.1
-Market & Pricing Foundation
+Market & Pricing Foundation ✅
         ↓
 S15.2
 Market Selection
@@ -1617,7 +1681,7 @@ Checkout Foundation
 Shopping Integration Test
 ```
 
-This sequence has NOT replaced the Specification.
+This sequence does not replace the Specification.
 
 It is an implementation plan derived from the approved architecture.
 
@@ -1827,13 +1891,13 @@ Implementation
 
 ```text
 LAST CLOSED MAJOR MILESTONE:
-S15.0 — Database Migration Reconciliation ✅
+S15.1 — Market & Pricing Foundation ✅
 
 CURRENT MAJOR POSITION:
 Shopping Foundation
 
 NEXT TASK:
-S15.1 — Market & Pricing Foundation
+S15.2 — Market Selection
 ```
 
 ---
@@ -1841,7 +1905,7 @@ S15.1 — Market & Pricing Foundation
 # 60. CURRENT TASK
 
 ```text
-S15.1 — Market & Pricing Foundation
+S15.2 — Market Selection
 ```
 
 Status:
@@ -1850,7 +1914,17 @@ Status:
 READY FOR DISCUSSION / DECISIONS
 ```
 
-Before implementation, review the approved Market architecture and identify any remaining product decisions.
+Approved behavior already includes:
+
+```text
+System suggests market
+        ↓
+Customer confirms / changes market
+        ↓
+Selected market is stored
+```
+
+Before implementation, identify the minimum Market Selection decisions still required.
 
 Do NOT assume a first launch market without explicit approval.
 
@@ -1858,17 +1932,15 @@ Do NOT assume a first launch market without explicit approval.
 
 # 61. NEXT TASK
 
-After S15.0:
-
 ```text
-S15.1 — Market & Pricing Foundation
+S15.2 — Market Selection
 ```
 
-Before implementation:
+Goal:
 
-Need to review the approved Market architecture and identify any remaining product decisions.
+Connect the Market foundation to customer context so later Secure Cart can resolve the correct trusted market price.
 
-Do NOT assume a first launch market without explicit approval.
+Do NOT build Secure Cart before Current Market can be resolved reliably.
 
 ---
 
@@ -1881,6 +1953,8 @@ S12 Inventory Foundation
 S12 Media Foundation
 S13 Product Approval Workflow
 S14 Public Marketplace DB Integration
+S15.0 Database Migration Reconciliation
+S15.1 Market & Pricing Foundation
 ```
 
 Do not replace existing architecture simply because a new implementation problem appears.
@@ -1957,6 +2031,23 @@ Add important milestones to the Change Log.
 ---
 
 # 66. Change Log
+
+## 30 August 2026
+
+* Closed S15.1 — Market & Pricing Foundation.
+* Created `markets` and `product_market_prices` as the Market-aware pricing foundation.
+* Confirmed Country ≠ Market and independent Market activation.
+* Confirmed one local ISO currency per Market for MVP and no automatic FX conversion.
+* Kept legacy `products.price` temporarily without guessing its currency or Market.
+* Implemented Artisan market-price proposals through `moderation_requests`.
+* Implemented atomic Super Admin price approval/rejection.
+* Confirmed pending price requests do not overwrite the current approved live price.
+* Blocked duplicate pending Product + Market price requests.
+* Allowed Artisans to prepare prices for inactive Markets while keeping those Markets hidden from anonymous users.
+* Passed controlled active-market and inactive-market pricing workflow tests with rollback.
+* Verified final Git migration history and Live Supabase migration history are synchronized.
+* Confirmed S15.2 — Market Selection as the next task.
+* No first Launch Market was selected or assumed.
 
 ## 29 August 2026
 
