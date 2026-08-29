@@ -113,6 +113,7 @@ export default function ArtisanProfilePage() {
           "id, slug, name_ar, name_en, country_id, region_ar, region_en, bio_ar, bio_en, story_ar, story_en, primary_craft_id, profile_image_url, video_url"
         )
         .eq("slug", slug)
+        .eq("status", "active")
         .maybeSingle();
 
       if (artisanError) {
