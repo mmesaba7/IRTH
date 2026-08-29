@@ -82,6 +82,11 @@ type CountryArtisanView = {
   profileImage: string | null;
 };
 
+type CountryCraftView = {
+  label: string;
+  value: string;
+};
+
 export default function CountryPage() {
   const params = useParams();
   const router = useRouter();
@@ -92,7 +97,7 @@ export default function CountryPage() {
   const [country, setCountry] = useState<CountryView | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [artisans, setArtisans] = useState<CountryArtisanView[]>([]);
-  const [crafts, setCrafts] = useState<string[]>([]);
+  const [crafts, setCrafts] = useState<CountryCraftView[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -273,15 +278,18 @@ export default function CountryPage() {
         };
       });
 
-      const craftNames = craftRows
-        .map((craft) => craft.name_ar || craft.name_en)
-        .filter(Boolean)
-        .sort((a, b) => a.localeCompare(b, "ar"));
+      const craftViews: CountryCraftView[] = craftRows
+        .map((craft) => ({
+          label: craft.name_ar || craft.name_en,
+          value: craft.name_en,
+        }))
+        .filter((craft) => Boolean(craft.value))
+        .sort((a, b) => a.label.localeCompare(b.label, "ar"));
 
       setCountry(publicCountry);
       setArtisans(mappedArtisans);
       setProducts(mappedProducts);
-      setCrafts(craftNames);
+      setCrafts(craftViews);
       setLoading(false);
     };
 
@@ -411,11 +419,11 @@ export default function CountryPage() {
           <div className="mt-8 flex flex-wrap gap-3">
             {crafts.map((craft) => (
               <Link
-                key={craft}
-                href={`/crafts?category=${encodeURIComponent(craft)}&country=${countryFilter}`}
+                key={craft.value}
+                href={`/crafts?category=${encodeURIComponent(craft.value)}&country=${countryFilter}`}
                 className="rounded-full border border-[var(--border-soft)] bg-[var(--surface)] px-5 py-3 text-sm font-medium text-[var(--color-espresso)] transition-colors hover:border-[var(--color-copper)] hover:text-[var(--color-copper)]"
               >
-                {craft}
+                {craft.label}
               </Link>
             ))}
           </div>
