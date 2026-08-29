@@ -49,6 +49,7 @@ export default function CraftsPage() {
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedCountry, setSelectedCountry] = useState("");
 
   useEffect(() => {
     const loadPublishedProducts = async () => {
@@ -161,6 +162,11 @@ export default function CraftsPage() {
         if (matchingCategory) setSelectedCategory(matchingCategory);
       }
 
+      const countryFromUrl = searchParams.get("country");
+      if (countryFromUrl) {
+        setSelectedCountry(countryFromUrl);
+      }
+
       setLoading(false);
     };
 
@@ -176,9 +182,12 @@ export default function CraftsPage() {
         product.country.toLowerCase().includes(search);
       const matchesCategory =
         selectedCategory === "all" || product.category === selectedCategory;
-      return matchesSearch && matchesCategory;
+      const matchesCountry =
+        !selectedCountry ||
+        product.country.toLowerCase() === selectedCountry.toLowerCase();
+      return matchesSearch && matchesCategory && matchesCountry;
     });
-  }, [products, searchTerm, selectedCategory]);
+  }, [products, searchTerm, selectedCategory, selectedCountry]);
 
   const categories = ["all", ...new Set(products.map((p) => p.category))];
 
