@@ -30,6 +30,7 @@ type DbArtisan = {
   story_en: string | null;
   primary_craft_id: string;
   profile_image_url: string | null;
+  video_url: string | null;
 };
 
 type DbArtisanCraft = {
@@ -38,6 +39,7 @@ type DbArtisanCraft = {
 };
 
 type DbProduct = {
+  id: string;
   slug: string;
   artisan_id: string;
   primary_craft_id: string;
@@ -56,6 +58,7 @@ type DbProduct = {
   preparation_time: string | null;
   one_of_a_kind: boolean;
   customization: boolean;
+  quantity: number | null;
 };
 
 export type PublicCatalogCraft = {
@@ -73,6 +76,7 @@ export type PublicCatalogCountry = {
   nameEn: string;
   heroImage?: string;
   culturalDescription?: string;
+  culturalVideo?: string;
   crafts: string[];
   searchTerms: string[];
 };
@@ -92,10 +96,13 @@ export type PublicCatalogArtisan = {
   bio: string;
   story: string;
   profileImage: string | null;
+  video: string | null;
   searchTerms: string[];
 };
 
 export type PublicCatalogProduct = Product & {
+  id: string;
+  quantity: number | null;
   searchTerms: string[];
 };
 
@@ -129,7 +136,7 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
     supabase
       .from("artisan_profiles")
       .select(
-        "id, slug, name_ar, name_en, country_id, region_ar, region_en, bio_ar, bio_en, story_ar, story_en, primary_craft_id, profile_image_url"
+        "id, slug, name_ar, name_en, country_id, region_ar, region_en, bio_ar, bio_en, story_ar, story_en, primary_craft_id, profile_image_url, video_url"
       )
       .eq("status", "active")
       .order("slug", { ascending: true }),
@@ -137,7 +144,7 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
     supabase
       .from("products")
       .select(
-        "slug, artisan_id, primary_craft_id, name_ar, name_en, description_ar, description_en, story_ar, story_en, material_ar, material_en, price, dimensions, weight, made_to_order, preparation_time, one_of_a_kind, customization"
+        "id, slug, artisan_id, primary_craft_id, name_ar, name_en, description_ar, description_en, story_ar, story_en, material_ar, material_en, price, dimensions, weight, made_to_order, preparation_time, one_of_a_kind, customization, quantity"
       )
       .eq("lifecycle_status", "published")
       .order("created_at", { ascending: false }),
@@ -218,6 +225,7 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
       bio,
       story,
       profileImage: artisan.profile_image_url,
+      video: artisan.video_url,
       searchTerms: [
         name,
         artisan.name_en,
@@ -256,6 +264,7 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
       const story = product.story_ar || product.story_en || "";
 
       return {
+        id: product.id,
         slug: product.slug,
         artisanSlug: artisan.slug,
         name,
@@ -277,6 +286,7 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
         preparationTime: product.preparation_time || undefined,
         oneOfAKind: product.one_of_a_kind,
         customization: product.customization,
+        quantity: product.quantity,
         searchTerms: [
           name,
           product.name_en,
@@ -325,6 +335,7 @@ export async function loadPublicMarketplaceCatalog(): Promise<PublicMarketplaceC
       nameEn: country.name_en,
       heroImage: editorial?.heroImage,
       culturalDescription: editorial?.culturalDescription,
+      culturalVideo: editorial?.culturalVideo,
       crafts: craftNames,
       searchTerms: [
         country.name_ar || country.name_en,
