@@ -84,6 +84,7 @@ export default function CraftsPage() {
         supabase
           .from("artisan_profiles")
           .select("id, slug, name_en, country_id, region_en")
+          .eq("status", "active")
           .in("id", artisanIds),
         supabase
           .from("crafts")
@@ -113,8 +114,9 @@ export default function CraftsPage() {
       const artisanMap = new Map(artisans.map((row) => [row.id, row]));
       const craftMap = new Map(crafts.map((row) => [row.id, row]));
       const countryMap = new Map(countries.map((row) => [row.id, row]));
+      const visibleRows = rows.filter((row) => artisanMap.has(row.artisan_id));
 
-      const mappedProducts: Product[] = rows.map((row, index) => {
+      const mappedProducts: Product[] = visibleRows.map((row, index) => {
         const artisan = artisanMap.get(row.artisan_id);
         const craft = craftMap.get(row.primary_craft_id);
         const country = artisan?.country_id
