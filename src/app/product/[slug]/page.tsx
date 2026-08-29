@@ -102,6 +102,7 @@ export default function ProductPage() {
           "id, slug, artisan_id, primary_craft_id, name_ar, name_en, description_ar, description_en, story_ar, story_en, material_ar, material_en, price, dimensions, weight, made_to_order, preparation_time, one_of_a_kind, customization, lifecycle_status, quantity"
         )
         .eq("slug", slug)
+        .eq("lifecycle_status", "published")
         .maybeSingle();
 
       if (cancelled) return;
@@ -130,13 +131,14 @@ export default function ProductPage() {
         .from("artisan_profiles")
         .select("slug, name_ar, name_en, country_id")
         .eq("id", typedProduct.artisan_id)
+        .eq("status", "active")
         .maybeSingle();
 
       if (cancelled) return;
 
       if (artisanError || !artisanData) {
         console.error("Could not load public artisan:", artisanError);
-        setError("تعذر تحميل بيانات الحرفي.");
+        setProduct(null);
         setLoading(false);
         return;
       }
