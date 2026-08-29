@@ -1,506 +1,470 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
-// تعريف شكل الكوبون
-type Coupon = {
+type ProductRow = {
   id: string;
-  code: string;
-  type: "percentage" | "fixed"; // نسبة مئوية أو مبلغ ثابت
-  value: number; // قيمة الخصم
-  minOrder?: number; // الحد الأدنى للطلب
-  maxDiscount?: number; // الحد الأقصى للخصم (للنسبة المئوية)
-  startDate: string;
-  endDate: string;
-  usageLimit?: number; // عدد مرات الاستخدام الكلي
-  perUserLimit?: number; // عدد مرات الاستخدام لكل عميل
-  applicableProducts?: string[]; // slugs المنتجات
-  applicableCrafts?: string[]; // أسماء الحرف
-  stackable: boolean; // قابل للجمع مع عروض تانية
-  fundingSource: "irth" | "artisan"; // جهة التمويل
-  artisanName?: string; // اسم الحرفي لو التمويل من عنده
-  status: "active" | "inactive" | "expired";
-  createdAt: string;
-  updatedAt?: string;
+  slug: string;
+  artisan_id: string;
+  name_ar: string | null;
+  name_en: string;
+  price: number | string;
 };
+
+type ArtisanRow = {
+  id: string;
+  name_ar: string | null;
+  name_en: string;
+};
+
+type PromotionRow = {
+  id: string;
+  discount_type: "percentage" | "fixed";
+  discount_value: number | string;
+  approval_status: "pending" | "approved" | "rejected";
+  is_enabled: boolean;
+  start_at: string;
+  end_at: string;
+  created_at: string;
+};
+
+type PromotionProductRow = {
+  promotion_id: string;
+  product_id: string;
+};
+
+type ProductView = ProductRow & {
+  artisanName: string;
+};
+
+type PromotionView = PromotionRow & {
+  productNames: string[];
+};
+
+type PromotionForm = {
+  discountType: "percentage" | "fixed";
+  discountValue: number;
+  productIds: string[];
+  startAt: string;
+  endAt: string;
+};
+
+const emptyForm: PromotionForm = {
+  discountType: "percentage",
+  discountValue: 10,
+  productIds: [],
+  startAt: "",
+  endAt: "",
+};
+
+function displayStatus(promotion: PromotionRow) {
+  if (!promotion.is_enabled) return "Disabled";
+  const now = Date.now();
+  if (now < new Date(promotion.start_at).getTime()) return "Scheduled";
+  if (now >= new Date(promotion.end_at).getTime()) return "Expired";
+  return "Active";
+}
 
 export default function AdminPromotionsPage() {
   const router = useRouter();
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const supabase = useMemo(() => createClient(), []);
+
+  const [products, setProducts] = useState<ProductView[]>([]);
+  const [promotions, setPromotions] = useState<PromotionView[]>([]);
+  const [form, setForm] = useState<PromotionForm>(emptyForm);
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [error, setError] = useState("");
 
-  // نموذج إضافة كوبون جديد
-  const [newCoupon, setNewCoupon] = useState({
-    code: "",
-    type: "percentage",
-    value: 10,
-    minOrder: "",
-    maxDiscount: "",
-    startDate: new Date().toISOString().split("T")[0],
-    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0],
-    usageLimit: "",
-    perUserLimit: "",
-    stackable: false,
-    fundingSource: "irth",
-  });
+  const loadData = async () => {
+    setLoading(true);
+    setError("");
 
-  useEffect(() => {
-    loadCoupons();
-  }, [router]);
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-  const loadCoupons = () => {
-    const storedCoupons: Coupon[] = JSON.parse(
-      localStorage.getItem("irth-coupons") || "[]"
-    );
+    if (userError || !user) {
+      router.replace("/dashboard-admin/login");
+      return;
+    }
 
-    if (storedCoupons.length === 0) {
-      const defaultCoupons: Coupon[] = [
-        {
-          id: "coupon-1",
-          code: "WELCOME10",
-          type: "percentage",
-          value: 10,
-          minOrder: 100,
-          maxDiscount: 50,
-          startDate: new Date().toISOString().split("T")[0],
-          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0],
-          usageLimit: 100,
-          perUserLimit: 1,
-          stackable: false,
-          fundingSource: "irth",
-          status: "active",
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: "coupon-2",
-          code: "FREESHIP",
-          type: "fixed",
-          value: 50,
-          minOrder: 200,
-          startDate: new Date().toISOString().split("T")[0],
-          endDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0],
-          usageLimit: 50,
-          perUserLimit: 1,
-          stackable: false,
-          fundingSource: "irth",
-          status: "active",
-          createdAt: new Date().toISOString(),
-        },
-      ];
-      localStorage.setItem("irth-coupons", JSON.stringify(defaultCoupons));
-      setCoupons(defaultCoupons);
+    const [productsResult, artisansResult, promotionsResult] = await Promise.all([
+      supabase
+        .from("products")
+        .select("id, slug, artisan_id, name_ar, name_en, price")
+        .eq("lifecycle_status", "published")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("artisan_profiles")
+        .select("id, name_ar, name_en")
+        .eq("status", "active"),
+      supabase
+        .from("promotions")
+        .select(
+          "id, discount_type, discount_value, approval_status, is_enabled, start_at, end_at, created_at"
+        )
+        .eq("source_type", "irth")
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (productsResult.error || artisansResult.error || promotionsResult.error) {
+      console.error("Could not load IRTH promotions:", {
+        products: productsResult.error,
+        artisans: artisansResult.error,
+        promotions: promotionsResult.error,
+      });
+      setError("تعذر تحميل بيانات عروض IRTH.");
       setLoading(false);
       return;
     }
 
-    setCoupons(storedCoupons);
+    const artisanMap = new Map(
+      ((artisansResult.data ?? []) as ArtisanRow[]).map((artisan) => [artisan.id, artisan])
+    );
+
+    const productRows = (productsResult.data ?? []) as ProductRow[];
+    const visibleProducts: ProductView[] = productRows
+      .filter((product) => artisanMap.has(product.artisan_id))
+      .map((product) => {
+        const artisan = artisanMap.get(product.artisan_id);
+        return {
+          ...product,
+          artisanName: artisan?.name_ar || artisan?.name_en || "",
+        };
+      });
+
+    const promotionRows = (promotionsResult.data ?? []) as PromotionRow[];
+    let links: PromotionProductRow[] = [];
+
+    if (promotionRows.length > 0) {
+      const { data: linkData, error: linkError } = await supabase
+        .from("promotion_products")
+        .select("promotion_id, product_id")
+        .in(
+          "promotion_id",
+          promotionRows.map((promotion) => promotion.id)
+        );
+
+      if (linkError) {
+        console.error("Could not load IRTH promotion products:", linkError);
+        setError("تعذر تحميل منتجات العروض.");
+        setLoading(false);
+        return;
+      }
+
+      links = (linkData ?? []) as PromotionProductRow[];
+    }
+
+    const productMap = new Map(visibleProducts.map((product) => [product.id, product]));
+    const mappedPromotions: PromotionView[] = promotionRows.map((promotion) => ({
+      ...promotion,
+      productNames: links
+        .filter((link) => link.promotion_id === promotion.id)
+        .map((link) => productMap.get(link.product_id))
+        .filter((product): product is ProductView => Boolean(product))
+        .map((product) => product.name_ar || product.name_en),
+    }));
+
+    setProducts(visibleProducts);
+    setPromotions(mappedPromotions);
     setLoading(false);
   };
 
-  const handleAddCoupon = () => {
-    if (!newCoupon.code.trim()) {
-      setMessage("❌ من فضلك أدخل كود الخصم");
+  useEffect(() => {
+    void loadData();
+  }, []);
+
+  const toggleProduct = (productId: string) => {
+    setForm((current) => ({
+      ...current,
+      productIds: current.productIds.includes(productId)
+        ? current.productIds.filter((id) => id !== productId)
+        : [...current.productIds, productId],
+    }));
+  };
+
+  const createPromotion = async () => {
+    setError("");
+    setMessage("");
+
+    if (form.productIds.length === 0) {
+      setError("اختر منتج واحد على الأقل.");
       return;
     }
 
-    // التحقق من عدم وجود كوبون بنفس الكود
-    if (coupons.some((c) => c.code === newCoupon.code.trim())) {
-      setMessage("❌ هذا الكود موجود بالفعل");
+    if (!form.startAt || !form.endAt) {
+      setError("حدد وقت بداية ونهاية العرض.");
       return;
     }
 
-    const coupon: Coupon = {
-      id: `coupon-${Date.now()}`,
-      code: newCoupon.code.trim().toUpperCase(),
-      type: newCoupon.type as "percentage" | "fixed",
-      value: Number(newCoupon.value),
-      minOrder: newCoupon.minOrder ? Number(newCoupon.minOrder) : undefined,
-      maxDiscount: newCoupon.maxDiscount ? Number(newCoupon.maxDiscount) : undefined,
-      startDate: newCoupon.startDate,
-      endDate: newCoupon.endDate,
-      usageLimit: newCoupon.usageLimit ? Number(newCoupon.usageLimit) : undefined,
-      perUserLimit: newCoupon.perUserLimit
-        ? Number(newCoupon.perUserLimit)
-        : undefined,
-      stackable: newCoupon.stackable,
-      fundingSource: newCoupon.fundingSource as "irth" | "artisan",
-      status: "active",
-      createdAt: new Date().toISOString(),
-    };
+    if (form.discountValue <= 0) {
+      setError("قيمة الخصم يجب أن تكون أكبر من صفر.");
+      return;
+    }
 
-    const updated = [...coupons, coupon];
-    localStorage.setItem("irth-coupons", JSON.stringify(updated));
-    setCoupons(updated);
-    setNewCoupon({
-      code: "",
-      type: "percentage",
-      value: 10,
-      minOrder: "",
-      maxDiscount: "",
-      startDate: new Date().toISOString().split("T")[0],
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0],
-      usageLimit: "",
-      perUserLimit: "",
-      stackable: false,
-      fundingSource: "irth",
+    if (form.discountType === "percentage" && form.discountValue > 100) {
+      setError("نسبة الخصم لا يمكن أن تتجاوز 100%.");
+      return;
+    }
+
+    const startAt = new Date(form.startAt);
+    const endAt = new Date(form.endAt);
+
+    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) {
+      setError("وقت النهاية يجب أن يكون بعد وقت البداية.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    const { error: createError } = await supabase.rpc("create_irth_promotion", {
+      p_discount_type: form.discountType,
+      p_discount_value: form.discountValue,
+      p_start_at: startAt.toISOString(),
+      p_end_at: endAt.toISOString(),
+      p_product_ids: form.productIds,
     });
-    setShowAddForm(false);
-    setMessage("✅ تم إضافة الكوبون بنجاح");
-    setTimeout(() => setMessage(""), 3000);
+
+    if (createError) {
+      console.error("Could not create IRTH promotion:", createError);
+      setError("تعذر إنشاء عرض IRTH.");
+      setSubmitting(false);
+      return;
+    }
+
+    setForm(emptyForm);
+    setShowForm(false);
+    setSubmitting(false);
+    setMessage("تم إنشاء عرض IRTH واعتماده.");
+    await loadData();
   };
 
-  const updateCouponStatus = (id: string, status: "active" | "inactive") => {
-    const updated = coupons.map((c) =>
-      c.id === id
-        ? { ...c, status, updatedAt: new Date().toISOString() }
-        : c
-    );
-    localStorage.setItem("irth-coupons", JSON.stringify(updated));
-    setCoupons(updated);
-  };
+  const toggleEnabled = async (promotion: PromotionView) => {
+    setBusyId(promotion.id);
+    setError("");
+    setMessage("");
 
-  const deleteCoupon = (id: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذا الكوبون؟")) return;
-    const updated = coupons.filter((c) => c.id !== id);
-    localStorage.setItem("irth-coupons", JSON.stringify(updated));
-    setCoupons(updated);
+    const { error: toggleError } = await supabase.rpc("set_promotion_enabled", {
+      p_promotion_id: promotion.id,
+      p_is_enabled: !promotion.is_enabled,
+    });
+
+    if (toggleError) {
+      console.error("Could not toggle IRTH promotion:", toggleError);
+      setError("تعذر تغيير حالة العرض.");
+      setBusyId(null);
+      return;
+    }
+
+    setMessage(promotion.is_enabled ? "تم إيقاف العرض." : "تم تشغيل العرض.");
+    setBusyId(null);
+    await loadData();
   };
 
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[var(--background)]">
-        <p className="text-[var(--text-secondary)]">Loading...</p>
+        <p className="text-[var(--text-secondary)]">جاري تحميل عروض IRTH...</p>
       </div>
     );
   }
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
-      <div className="mx-auto max-w-[var(--container-max)] px-6 py-10">
-        {/* رأس الصفحة */}
-        <div className="flex flex-col items-start justify-between gap-4 border-b border-[var(--border-soft)] pb-6 sm:flex-row sm:items-center">
+      <section className="mx-auto max-w-[var(--container-max)] px-5 py-10 md:px-6">
+        <div className="flex flex-col gap-4 border-b border-[var(--border-soft)] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
               Admin Panel
             </p>
             <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">
-              العروض والكوبونات
+              عروض IRTH
             </h1>
-            <p className="text-sm text-[var(--text-secondary)]">
-              إدارة العروض والكوبونات ({coupons.length})
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              عروض IRTH تُنشأ من الإدارة وتكون معتمدة مباشرة. Coupon Engine مؤجل لمرحلة Shopping/Money.
             </p>
           </div>
-          <div className="flex gap-3">
+
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="rounded-[var(--radius-md)] bg-[var(--color-copper)] px-6 py-2 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-espresso)]"
+              type="button"
+              onClick={() => setShowForm((value) => !value)}
+              disabled={products.length === 0}
+              className="rounded-[var(--radius-md)] bg-[var(--color-copper)] px-5 py-2.5 text-sm font-medium text-[var(--color-ivory)] disabled:opacity-50"
             >
-              {showAddForm ? "إلغاء" : "+ إضافة كوبون جديد"}
+              {showForm ? "إلغاء" : "+ عرض IRTH جديد"}
             </button>
             <Link
               href="/dashboard-admin/dashboard"
-              className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)]"
+              className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2.5 text-sm text-[var(--text-muted)]"
             >
               ← Back
             </Link>
           </div>
         </div>
 
-        {/* رسالة التحديث */}
         {message && (
-          <div className="mt-4 rounded-[var(--radius-md)] bg-green-50 p-3 text-sm text-green-700">
+          <div className="mt-6 rounded-[var(--radius-md)] border border-green-200 bg-green-50 p-4 text-sm text-green-700">
             {message}
           </div>
         )}
 
-        {/* نموذج إضافة كوبون جديد */}
-        {showAddForm && (
+        {error && (
+          <div className="mt-6 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {showForm && (
           <div className="mt-6 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <h2 className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-              إضافة كوبون جديد
+            <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
+              إنشاء عرض IRTH
             </h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  كود الخصم *
-                </label>
-                <input
-                  type="text"
-                  value={newCoupon.code}
-                  onChange={(e) =>
-                    setNewCoupon({ ...newCoupon, code: e.target.value })
-                  }
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-2 text-sm outline-none focus:border-[var(--color-copper)]"
-                  placeholder="مثال: SUMMER20"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  النوع
-                </label>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="text-sm text-[var(--text-secondary)]">
+                نوع الخصم
                 <select
-                  value={newCoupon.type}
-                  onChange={(e) =>
-                    setNewCoupon({ ...newCoupon, type: e.target.value })
+                  value={form.discountType}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      discountType: event.target.value as "percentage" | "fixed",
+                    }))
                   }
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-2 text-sm outline-none focus:border-[var(--color-copper)]"
+                  className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3"
                 >
                   <option value="percentage">نسبة مئوية</option>
                   <option value="fixed">مبلغ ثابت</option>
                 </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  قيمة الخصم
-                </label>
+              </label>
+
+              <label className="text-sm text-[var(--text-secondary)]">
+                قيمة الخصم
                 <input
                   type="number"
-                  value={newCoupon.value}
-                  onChange={(e) =>
-                    setNewCoupon({ ...newCoupon, value: Number(e.target.value) })
+                  min="0.01"
+                  step="0.01"
+                  value={form.discountValue}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, discountValue: Number(event.target.value) }))
                   }
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-2 text-sm outline-none focus:border-[var(--color-copper)]"
-                  min="0"
-                  step="0.5"
+                  className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3"
                 />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  جهة التمويل
-                </label>
-                <select
-                  value={newCoupon.fundingSource}
-                  onChange={(e) =>
-                    setNewCoupon({ ...newCoupon, fundingSource: e.target.value })
-                  }
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-2 text-sm outline-none focus:border-[var(--color-copper)]"
-                >
-                  <option value="irth">إرث</option>
-                  <option value="artisan">حرفي</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  الحد الأدنى للطلب (اختياري)
-                </label>
+              </label>
+
+              <label className="text-sm text-[var(--text-secondary)]">
+                البداية
                 <input
-                  type="number"
-                  value={newCoupon.minOrder}
-                  onChange={(e) =>
-                    setNewCoupon({ ...newCoupon, minOrder: e.target.value })
+                  type="datetime-local"
+                  value={form.startAt}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, startAt: event.target.value }))
                   }
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-2 text-sm outline-none focus:border-[var(--color-copper)]"
-                  min="0"
-                  step="0.5"
+                  className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3"
                 />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  الحد الأقصى للخصم (للنسبة المئوية فقط)
-                </label>
+              </label>
+
+              <label className="text-sm text-[var(--text-secondary)]">
+                النهاية
                 <input
-                  type="number"
-                  value={newCoupon.maxDiscount}
-                  onChange={(e) =>
-                    setNewCoupon({ ...newCoupon, maxDiscount: e.target.value })
+                  type="datetime-local"
+                  value={form.endAt}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, endAt: event.target.value }))
                   }
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-2 text-sm outline-none focus:border-[var(--color-copper)]"
-                  min="0"
-                  step="0.5"
+                  className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3"
                 />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  تاريخ البداية
-                </label>
-                <input
-                  type="date"
-                  value={newCoupon.startDate}
-                  onChange={(e) =>
-                    setNewCoupon({ ...newCoupon, startDate: e.target.value })
-                  }
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-2 text-sm outline-none focus:border-[var(--color-copper)]"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  تاريخ النهاية
-                </label>
-                <input
-                  type="date"
-                  value={newCoupon.endDate}
-                  onChange={(e) =>
-                    setNewCoupon({ ...newCoupon, endDate: e.target.value })
-                  }
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-2 text-sm outline-none focus:border-[var(--color-copper)]"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  عدد مرات الاستخدام الكلي
-                </label>
-                <input
-                  type="number"
-                  value={newCoupon.usageLimit}
-                  onChange={(e) =>
-                    setNewCoupon({ ...newCoupon, usageLimit: e.target.value })
-                  }
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-2 text-sm outline-none focus:border-[var(--color-copper)]"
-                  min="0"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  عدد مرات الاستخدام لكل عميل
-                </label>
-                <input
-                  type="number"
-                  value={newCoupon.perUserLimit}
-                  onChange={(e) =>
-                    setNewCoupon({ ...newCoupon, perUserLimit: e.target.value })
-                  }
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-2 text-sm outline-none focus:border-[var(--color-copper)]"
-                  min="0"
-                />
-              </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="stackable"
-                  checked={newCoupon.stackable}
-                  onChange={(e) =>
-                    setNewCoupon({ ...newCoupon, stackable: e.target.checked })
-                  }
-                  className="h-4 w-4 accent-[var(--color-copper)]"
-                />
-                <label htmlFor="stackable" className="ml-2 text-sm text-[var(--text-secondary)]">
-                  قابل للجمع مع عروض تانية
-                </label>
+              </label>
+            </div>
+
+            <div className="mt-5">
+              <p className="text-sm text-[var(--text-secondary)]">المنتجات المنشورة المتاحة</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {products.map((product) => {
+                  const selected = form.productIds.includes(product.id);
+                  return (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => toggleProduct(product.id)}
+                      className={`rounded-full px-4 py-2 text-sm ${
+                        selected
+                          ? "bg-[var(--color-espresso)] text-[var(--color-ivory)]"
+                          : "bg-[var(--surface-muted)] text-[var(--text-secondary)]"
+                      }`}
+                    >
+                      {product.name_ar || product.name_en} · {product.artisanName}
+                    </button>
+                  );
+                })}
               </div>
             </div>
+
             <button
-              onClick={handleAddCoupon}
-              className="mt-4 rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-2 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)]"
+              type="button"
+              onClick={createPromotion}
+              disabled={submitting}
+              className="mt-6 rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-3 text-sm font-medium text-[var(--color-ivory)] disabled:opacity-60"
             >
-              حفظ الكوبون
+              {submitting ? "جاري الإنشاء..." : "إنشاء واعتماد العرض"}
             </button>
           </div>
         )}
 
-        {/* جدول الكوبونات */}
-        {coupons.length === 0 ? (
-          <div className="mt-8 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-10 text-center">
-            <p className="text-lg text-[var(--text-secondary)]">
-              🎉 مفيش كوبونات
-            </p>
-          </div>
-        ) : (
-          <div className="mt-8 overflow-x-auto">
-            <div className="min-w-full rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)]">
-              {/* رأس الجدول */}
-              <div className="grid grid-cols-7 gap-4 border-b border-[var(--border-soft)] bg-[var(--surface-muted)] px-6 py-3 text-xs font-medium uppercase tracking-[0.1em] text-[var(--text-muted)]">
-                <span>الكود</span>
-                <span>النوع</span>
-                <span>القيمة</span>
-                <span>الحد الأدنى</span>
-                <span>المدة</span>
-                <span>الحالة</span>
-                <span className="text-center">إجراءات</span>
-              </div>
-
-              {/* صفوف الجدول */}
-              {coupons.map((coupon) => {
-                const isExpired = new Date(coupon.endDate) < new Date();
-                const displayStatus =
-                  coupon.status === "active" && isExpired
-                    ? "expired"
-                    : coupon.status;
-
-                return (
-                  <div
-                    key={coupon.id}
-                    className="grid grid-cols-7 gap-4 border-b border-[var(--border-soft)] px-6 py-4 text-sm last:border-0 hover:bg-[var(--surface-muted)]"
-                  >
-                    <span className="font-mono font-medium text-[var(--color-espresso)]">
-                      {coupon.code}
-                    </span>
-                    <span className="text-[var(--text-secondary)]">
-                      {coupon.type === "percentage" ? "نسبة" : "ثابت"}
-                    </span>
-                    <span>
-                      {coupon.type === "percentage"
-                        ? `${coupon.value}%`
-                        : `${coupon.value}$`}
-                    </span>
-                    <span>
-                      {coupon.minOrder ? `${coupon.minOrder}$` : "—"}
-                    </span>
-                    <span className="text-xs">
-                      {new Date(coupon.startDate).toLocaleDateString("ar-EG")}
-                      <br />
-                      → {new Date(coupon.endDate).toLocaleDateString("ar-EG")}
-                    </span>
-                    <span>
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs font-medium ${
-                          displayStatus === "active"
-                            ? "bg-green-100 text-green-700"
-                            : displayStatus === "expired"
-                            ? "bg-gray-100 text-gray-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {displayStatus === "active"
-                          ? "نشط"
-                          : displayStatus === "expired"
-                          ? "منتهي"
-                          : "غير نشط"}
-                      </span>
-                    </span>
-                    <div className="flex items-center justify-center gap-2">
-                      {displayStatus !== "expired" && (
-                        <button
-                          onClick={() =>
-                            updateCouponStatus(
-                              coupon.id,
-                              coupon.status === "active" ? "inactive" : "active"
-                            )
-                          }
-                          className={`rounded px-3 py-1 text-xs text-white transition ${
-                            coupon.status === "active"
-                              ? "bg-red-500 hover:bg-red-600"
-                              : "bg-green-500 hover:bg-green-600"
-                          }`}
-                        >
-                          {coupon.status === "active" ? "إيقاف" : "تفعيل"}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => deleteCoupon(coupon.id)}
-                        className="rounded bg-red-500 px-3 py-1 text-xs text-white transition hover:bg-red-600"
-                      >
-                        حذف
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+        <div className="mt-8 space-y-4">
+          {promotions.length === 0 ? (
+            <div className="rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-8 text-center text-[var(--text-secondary)]">
+              لا توجد عروض IRTH حتى الآن.
             </div>
-          </div>
-        )}
-      </div>
+          ) : (
+            promotions.map((promotion) => (
+              <article
+                key={promotion.id}
+                className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5"
+              >
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
+                        {promotion.discount_type === "percentage"
+                          ? `${Number(promotion.discount_value)}% خصم`
+                          : `$${Number(promotion.discount_value).toFixed(2)} خصم`}
+                      </h2>
+                      <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium">
+                        {displayStatus(promotion)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                      {promotion.productNames.join("، ") || "منتجات مرتبطة بالعرض"}
+                    </p>
+                    <p className="mt-2 text-xs text-[var(--text-muted)]">
+                      {new Date(promotion.start_at).toLocaleString("ar-EG")} → {new Date(promotion.end_at).toLocaleString("ar-EG")}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={busyId === promotion.id}
+                    onClick={() => toggleEnabled(promotion)}
+                    className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-4 py-2 text-sm disabled:opacity-60"
+                  >
+                    {promotion.is_enabled ? "إيقاف" : "تشغيل"}
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
     </main>
   );
 }
