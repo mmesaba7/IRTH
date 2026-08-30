@@ -8,11 +8,11 @@ function jsonNoStore(body: unknown, status = 200) {
   });
 }
 
-function getCurrencyScale(currencyCode: string) {
+function getCurrencyScale(currencyCode: string): number {
   return new Intl.NumberFormat("en", {
     style: "currency",
     currency: currencyCode,
-  }).resolvedOptions().maximumFractionDigits;
+  }).resolvedOptions().maximumFractionDigits ?? 2;
 }
 
 function normalizeMoneyInput(value: unknown, scale: number, allowZero: boolean) {
@@ -153,26 +153,31 @@ export async function PATCH(request: NextRequest) {
         free_shipping_threshold: freeShippingThreshold,
         updated_at: new Date().toISOString(),
       })
-      .eq("market_id", marketId)
+      .eq("market_id", market.id)
       .select("market_id, flat_shipping_fee, free_shipping_threshold")
       .maybeSingle();
 
     if (updateError) {
-      console.error("Unable to update shipping settings:", updateError);
+      if (updateError.code === "42501") {
+        return jsonNoStore({ error: "Super Admin access required" }, 403);
+      }
+
       return jsonNoStore({ error: "Unable to update shipping settings" }, 500);
     }
 
     if (!updated) {
       return jsonNoStore(
-        { error: "Only the Super Admin can update shipping settings." },
-        403
+        { error: "Shipping settings are missing for this market" },
+        409
       );
     }
 
     return jsonNoStore({
-      marketId: updated.market_id,
-      flatShippingFee: updated.flat_shipping_fee.toString(),
-      freeShippingThreshold: updated.free_shipping_threshold.toString(),
+      setting: {
+        marketId: updated.market_id,
+        flatShippingFee: updated.flat_shipping_fee.toString(),
+        freeShippingThreshold: updated.free_shipping_threshold.toString(),
+      },
     });
   } catch (error) {
     console.error("Unable to update admin shipping settings:", error);
