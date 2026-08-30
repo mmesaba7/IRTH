@@ -81,6 +81,9 @@ After the Coupon discount is known, allocate it proportionally across eligible l
 ## 23A — Non-stackable Exact Tie
 If Promotion-only and Coupon-only produce the exact same customer total, Promotion-only wins. The customer pays the same amount, while Coupon usage/funding is not consumed unnecessarily.
 
+## 24A — Non-stackable Scope Is Limited to Coupon-eligible Lines
+For a non-stackable Coupon, Promotion-only vs Coupon-only comparison applies only to Coupon-eligible lines. Promotions on lines outside the Coupon's eligibility scope remain active in both scenarios and are not suppressed by applying the Coupon.
+
 ---
 
 # 2. Supplemental Database / Security Decisions
@@ -130,6 +133,7 @@ Best Product Promotion
 Stackable Coupon after Promotion
 OR
 Non-stackable Promotion-only vs Coupon-only comparison
+(on Coupon-eligible lines only)
     ↓
 Funding Split
     ↓
@@ -246,23 +250,54 @@ Verification:
 
 ## S15.4.4 — Coupon Calculation
 
-**Status: CURRENT 🟨**
+**Status: CURRENT 🟨 — IMPLEMENTATION IN GIT, VERIFICATION PENDING**
 
-Approved before implementation:
+Approved:
 
 - 21A Percentage Coupon calculation.
 - 22A proportional allocation and deterministic remainder.
 - 23A Promotion-only wins an exact non-stackable tie.
+- 24A non-stackable comparison affects Coupon-eligible lines only.
 - SEC-B1 secure Coupon lookup RPC boundary.
 
-Not yet implemented at the time of this register update:
+Implemented in Git so far:
 
-- Coupon lookup RPC migration.
-- `couponQuote.ts` calculation layer.
-- Coupon code parsing in `/api/cart/quote`.
-- Stackable/non-stackable Coupon application.
-- Coupon funding outputs in the trusted quote.
-- Coupon calculation edge-test closure.
+- `supabase/migrations/20260830163234_add_secure_coupon_lookup.sql`.
+- Private `SECURITY DEFINER` Coupon lookup with pinned empty `search_path`.
+- Public `SECURITY INVOKER` wrapper.
+- Narrow return surface: one matching Coupon plus server-resolved eligible Product IDs.
+- Product eligibility boundary re-checks published Product, active Artisan/Craft/Country and active Market price.
+- Coupon money values return as text for exact JavaScript-side arithmetic.
+- Total usage limit is checked without consuming usage.
+- `src/lib/couponQuote.ts` server-only calculation layer.
+- Percentage Coupon calculation on total eligible subtotal once.
+- Fixed Coupon cap at eligible subtotal.
+- Percentage `max_discount_amount` cap.
+- Minimum-order check on the approved stackable/non-stackable basis.
+- Proportional line allocation using largest fractional remainder and deterministic `product_id` ties.
+- Stackable Coupon after Promotion.
+- Non-stackable eligible-line Promotion-only vs Coupon-only comparison.
+- 23A exact tie → Promotion preferred.
+- 24A non-eligible lines retain their Promotions.
+- Coupon funding split: IRTH vs Artisan.
+- Optional `couponCode` parsing in `/api/cart/quote`; no client price/discount/total is trusted.
+- Quote does not create `coupon_redemptions` rows.
+
+Verification completed before local migration application:
+
+- Secure Coupon lookup DDL dry-run passed inside a transaction.
+- Invalid Coupon lookup returned zero rows.
+- Dry-run rollback confirmed no Coupon lookup functions remained on Remote.
+- Exact integer division/proportional-allocation helper checks passed for representative allocations.
+
+Still required before S15.4.4 can close:
+
+- Pull latest Git changes locally.
+- Full local `supabase db reset` including the secure Coupon lookup migration.
+- Focused ESLint / TypeScript production build.
+- Remote `db push` after local migration replay passes.
+- Remote function privileges/security verification and Advisors.
+- Controlled calculation edge tests for stackable, non-stackable, minimum, max cap, restrictions, funding, tie and rounding.
 
 Usage must still **not** be consumed during Quote.
 
