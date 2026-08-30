@@ -45,9 +45,13 @@ export type CartQuote = {
 };
 
 type Decimal = {
-  coefficient: bigint;
+  digits: string;
   scale: number;
 };
+
+function trimLeadingZeros(value: string) {
+  return value.replace(/^0+(?=\d)/, "");
+}
 
 function parseDecimal(value: string): Decimal {
   const normalized = value.trim();
@@ -59,30 +63,81 @@ function parseDecimal(value: string): Decimal {
   const [whole, fraction = ""] = normalized.split(".");
 
   return {
-    coefficient: BigInt(`${whole}${fraction}`),
+    digits: trimLeadingZeros(`${whole}${fraction}`),
     scale: fraction.length,
   };
 }
 
-function formatDecimal(value: Decimal) {
-  const digits = value.coefficient.toString();
+function addIntegerStrings(left: string, right: string) {
+  let leftIndex = left.length - 1;
+  let rightIndex = right.length - 1;
+  let carry = 0;
+  let result = "";
 
-  if (value.scale === 0) {
-    return digits;
+  while (leftIndex >= 0 || rightIndex >= 0 || carry > 0) {
+    const leftDigit = leftIndex >= 0 ? Number(left[leftIndex]) : 0;
+    const rightDigit = rightIndex >= 0 ? Number(right[rightIndex]) : 0;
+    const sum = leftDigit + rightDigit + carry;
+
+    result = `${sum % 10}${result}`;
+    carry = Math.floor(sum / 10);
+    leftIndex -= 1;
+    rightIndex -= 1;
   }
 
-  const padded = digits.padStart(value.scale + 1, "0");
+  return trimLeadingZeros(result || "0");
+}
+
+function multiplyIntegerByDigit(value: string, digit: number) {
+  if (digit === 0 || value === "0") return "0";
+
+  let carry = 0;
+  let result = "";
+
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    const product = Number(value[index]) * digit + carry;
+    result = `${product % 10}${result}`;
+    carry = Math.floor(product / 10);
+  }
+
+  if (carry > 0) {
+    result = `${carry}${result}`;
+  }
+
+  return trimLeadingZeros(result);
+}
+
+function multiplyIntegerStrings(left: string, right: string) {
+  let result = "0";
+  let zeroPadding = "";
+
+  for (let index = right.length - 1; index >= 0; index -= 1) {
+    const digit = Number(right[index]);
+    const partial = `${multiplyIntegerByDigit(left, digit)}${zeroPadding}`;
+    result = addIntegerStrings(result, partial);
+    zeroPadding += "0";
+  }
+
+  return trimLeadingZeros(result);
+}
+
+function formatDecimal(value: Decimal) {
+  if (value.scale === 0) {
+    return trimLeadingZeros(value.digits);
+  }
+
+  const padded = value.digits.padStart(value.scale + 1, "0");
   const whole = padded.slice(0, -value.scale);
   const fraction = padded.slice(-value.scale);
 
-  return `${whole}.${fraction}`;
+  return `${trimLeadingZeros(whole)}.${fraction}`;
 }
 
 function multiplyDecimal(value: string, multiplier: number) {
   const decimal = parseDecimal(value);
 
   return formatDecimal({
-    coefficient: decimal.coefficient * BigInt(multiplier),
+    digits: multiplyIntegerStrings(decimal.digits, String(multiplier)),
     scale: decimal.scale,
   });
 }
@@ -94,12 +149,12 @@ function addDecimals(values: string[]) {
 
   const decimals = values.map(parseDecimal);
   const maxScale = Math.max(...decimals.map((value) => value.scale));
-  const coefficient = decimals.reduce((sum, value) => {
-    const scaleDifference = maxScale - value.scale;
-    return sum + value.coefficient * 10n ** BigInt(scaleDifference);
-  }, 0n);
+  const totalDigits = decimals.reduce((sum, value) => {
+    const scaledDigits = `${value.digits}${"0".repeat(maxScale - value.scale)}`;
+    return addIntegerStrings(sum, scaledDigits);
+  }, "0");
 
-  return formatDecimal({ coefficient, scale: maxScale });
+  return formatDecimal({ digits: totalDigits, scale: maxScale });
 }
 
 function aggregateItems(items: CartQuoteInputItem[]) {
@@ -166,56 +221,76 @@ export async function quoteCart(inputItems: CartQuoteInputItem[]) {
   const craftIds = [...new Set(productRows.map((product) => product.primary_craft_id))];
   const productIds = productRows.map((product) => product.id);
 
-  const [artisansResult, craftsResult, pricesResult] = await Promise.all([
-    artisanIds.length > 0
-      ? supabase
-          .from("artisan_profiles")
-          .select("id, name_ar, name_en, country_id, status")
-          .in("id", artisanIds)
-          .eq("status", "active")
-      : Promise.resolve({ data: [], error: null }),
-    craftIds.length > 0
-      ? supabase
-          .from("crafts")
-          .select("id, is_active")
-          .in("id", craftIds)
-          .eq("is_active", true)
-      : Promise.resolve({ data: [], error: null }),
-    productIds.length > 0
-      ? supabase
-          .from("product_market_prices")
-          .select("product_id, price, is_active")
-          .eq("market_id", selectedMarket.id)
-          .eq("is_active", true)
-          .in("product_id", productIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  let artisans: Array<{
+    id: string;
+    name_ar: string | null;
+    name_en: string;
+    country_id: string;
+    status: string;
+  }> = [];
 
-  if (artisansResult.error) throw artisansResult.error;
-  if (craftsResult.error) throw craftsResult.error;
-  if (pricesResult.error) throw pricesResult.error;
+  if (artisanIds.length > 0) {
+    const { data, error } = await supabase
+      .from("artisan_profiles")
+      .select("id, name_ar, name_en, country_id, status")
+      .in("id", artisanIds)
+      .eq("status", "active");
 
-  const artisans = artisansResult.data ?? [];
+    if (error) throw error;
+    artisans = data ?? [];
+  }
+
+  let activeCrafts: Array<{ id: string; is_active: boolean }> = [];
+
+  if (craftIds.length > 0) {
+    const { data, error } = await supabase
+      .from("crafts")
+      .select("id, is_active")
+      .in("id", craftIds)
+      .eq("is_active", true);
+
+    if (error) throw error;
+    activeCrafts = data ?? [];
+  }
+
+  let marketPrices: Array<{
+    product_id: string;
+    price: number;
+    is_active: boolean;
+  }> = [];
+
+  if (productIds.length > 0) {
+    const { data, error } = await supabase
+      .from("product_market_prices")
+      .select("product_id, price, is_active")
+      .eq("market_id", selectedMarket.id)
+      .eq("is_active", true)
+      .in("product_id", productIds);
+
+    if (error) throw error;
+    marketPrices = data ?? [];
+  }
+
   const countryIds = [...new Set(artisans.map((artisan) => artisan.country_id))];
+  let activeCountries: Array<{ id: string; is_active: boolean }> = [];
 
-  const { data: countries, error: countriesError } = countryIds.length > 0
-    ? await supabase
-        .from("countries")
-        .select("id, is_active")
-        .in("id", countryIds)
-        .eq("is_active", true)
-    : { data: [], error: null };
+  if (countryIds.length > 0) {
+    const { data, error } = await supabase
+      .from("countries")
+      .select("id, is_active")
+      .in("id", countryIds)
+      .eq("is_active", true);
 
-  if (countriesError) {
-    throw countriesError;
+    if (error) throw error;
+    activeCountries = data ?? [];
   }
 
   const productBySlug = new Map(productRows.map((product) => [product.slug, product]));
   const artisanById = new Map(artisans.map((artisan) => [artisan.id, artisan]));
-  const activeCraftIds = new Set((craftsResult.data ?? []).map((craft) => craft.id));
-  const activeCountryIds = new Set((countries ?? []).map((country) => country.id));
+  const activeCraftIds = new Set(activeCrafts.map((craft) => craft.id));
+  const activeCountryIds = new Set(activeCountries.map((country) => country.id));
   const priceByProductId = new Map(
-    (pricesResult.data ?? []).map((price) => [price.product_id, String(price.price)])
+    marketPrices.map((price) => [price.product_id, String(price.price)])
   );
 
   const quoteItems: CartQuoteItem[] = items.map(({ slug, quantity }) => {
