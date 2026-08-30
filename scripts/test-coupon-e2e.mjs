@@ -218,11 +218,12 @@ async function main() {
   const logs = [];
   const server = spawnCommand(
     isWindows ? "npm.cmd" : "npm",
-    ["run", "start", "--", "-p", port],
+    ["run", "dev", "--", "-p", port],
     {
       cwd: process.cwd(),
       env: {
         ...process.env,
+        IRTH_E2E_DIST_DIR: ".next-e2e",
         NEXT_PUBLIC_SUPABASE_URL: apiUrl,
         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: anonKey,
       },
