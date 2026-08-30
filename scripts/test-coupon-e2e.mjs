@@ -305,7 +305,7 @@ async function main() {
       assertMoney(result.couponDiscountTotal, "27.00", "STACK10 discount");
       assertMoney(itemBySlug(result, "clay-vessel").couponDiscount, "9.00", "STACK10 clay coupon");
       assertMoney(itemBySlug(result, "heritage-textile").couponDiscount, "18.00", "STACK10 textile coupon");
-      assertMoney(itemBySlug(result, "copper-piece").couponDiscount, "0.00", "STACK10 copper coupon");
+      assert.equal(itemBySlug(result, "copper-piece").couponDiscount, null, "STACK10 copper must be Coupon-ineligible");
       assertMoney(itemBySlug(result, "clay-vessel").lineTotal, "81.00", "STACK10 clay line");
       assertMoney(itemBySlug(result, "heritage-textile").lineTotal, "162.00", "STACK10 textile line");
       assertMoney(itemBySlug(result, "copper-piece").lineTotal, "270.00", "STACK10 copper line");
@@ -402,7 +402,7 @@ async function main() {
       assert.equal(result.couponStatus, "applied");
       assertMoney(itemBySlug(result, "clay-vessel").couponDiscount, "9.00", "UNION10 clay discount");
       assertMoney(itemBySlug(result, "heritage-textile").couponDiscount, "18.00", "UNION10 textile discount");
-      assertMoney(itemBySlug(result, "copper-piece").couponDiscount, "0.00", "UNION10 copper excluded");
+      assert.equal(itemBySlug(result, "copper-piece").couponDiscount, null, "UNION10 copper must be Coupon-ineligible");
       assertMoney(result.couponDiscountTotal, "27.00", "UNION10 discount");
     }
 
@@ -416,7 +416,7 @@ async function main() {
       );
       assert.equal(result.couponStatus, "applied");
       assertMoney(itemBySlug(result, "clay-vessel").couponDiscount, "25.00", "ARTISAN25 artisan product discount");
-      assertMoney(itemBySlug(result, "heritage-textile").couponDiscount, "0.00", "ARTISAN25 other artisan excluded");
+      assert.equal(itemBySlug(result, "heritage-textile").couponDiscount, null, "ARTISAN25 other artisan must be Coupon-ineligible");
       assertMoney(result.couponDiscountTotal, "25.00", "ARTISAN25 discount");
       assertMoney(result.subtotal, "245.00", "ARTISAN25 subtotal");
     }
