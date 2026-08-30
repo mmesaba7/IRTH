@@ -126,7 +126,7 @@ async function waitForServer(server, logs) {
 
   while (Date.now() < deadline) {
     if (server.exitCode !== null) {
-      fail(`Next dev server exited early.\n${logs.slice(-30).join("\n")}`);
+      fail(`Next test server exited early.\n${logs.slice(-30).join("\n")}`);
     }
 
     try {
@@ -139,7 +139,7 @@ async function waitForServer(server, logs) {
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
-  fail(`Timed out waiting for Next dev server.\n${logs.slice(-30).join("\n")}`);
+  fail(`Timed out waiting for Next test server.\n${logs.slice(-30).join("\n")}`);
 }
 
 function stopServer(server) {
@@ -218,7 +218,7 @@ async function main() {
   const logs = [];
   const server = spawnCommand(
     isWindows ? "npm.cmd" : "npm",
-    ["run", "dev", "--", "-p", port],
+    ["run", "start", "--", "-p", port],
     {
       cwd: process.cwd(),
       env: {
