@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { quoteCart, type CartQuoteInputItem } from "@/lib/cartQuote";
 import { applyPromotionsToQuote } from "@/lib/promotionQuote";
+import { applyCouponToQuote } from "@/lib/couponQuote";
 import {
-  applyCouponToQuote,
-  type CouponCartQuote,
-} from "@/lib/couponQuote";
+  applyShippingToQuote,
+  type ShippingCartQuote,
+} from "@/lib/shippingQuote";
 
 function parseItems(body: unknown): CartQuoteInputItem[] | null {
   if (typeof body !== "object" || body === null || !("items" in body)) {
@@ -67,7 +68,7 @@ function parseCouponCode(body: unknown) {
   } as const;
 }
 
-function publicQuoteResponse(quote: CouponCartQuote) {
+function publicQuoteResponse(quote: ShippingCartQuote) {
   return {
     market: quote.market,
     items: quote.items.map((item) => ({
@@ -88,6 +89,11 @@ function publicQuoteResponse(quote: CouponCartQuote) {
     couponCode: quote.couponCode,
     couponStatus: quote.couponStatus,
     subtotal: quote.subtotal,
+    merchandiseSubtotal: quote.merchandiseSubtotal,
+    shippingFee: quote.shippingFee,
+    freeShippingThreshold: quote.freeShippingThreshold,
+    shippingStatus: quote.shippingStatus,
+    finalTotal: quote.finalTotal,
     canCheckout: quote.canCheckout,
   };
 }
@@ -138,10 +144,11 @@ export async function POST(request: NextRequest) {
     }
 
     const promotionQuote = await applyPromotionsToQuote(baseQuote);
-    const quote = await applyCouponToQuote(
+    const couponQuote = await applyCouponToQuote(
       promotionQuote,
       couponCode.value
     );
+    const quote = await applyShippingToQuote(couponQuote);
 
     return jsonNoStore({ quote: publicQuoteResponse(quote) });
   } catch (error) {
