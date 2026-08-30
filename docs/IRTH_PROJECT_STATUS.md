@@ -452,17 +452,84 @@ scripts/test-coupon-e2e.mjs
 npm.cmd run test:coupon-e2e
 ```
 
-Final E2E result:
-
-```text
-PASS S15.4.4 coupon quote E2E
-```
-
 Detailed decision record:
 
 ```text
 docs/IRTH_S15_4_DECISION_REGISTER.md
 ```
+
+---
+
+## S15.4.5 — Cart Promotion / Coupon UI
+
+**Status: CLOSED ✅**
+
+Implemented:
+
+* Coupon input with apply/remove flow.
+* Trusted Promotion/Coupon status display.
+* Trusted discounted line totals and cart summary.
+* Promotion and Coupon discount rows.
+* Quantity changes trigger server re-quote.
+* Checkout remains gated by trusted `canCheckout`.
+* Browser `localStorage("irth-cart")` remains cart intent only and is not monetary truth.
+
+Verified scenarios included:
+
+* Promotion-only.
+* Stackable Coupon.
+* Minimum not met.
+* Promotion preferred over non-stackable Coupon.
+* Coupon not applicable.
+* Invalid Coupon.
+* Normalized lowercase/whitespace Coupon code.
+* Coupon remove.
+* Quantity re-quote.
+
+Production Build / TypeScript passed.
+
+---
+
+## S15.4.6 — Security / Edge Integration Closure
+
+**Status: CLOSED ✅**
+
+Completed final S15.4 integration and security review:
+
+* Reviewed browser → quote route → Market → Product/Price/Inventory → Promotion → Coupon → Cart display trust boundary.
+* Market change forces a full page reload, so Cart/Product quotes re-resolve against the newly confirmed Market.
+* Invalid Market cookie UUIDs are rejected before DB lookup instead of leaking into a DB error path.
+* `/api/cart/quote` now returns only customer-needed fields; internal Promotion/Coupon funding metadata is not exposed publicly.
+* Quote responses use `Cache-Control: no-store`.
+* Coupon tables remain RLS-protected from anonymous/direct customer reads.
+* Coupon Redemptions remain non-writable by anonymous/authenticated customer roles during Quote.
+* Promotion tables remain protected by their existing RLS boundary.
+* Coupon private/public RPC execution chain was reviewed and corrected without breaking guest/authenticated quote access.
+* Git/Live migration drift introduced during the privilege review was reconciled to the Live migration version `20260830180951`.
+* Temporary Live `UI...` test Coupons were disabled after validation.
+* Security Advisor shows no S15.4-specific Coupon/Cart warning; existing unrelated warnings remain documented below.
+* Local E2E runner was isolated into `.next-e2e` so it can run alongside the normal local dev server.
+
+Final verification:
+
+```text
+PASS S15.4.4/S15.4.6 coupon quote E2E
+```
+
+Confirmed by E2E:
+
+* Secure local RPC + real `/api/cart/quote` path.
+* Public quote hides internal Promotion/Coupon funding metadata.
+* Quote responses are `no-store`.
+* Stackable Percentage and Fixed Coupons.
+* Proportional allocation and deterministic remainder tie-break.
+* Non-stackable win / lose / exact tie.
+* Decision 24A: unrelated Promotions remain active.
+* Minimum, max cap, Round Half-Up and Product/Craft restriction union.
+* Artisan-funded Coupon scope.
+* Quote does not consume Coupon Redemption.
+
+**S15.4 — Promotion Calculation + Coupon Foundation is CLOSED ✅**
 
 ---
 
@@ -478,8 +545,9 @@ Promotion Market Scope         ✅
 Promotion Calculation          ✅
 Coupon DB Foundation           ✅
 Coupon Calculation             ✅
-Cart Promotion/Coupon UX       ← NEXT
-Secure Checkout                ⬜
+Cart Promotion/Coupon UX       ✅
+Security / Edge Closure        ✅
+Secure Checkout                ← NEXT
 Orders                         ⬜
 Shipping                       ⬜
 Payments                       ⬜
@@ -488,14 +556,14 @@ Payments                       ⬜
 Current task:
 
 ```text
-S15.4.5 — Cart UI
+S15.5 — Checkout Foundation
 ```
 
 ---
 
 # 7. Cart Current State
 
-**Status: Trusted commerce backend real; Promotion/Coupon UX next 🟨**
+**Status: Trusted commerce backend + Promotion/Coupon UX real ✅**
 
 Cart persistence remains browser-based during MVP transition:
 
@@ -505,7 +573,7 @@ localStorage("irth-cart")
 
 Browser storage is NOT authoritative for price, eligibility, discounts, or totals.
 
-Server Quote now resolves:
+Server Quote resolves:
 
 * Current Market and currency.
 * Product public availability.
@@ -514,10 +582,17 @@ Server Quote now resolves:
 * Product Promotion.
 * Coupon eligibility.
 * Promotion/Coupon discounts.
-* Funding attribution.
 * Trusted final merchandise subtotal.
 
-The Cart UI has not yet been completed for Coupon entry/state display. That is S15.4.5.
+Cart UI now supports:
+
+* Coupon apply/remove.
+* Trusted Promotion/Coupon status display.
+* Trusted discounted line totals.
+* Trusted summary totals.
+* Re-quote after quantity change.
+
+Internal Promotion/Coupon funding attribution remains server-side and is not exposed in the public quote response.
 
 No persistent Cart database table has been approved or created.
 
@@ -525,7 +600,7 @@ No persistent Cart database table has been approved or created.
 
 # 8. Checkout
 
-**Status: Prototype 🟧 — NOT S15.5 IMPLEMENTATION**
+**Status: Prototype 🟧 — S15.5 NEXT**
 
 Route exists:
 
@@ -539,7 +614,7 @@ Correct action:
 
 > Rebuild the Checkout foundation during **S15.5 — Checkout Foundation** using trusted server-side commerce inputs.
 
-Do not patch the legacy Checkout prototype prematurely.
+Do not preserve insecure local/browser Order creation as the final design.
 
 ---
 
@@ -583,7 +658,7 @@ Artisan Promotions still require IRTH approval.
 
 # 11. Coupon System
 
-**Status: DB + secure calculation real ✅; Cart UX next**
+**Status: DB + secure calculation + Cart UX real ✅**
 
 Approved and implemented rules include:
 
@@ -741,7 +816,7 @@ Known unrelated existing warnings remain:
 2. Leaked Password Protection is disabled in Supabase Auth.
 3. Existing performance/index warnings may remain until affected tables have real workload.
 
-S15.4.4 introduced no new Coupon-specific Security Advisor warning.
+S15.4 introduced no new Cart/Coupon-specific Security Advisor warning after final closure review.
 
 Coupon lookup boundary intentionally uses:
 
@@ -836,11 +911,11 @@ S15.4.3 Coupon DB Foundation ✅
         ↓
 S15.4.4 Coupon Calculation ✅
         ↓
-S15.4.5 Cart UI ← NEXT
+S15.4.5 Cart Promotion/Coupon UI ✅
         ↓
-S15.4.6 Security / Edge Integration Closure
+S15.4.6 Security / Edge Integration Closure ✅
         ↓
-S15.5  Checkout Foundation
+S15.5  Checkout Foundation ← NEXT
         ↓
 Shopping Integration Test
 ```
@@ -851,51 +926,61 @@ Shopping Integration Test
 
 ```text
 LAST CLOSED TASK:
-S15.4.4 — Coupon Calculation ✅
+S15.4.6 — Security / Edge Integration Closure ✅
+
+LAST CLOSED GROUP:
+S15.4 — Promotion Calculation + Coupon Foundation ✅
 
 CURRENT MAJOR POSITION:
 Secure Shopping
 
 NEXT TASK:
-S15.4.5 — Cart UI
+S15.5 — Checkout Foundation
 ```
 
 ---
 
-# 20. NEXT TASK — S15.4.5
+# 20. NEXT TASK — S15.5
 
-## S15.4.5 — Cart UI
+## S15.5 — Checkout Foundation
 
 **Status: READY TO START**
 
 Goal:
 
-Expose the already trusted Promotion/Coupon quote outputs in the Cart UX without duplicating commerce logic on the client.
+Replace the existing insecure Checkout prototype with a trusted server-side Checkout foundation that builds on the closed S15.3/S15.4 commerce quote pipeline.
 
-Expected boundary:
+Approved boundaries already known:
 
-* Coupon code input and apply/remove UX.
-* Display Promotion and Coupon discounts from trusted `/api/cart/quote` output.
-* Display trusted discounted line totals and merchandise subtotal.
-* Represent Coupon states such as invalid/unavailable, minimum not met, Promotion preferred, or applied.
-* Keep client responsible only for input/state; trusted money remains server-calculated.
+* Guest Checkout is allowed.
+* Customer account creation is optional during purchase.
+* Checkout must revalidate trusted commerce inputs server-side.
+* Client/localStorage price, discount and total values are not authoritative.
+* Payment Layer remains separate from Checkout.
+* Shipping Layer remains separate from Order System.
+* Customer ultimately sees one Order, internally split by Artisan/Shipment.
+* Artisan must not receive sensitive Customer contact information.
 
-Do NOT move into Checkout, Orders, Payment, Shipping, Commission or Payout during this task.
+Items that require explicit decision before implementation must follow the normal Question → Discussion → Options → Owner Decision → Adopt → Implement flow.
+
+Do not silently choose the first Payment Gateway, Courier, final Shipping rules, Return rules, payout cycle, or exact Order schema naming during S15.5 unless that decision becomes necessary and is approved.
 
 ---
 
 # 21. S15.5 Boundary
 
-The following belongs to **S15.5 — Checkout Foundation**, not S15.4:
+The following belongs to **S15.5 — Checkout Foundation**:
 
 * Rebuilding `Complete your order`.
 * Trusted Checkout summary.
 * Customer shipping/contact input handling.
 * Guest Checkout implementation.
-* Secure transition from Quote to Order creation.
+* Secure transition from Quote toward Order creation.
 * Checkout-side server revalidation.
 * Removing localStorage Order creation.
 * Per-customer Coupon usage enforcement where Customer identity is available.
+
+Payment provider integration, Courier integration and full Order/Shipment lifecycle should not be silently pulled into S15.5 without an approved subtask boundary.
 
 ---
 
@@ -916,6 +1001,8 @@ S15.4.1 Promotion Market Scope
 S15.4.2 Promotion Calculation
 S15.4.3 Coupon DB Foundation
 S15.4.4 Coupon Calculation
+S15.4.5 Cart Promotion/Coupon UI
+S15.4.6 Security / Edge Integration Closure
 ```
 
 ---
@@ -961,6 +1048,25 @@ Update Project Status
 
 # 25. Change Log
 
+## 30 August 2026 — S15.4 Closure
+
+* Closed S15.4.5 — Cart Promotion/Coupon UI.
+* Closed S15.4.6 — Security / Edge Integration Closure.
+* Closed S15.4 — Promotion Calculation + Coupon Foundation as a whole.
+* Confirmed Cart Coupon apply/remove, status display, quantity re-quote and trusted discounted totals.
+* Final Security review kept browser state as intent only and server quote as monetary authority.
+* Reduced public Cart Quote response to customer-needed fields and hid internal Promotion/Coupon funding metadata.
+* Added `Cache-Control: no-store` on Cart Quote responses.
+* Added invalid Market cookie UUID guard before DB lookup.
+* Reviewed and corrected Coupon private/public RPC execution privileges while preserving guest/authenticated quote access.
+* Reconciled Git migration history to Live Supabase for the S15.4.6 privilege correction.
+* Re-verified Coupon/Promotion RLS boundaries and no customer Redemption write during Quote.
+* Disabled temporary Live UI test Coupons after validation.
+* Isolated the local E2E Next build directory to `.next-e2e` so tests can run beside the normal dev server.
+* Final Production Build / TypeScript passed after application changes.
+* Final `npm.cmd run test:coupon-e2e` passed with public-response security checks and full Coupon calculation matrix.
+* Confirmed S15.5 — Checkout Foundation as next task.
+
 ## 30 August 2026 — S15.4.4 Closure
 
 * Closed S15.4.4 — Coupon Calculation.
@@ -979,7 +1085,6 @@ Update Project Status
 * Verified Remote function security modes, RLS boundary, usage limits, time window, normalization and Artisan scope.
 * Added local-only deterministic Coupon E2E fixtures and reusable `npm.cmd run test:coupon-e2e` runner.
 * Final real `/api/cart/quote` E2E passed for stackable, fixed, percentage, allocation, non-stackable win/lose/tie, 24A, minimum, max cap, rounding, restriction union and Artisan funding.
-* Confirmed S15.4.5 — Cart UI as next task.
 
 ## 30 August 2026 — S15.3 Closure
 
