@@ -11,7 +11,6 @@ type ProductRow = {
   artisan_id: string;
   name_ar: string | null;
   name_en: string;
-  price: number | string;
 };
 
 type ArtisanRow = {
@@ -20,8 +19,21 @@ type ArtisanRow = {
   name_en: string;
 };
 
+type MarketRow = {
+  id: string;
+  slug: string;
+  currency_code: string;
+};
+
+type MarketPriceRow = {
+  product_id: string;
+  market_id: string;
+  price: number | string;
+};
+
 type PromotionRow = {
   id: string;
+  market_id: string | null;
   discount_type: "percentage" | "fixed";
   discount_value: number | string;
   approval_status: "pending" | "approved" | "rejected";
@@ -45,6 +57,7 @@ type PromotionView = PromotionRow & {
 };
 
 type PromotionForm = {
+  marketId: string;
   discountType: "percentage" | "fixed";
   discountValue: number;
   productIds: string[];
@@ -53,6 +66,7 @@ type PromotionForm = {
 };
 
 const emptyForm: PromotionForm = {
+  marketId: "",
   discountType: "percentage",
   discountValue: 10,
   productIds: [],
@@ -68,11 +82,30 @@ function displayStatus(promotion: PromotionRow) {
   return "Active";
 }
 
+function formatMoney(value: number | string, currencyCode: string) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return `${String(value)} ${currencyCode}`;
+  }
+
+  try {
+    return new Intl.NumberFormat("ar-EG", {
+      style: "currency",
+      currency: currencyCode,
+    }).format(numericValue);
+  } catch {
+    return `${String(value)} ${currencyCode}`;
+  }
+}
+
 export default function AdminPromotionsPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
   const [products, setProducts] = useState<ProductView[]>([]);
+  const [markets, setMarkets] = useState<MarketRow[]>([]);
+  const [marketPrices, setMarketPrices] = useState<MarketPriceRow[]>([]);
   const [promotions, setPromotions] = useState<PromotionView[]>([]);
   const [form, setForm] = useState<PromotionForm>(emptyForm);
   const [loading, setLoading] = useState(true);
@@ -96,10 +129,16 @@ export default function AdminPromotionsPage() {
       return;
     }
 
-    const [productsResult, artisansResult, promotionsResult] = await Promise.all([
+    const [
+      productsResult,
+      artisansResult,
+      marketsResult,
+      pricesResult,
+      promotionsResult,
+    ] = await Promise.all([
       supabase
         .from("products")
-        .select("id, slug, artisan_id, name_ar, name_en, price")
+        .select("id, slug, artisan_id, name_ar, name_en")
         .eq("lifecycle_status", "published")
         .order("created_at", { ascending: false }),
       supabase
@@ -107,18 +146,35 @@ export default function AdminPromotionsPage() {
         .select("id, name_ar, name_en")
         .eq("status", "active"),
       supabase
+        .from("markets")
+        .select("id, slug, currency_code")
+        .eq("is_active", true)
+        .order("slug"),
+      supabase
+        .from("product_market_prices")
+        .select("product_id, market_id, price")
+        .eq("is_active", true),
+      supabase
         .from("promotions")
         .select(
-          "id, discount_type, discount_value, approval_status, is_enabled, start_at, end_at, created_at"
+          "id, market_id, discount_type, discount_value, approval_status, is_enabled, start_at, end_at, created_at"
         )
         .eq("source_type", "irth")
         .order("created_at", { ascending: false }),
     ]);
 
-    if (productsResult.error || artisansResult.error || promotionsResult.error) {
+    if (
+      productsResult.error ||
+      artisansResult.error ||
+      marketsResult.error ||
+      pricesResult.error ||
+      promotionsResult.error
+    ) {
       console.error("Could not load IRTH promotions:", {
         products: productsResult.error,
         artisans: artisansResult.error,
+        markets: marketsResult.error,
+        prices: pricesResult.error,
         promotions: promotionsResult.error,
       });
       setError("تعذر تحميل بيانات عروض IRTH.");
@@ -127,7 +183,10 @@ export default function AdminPromotionsPage() {
     }
 
     const artisanMap = new Map(
-      ((artisansResult.data ?? []) as ArtisanRow[]).map((artisan) => [artisan.id, artisan])
+      ((artisansResult.data ?? []) as ArtisanRow[]).map((artisan) => [
+        artisan.id,
+        artisan,
+      ])
     );
 
     const productRows = (productsResult.data ?? []) as ProductRow[];
@@ -141,6 +200,8 @@ export default function AdminPromotionsPage() {
         };
       });
 
+    const marketRows = (marketsResult.data ?? []) as MarketRow[];
+    const priceRows = (pricesResult.data ?? []) as MarketPriceRow[];
     const promotionRows = (promotionsResult.data ?? []) as PromotionRow[];
     let links: PromotionProductRow[] = [];
 
@@ -163,7 +224,9 @@ export default function AdminPromotionsPage() {
       links = (linkData ?? []) as PromotionProductRow[];
     }
 
-    const productMap = new Map(visibleProducts.map((product) => [product.id, product]));
+    const productMap = new Map(
+      visibleProducts.map((product) => [product.id, product])
+    );
     const mappedPromotions: PromotionView[] = promotionRows.map((promotion) => ({
       ...promotion,
       productNames: links
@@ -174,13 +237,31 @@ export default function AdminPromotionsPage() {
     }));
 
     setProducts(visibleProducts);
+    setMarkets(marketRows);
+    setMarketPrices(priceRows);
     setPromotions(mappedPromotions);
+    setForm((current) => ({
+      ...current,
+      marketId: current.marketId || marketRows[0]?.id || "",
+    }));
     setLoading(false);
   };
 
   useEffect(() => {
     void loadData();
   }, []);
+
+  const selectedMarket = markets.find((market) => market.id === form.marketId) ?? null;
+
+  const selectedMarketPrices = new Map(
+    marketPrices
+      .filter((price) => price.market_id === form.marketId)
+      .map((price) => [price.product_id, price.price])
+  );
+
+  const availableProducts = products.filter((product) =>
+    selectedMarketPrices.has(product.id)
+  );
 
   const toggleProduct = (productId: string) => {
     setForm((current) => ({
@@ -194,6 +275,11 @@ export default function AdminPromotionsPage() {
   const createPromotion = async () => {
     setError("");
     setMessage("");
+
+    if (!form.marketId) {
+      setError("اختر السوق الخاص بالعرض.");
+      return;
+    }
 
     if (form.productIds.length === 0) {
       setError("اختر منتج واحد على الأقل.");
@@ -218,7 +304,11 @@ export default function AdminPromotionsPage() {
     const startAt = new Date(form.startAt);
     const endAt = new Date(form.endAt);
 
-    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) {
+    if (
+      Number.isNaN(startAt.getTime()) ||
+      Number.isNaN(endAt.getTime()) ||
+      endAt <= startAt
+    ) {
       setError("وقت النهاية يجب أن يكون بعد وقت البداية.");
       return;
     }
@@ -226,6 +316,7 @@ export default function AdminPromotionsPage() {
     setSubmitting(true);
 
     const { error: createError } = await supabase.rpc("create_irth_promotion", {
+      p_market_id: form.marketId,
       p_discount_type: form.discountType,
       p_discount_value: form.discountValue,
       p_start_at: startAt.toISOString(),
@@ -240,7 +331,8 @@ export default function AdminPromotionsPage() {
       return;
     }
 
-    setForm(emptyForm);
+    const selectedMarketId = form.marketId;
+    setForm({ ...emptyForm, marketId: selectedMarketId });
     setShowForm(false);
     setSubmitting(false);
     setMessage("تم إنشاء عرض IRTH واعتماده.");
@@ -248,6 +340,11 @@ export default function AdminPromotionsPage() {
   };
 
   const toggleEnabled = async (promotion: PromotionView) => {
+    if (!promotion.market_id && !promotion.is_enabled) {
+      setError("العرض القديم غير مربوط بسوق، لذلك لا يمكن تشغيله تجاريًا.");
+      return;
+    }
+
     setBusyId(promotion.id);
     setError("");
     setMessage("");
@@ -289,7 +386,7 @@ export default function AdminPromotionsPage() {
               عروض IRTH
             </h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              عروض IRTH تُنشأ من الإدارة وتكون معتمدة مباشرة. Coupon Engine مؤجل لمرحلة Shopping/Money.
+              كل عرض IRTH مرتبط بسوق واحد ويُنشأ معتمدًا من الإدارة.
             </p>
           </div>
 
@@ -297,7 +394,7 @@ export default function AdminPromotionsPage() {
             <button
               type="button"
               onClick={() => setShowForm((value) => !value)}
-              disabled={products.length === 0}
+              disabled={markets.length === 0 || products.length === 0}
               className="rounded-[var(--radius-md)] bg-[var(--color-copper)] px-5 py-2.5 text-sm font-medium text-[var(--color-ivory)] disabled:opacity-50"
             >
               {showForm ? "إلغاء" : "+ عرض IRTH جديد"}
@@ -323,13 +420,40 @@ export default function AdminPromotionsPage() {
           </div>
         )}
 
-        {showForm && (
+        {markets.length === 0 && (
+          <div className="mt-6 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-6 text-sm text-[var(--text-secondary)]">
+            لا يوجد سوق نشط متاح لإنشاء عرض IRTH حاليًا.
+          </div>
+        )}
+
+        {showForm && markets.length > 0 && products.length > 0 && (
           <div className="mt-6 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
             <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
               إنشاء عرض IRTH
             </h2>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="text-sm text-[var(--text-secondary)]">
+                السوق
+                <select
+                  value={form.marketId}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      marketId: event.target.value,
+                      productIds: [],
+                    }))
+                  }
+                  className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3"
+                >
+                  {markets.map((market) => (
+                    <option key={market.id} value={market.id}>
+                      {market.slug} · {market.currency_code}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <label className="text-sm text-[var(--text-secondary)]">
                 نوع الخصم
                 <select
@@ -343,7 +467,7 @@ export default function AdminPromotionsPage() {
                   className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3"
                 >
                   <option value="percentage">نسبة مئوية</option>
-                  <option value="fixed">مبلغ ثابت</option>
+                  <option value="fixed">مبلغ ثابت لكل وحدة</option>
                 </select>
               </label>
 
@@ -351,14 +475,22 @@ export default function AdminPromotionsPage() {
                 قيمة الخصم
                 <input
                   type="number"
-                  min="0.01"
-                  step="0.01"
+                  min="0"
+                  step="any"
                   value={form.discountValue}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, discountValue: Number(event.target.value) }))
+                    setForm((current) => ({
+                      ...current,
+                      discountValue: Number(event.target.value),
+                    }))
                   }
                   className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3"
                 />
+                {form.discountType === "fixed" && selectedMarket && (
+                  <span className="mt-1 block text-xs text-[var(--text-muted)]">
+                    العملة: {selectedMarket.currency_code}
+                  </span>
+                )}
               </label>
 
               <label className="text-sm text-[var(--text-secondary)]">
@@ -387,32 +519,46 @@ export default function AdminPromotionsPage() {
             </div>
 
             <div className="mt-5">
-              <p className="text-sm text-[var(--text-secondary)]">المنتجات المنشورة المتاحة</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {products.map((product) => {
-                  const selected = form.productIds.includes(product.id);
-                  return (
-                    <button
-                      key={product.id}
-                      type="button"
-                      onClick={() => toggleProduct(product.id)}
-                      className={`rounded-full px-4 py-2 text-sm ${
-                        selected
-                          ? "bg-[var(--color-espresso)] text-[var(--color-ivory)]"
-                          : "bg-[var(--surface-muted)] text-[var(--text-secondary)]"
-                      }`}
-                    >
-                      {product.name_ar || product.name_en} · {product.artisanName}
-                    </button>
-                  );
-                })}
-              </div>
+              <p className="text-sm text-[var(--text-secondary)]">
+                المنتجات المنشورة ذات السعر النشط في السوق المختار
+              </p>
+
+              {availableProducts.length === 0 ? (
+                <div className="mt-3 rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-secondary)]">
+                  لا توجد منتجات بسعر نشط في هذا السوق.
+                </div>
+              ) : (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {availableProducts.map((product) => {
+                    const selected = form.productIds.includes(product.id);
+                    const marketPrice = selectedMarketPrices.get(product.id);
+
+                    return (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => toggleProduct(product.id)}
+                        className={`rounded-full px-4 py-2 text-sm ${
+                          selected
+                            ? "bg-[var(--color-espresso)] text-[var(--color-ivory)]"
+                            : "bg-[var(--surface-muted)] text-[var(--text-secondary)]"
+                        }`}
+                      >
+                        {product.name_ar || product.name_en} · {product.artisanName}
+                        {selectedMarket && marketPrice !== undefined
+                          ? ` · ${formatMoney(marketPrice, selectedMarket.currency_code)}`
+                          : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <button
               type="button"
               onClick={createPromotion}
-              disabled={submitting}
+              disabled={submitting || availableProducts.length === 0}
               className="mt-6 rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-3 text-sm font-medium text-[var(--color-ivory)] disabled:opacity-60"
             >
               {submitting ? "جاري الإنشاء..." : "إنشاء واعتماد العرض"}
@@ -426,42 +572,66 @@ export default function AdminPromotionsPage() {
               لا توجد عروض IRTH حتى الآن.
             </div>
           ) : (
-            promotions.map((promotion) => (
-              <article
-                key={promotion.id}
-                className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
-                        {promotion.discount_type === "percentage"
-                          ? `${Number(promotion.discount_value)}% خصم`
-                          : `$${Number(promotion.discount_value).toFixed(2)} خصم`}
-                      </h2>
-                      <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium">
-                        {displayStatus(promotion)}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                      {promotion.productNames.join("، ") || "منتجات مرتبطة بالعرض"}
-                    </p>
-                    <p className="mt-2 text-xs text-[var(--text-muted)]">
-                      {new Date(promotion.start_at).toLocaleString("ar-EG")} → {new Date(promotion.end_at).toLocaleString("ar-EG")}
-                    </p>
-                  </div>
+            promotions.map((promotion) => {
+              const promotionMarket = markets.find(
+                (market) => market.id === promotion.market_id
+              );
 
-                  <button
-                    type="button"
-                    disabled={busyId === promotion.id}
-                    onClick={() => toggleEnabled(promotion)}
-                    className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-4 py-2 text-sm disabled:opacity-60"
-                  >
-                    {promotion.is_enabled ? "إيقاف" : "تشغيل"}
-                  </button>
-                </div>
-              </article>
-            ))
+              return (
+                <article
+                  key={promotion.id}
+                  className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5"
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
+                          {promotion.discount_type === "percentage"
+                            ? `${Number(promotion.discount_value)}% خصم`
+                            : promotionMarket
+                              ? `${formatMoney(
+                                  promotion.discount_value,
+                                  promotionMarket.currency_code
+                                )} خصم لكل وحدة`
+                              : `${String(promotion.discount_value)} خصم ثابت`}
+                        </h2>
+                        <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium">
+                          {displayStatus(promotion)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-[var(--text-muted)]">
+                        {promotionMarket
+                          ? `${promotionMarket.slug} · ${promotionMarket.currency_code}`
+                          : "سوق غير محدد — عرض قديم غير مؤهل للحساب التجاري"}
+                      </p>
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                        {promotion.productNames.join("، ") || "منتجات مرتبطة بالعرض"}
+                      </p>
+                      <p className="mt-2 text-xs text-[var(--text-muted)]">
+                        {new Date(promotion.start_at).toLocaleString("ar-EG")} →{" "}
+                        {new Date(promotion.end_at).toLocaleString("ar-EG")}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={
+                        busyId === promotion.id ||
+                        (!promotion.market_id && !promotion.is_enabled)
+                      }
+                      onClick={() => toggleEnabled(promotion)}
+                      className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-4 py-2 text-sm disabled:opacity-60"
+                    >
+                      {!promotion.market_id && !promotion.is_enabled
+                        ? "غير قابل للتشغيل"
+                        : promotion.is_enabled
+                          ? "إيقاف"
+                          : "تشغيل"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })
           )}
         </div>
       </section>
