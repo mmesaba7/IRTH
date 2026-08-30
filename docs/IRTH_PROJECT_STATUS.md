@@ -2,7 +2,7 @@
 
 **Project:** IRTH  
 **Document Purpose:** Current implementation status of the IRTH MVP  
-**Last Updated:** 30 August 2026
+**Last Updated:** 31 August 2026
 
 ---
 
@@ -533,30 +533,86 @@ Confirmed by E2E:
 
 ---
 
+## S15.5.1 — Trusted Checkout Summary
+
+**Status: CLOSED ✅**
+
+Implemented and tested:
+
+* Replaced the insecure Checkout summary with trusted server-quoted commerce data.
+* `/checkout` reuses the secure Cart quote pipeline for current Market, Product availability, Market price, inventory, Promotions and Coupon effects.
+* Browser-stored price/discount/total values are not trusted.
+* Trusted Product lines, quantity, original merchandise total, Promotion discount, Coupon discount and merchandise subtotal are displayed.
+* Checkout remains blocked when trusted `canCheckout` is false.
+* Shipping, payment and real Order creation remain intentionally outside this completed subtask.
+
+Manual functional test and Production Build / TypeScript passed.
+
+---
+
+## S15.5.2 — Customer Details + Guest Checkout Foundation
+
+**Status: CLOSED ✅**
+
+Approved decision record:
+
+```text
+docs/IRTH_S15_5_DECISION_REGISTER.md
+```
+
+Implemented and tested:
+
+* One-page Mobile-First customer/contact and delivery-details foundation.
+* Required fields: recipient full name, email, phone, Market-locked delivery country, administrative area/governorate, city and detailed address; delivery notes optional.
+* Egypt Governorate selection with generic `administrative_area` architecture for later Markets.
+* Server-side normalization and validation through `/api/checkout/validate`.
+* Selected Market determines allowed delivery country; physical Geo remains suggestion-only.
+* Guest Checkout remains allowed with no automatic account creation.
+* Authenticated Customer name/email prefill is supported without silently overwriting account data.
+* Sensitive Checkout PII stays in React state and is not persisted to `localStorage` or `sessionStorage`.
+* Guest email/phone remain transactional-only; no marketing enrollment is created.
+* Safe Checkout sign-in return to `/checkout` is implemented without open redirect behavior.
+* Checkout-side server validation re-runs trusted Market/Product/Price/Inventory/Promotion/Coupon commerce functions directly.
+* Successful validation does not create an Order, consume Coupon Redemption, mutate inventory, calculate shipping or activate payment.
+* Checkout validation responses use a narrow customer-safe response and do not echo submitted PII.
+
+Verified functional scenarios:
+
+* Guest Checkout form and Egypt delivery-country lock.
+* Invalid email/phone validation.
+* Egypt Governorate validation.
+* Valid customer details return secure validation success with no Order created.
+* Refresh does not persist Guest PII.
+* Checkout `Sign in` opens Customer Login, successful Login returns safely to `/checkout`, and authenticated name/email prefill works.
+* Production Build / TypeScript passed after final Market-country relation normalization.
+
+---
+
 # 6. Current Shopping State
 
 Real foundations now exist for:
 
 ```text
-Market & Pricing               ✅
-Market Selection               ✅
-Secure Cart / Server Quote     ✅
-Promotion Market Scope         ✅
-Promotion Calculation          ✅
-Coupon DB Foundation           ✅
-Coupon Calculation             ✅
-Cart Promotion/Coupon UX       ✅
-Security / Edge Closure        ✅
-Secure Checkout                ← NEXT
-Orders                         ⬜
-Shipping                       ⬜
-Payments                       ⬜
+Market & Pricing                    ✅
+Market Selection                    ✅
+Secure Cart / Server Quote          ✅
+Promotion Market Scope              ✅
+Promotion Calculation               ✅
+Coupon DB Foundation                ✅
+Coupon Calculation                  ✅
+Cart Promotion/Coupon UX            ✅
+Security / Edge Closure             ✅
+Trusted Checkout Summary            ✅
+Customer Details / Guest/Auth       ✅
+Shipping / Final Total Boundary     ← NEXT
+Orders                              ⬜
+Payments                            ⬜
 ```
 
 Current task:
 
 ```text
-S15.5 — Checkout Foundation
+S15.5.3 — Shipping / Final Total Boundary
 ```
 
 ---
@@ -600,21 +656,36 @@ No persistent Cart database table has been approved or created.
 
 # 8. Checkout
 
-**Status: Prototype 🟧 — S15.5 NEXT**
+**Status: Trusted foundation real 🟨 — S15.5.1 + S15.5.2 CLOSED; S15.5.3 NEXT**
 
-Route exists:
+Route:
 
 ```text
 /checkout
 ```
 
-The current page is an old prototype. It still relies on local/browser Order construction and must not be treated as secure Checkout.
+Current trusted Checkout foundation now provides:
 
-Correct action:
+* Server-authoritative merchandise summary.
+* Promotion/Coupon-aware trusted totals.
+* Guest and authenticated Customer flow.
+* Required customer/contact/delivery-detail input.
+* Market-locked delivery country.
+* Server-side customer and commerce revalidation.
+* Sensitive PII kept out of browser persistence.
+* Safe Login return to Checkout.
 
-> Rebuild the Checkout foundation during **S15.5 — Checkout Foundation** using trusted server-side commerce inputs.
+Current intentional boundary:
 
-Do not preserve insecure local/browser Order creation as the final design.
+```text
+Trusted merchandise + customer details ✅
+Shipping price / free-shipping rule    ← NEXT
+Final Checkout total                   ← NEXT
+Real transactional Order creation      ⬜
+Payment integration                    ⬜
+```
+
+No real Order is created yet, and the current Checkout must not be mistaken for a completed Order/Payment flow.
 
 ---
 
@@ -674,8 +745,8 @@ Approved and implemented rules include:
 * Currency-aware Round Half-Up.
 * Proportional allocation with deterministic remainder.
 * IRTH-funded or one-Artisan-funded scope.
-* Usage is not consumed during Quote.
-* Per-customer identity enforcement is deferred to Checkout/Identity.
+* Usage is not consumed during Quote or Checkout validation.
+* Customer-identity strategy is approved in S15.5; actual Redemption enforcement remains part of the future secure Order transaction.
 
 ---
 
@@ -732,9 +803,11 @@ Final bilingual QA          ⬜
 
 ## Shipping
 
-**Status: NOT IMPLEMENTED ⬜**
+**Status: NOT IMPLEMENTED ⬜ — S15.5.3 NEXT**
 
 Shipping Layer remains separate from Order System. MVP starts with one Courier; first Courier is not yet approved.
+
+The Specification requires Market-level fixed shipping cost plus an independent free-shipping threshold, configurable by IRTH. Final Egypt values are not yet approved and must not be invented.
 
 ## Payment
 
@@ -833,7 +906,7 @@ with explicit narrow grants and no raw general Coupon-table client read.
 # 15. Known Technical Debt / Gaps
 
 * Admin Artisans / Countries / Crafts remain mixed prototype/real areas.
-* Checkout remains insecure prototype until S15.5.
+* Checkout now has trusted merchandise and customer-detail validation, but Shipping/final-total and real transactional Order creation are not yet implemented.
 * Orders, Notifications, Reviews, Commission UI, Payout UI remain prototype or absent as noted above.
 * Sensitive payout/bank settings must eventually move to strict server-side storage.
 * Full bilingual UI is incomplete.
@@ -872,6 +945,7 @@ Do NOT automatically reopen:
 * Egypt Launch Market uses EGP.
 * Legacy Product prices are not automatically mapped to Egypt/EGP.
 * S15.4 Decisions 1A–24A as recorded in `IRTH_S15_4_DECISION_REGISTER.md`.
+* S15.5 Checkout Decisions 1–26 as recorded in `IRTH_S15_5_DECISION_REGISTER.md`.
 
 ---
 
@@ -881,7 +955,7 @@ These points remain unresolved unless separately approved:
 
 * First Payment Gateway.
 * First Courier.
-* Final Shipping cost/free-shipping rules.
+* Final Egypt Shipping cost and free-shipping threshold.
 * Final Return Window.
 * Return Shipping Responsibility.
 * Final Payout Cycle.
@@ -889,6 +963,8 @@ These points remain unresolved unless separately approved:
 * Persistent Cart DB decision, if ever needed.
 
 S15.4 Promotion/Coupon overlap, Market scope, fixed/percentage calculation, rounding, stacking, allocation and non-stackable behavior are no longer unresolved; they are approved and implemented.
+
+S15.5.1 trusted summary and S15.5.2 customer-details/Guest/Auth decisions are also approved, implemented and closed.
 
 ---
 
@@ -915,10 +991,18 @@ S15.4.5 Cart Promotion/Coupon UI ✅
         ↓
 S15.4.6 Security / Edge Integration Closure ✅
         ↓
-S15.5  Checkout Foundation ← NEXT
+S15.5.1 Trusted Checkout Summary ✅
+        ↓
+S15.5.2 Customer Details + Guest Checkout Foundation ✅
+        ↓
+S15.5.3 Shipping / Final Total Boundary ← NEXT
+        ↓
+S15.5.4 Order Creation Transactional Design
         ↓
 Shopping Integration Test
 ```
+
+Payment integration remains a separate layer after the required Checkout/Order foundation.
 
 ---
 
@@ -926,61 +1010,88 @@ Shopping Integration Test
 
 ```text
 LAST CLOSED TASK:
-S15.4.6 — Security / Edge Integration Closure ✅
+S15.5.2 — Customer Details + Guest Checkout Foundation ✅
 
 LAST CLOSED GROUP:
 S15.4 — Promotion Calculation + Coupon Foundation ✅
+
+CURRENT GROUP:
+S15.5 — Checkout Foundation 🟨
 
 CURRENT MAJOR POSITION:
 Secure Shopping
 
 NEXT TASK:
-S15.5 — Checkout Foundation
+S15.5.3 — Shipping / Final Total Boundary
 ```
 
 ---
 
-# 20. NEXT TASK — S15.5
+# 20. NEXT TASK — S15.5.3
 
-## S15.5 — Checkout Foundation
+## S15.5.3 — Shipping / Final Total Boundary
 
-**Status: READY TO START**
+**Status: READY FOR DECISION / START**
 
 Goal:
 
-Replace the existing insecure Checkout prototype with a trusted server-side Checkout foundation that builds on the closed S15.3/S15.4 commerce quote pipeline.
+Add the trusted Shipping-price and final-Checkout-total boundary on top of the closed trusted merchandise quote and customer-detail validation, without prematurely creating Orders or integrating a Courier/Payment provider.
 
 Approved boundaries already known:
 
-* Guest Checkout is allowed.
-* Customer account creation is optional during purchase.
-* Checkout must revalidate trusted commerce inputs server-side.
-* Client/localStorage price, discount and total values are not authoritative.
-* Payment Layer remains separate from Checkout.
 * Shipping Layer remains separate from Order System.
-* Customer ultimately sees one Order, internally split by Artisan/Shipment.
-* Artisan must not receive sensitive Customer contact information.
+* Selected Market determines the allowed delivery country.
+* One delivery address is used per Order in MVP.
+* Shipping rules are Market-specific.
+* The Specification requires a fixed shipping cost plus an independent free-shipping threshold configurable by IRTH.
+* Shipping amount and free-shipping threshold must affect the final trusted Checkout total server-side, not from client/localStorage values.
+* Final Egypt shipping fee and free-shipping threshold have NOT yet been approved.
+* First Courier has NOT yet been approved and must not be selected silently.
+* Real Order creation remains for S15.5.4 after its transactional model is approved.
+* Payment integration remains separate.
 
-Items that require explicit decision before implementation must follow the normal Question → Discussion → Options → Owner Decision → Adopt → Implement flow.
+Before implementation, the unresolved Egypt Shipping values and any required configuration/data-model detail must follow:
 
-Do not silently choose the first Payment Gateway, Courier, final Shipping rules, Return rules, payout cycle, or exact Order schema naming during S15.5 unless that decision becomes necessary and is approved.
+```text
+Question
+↓
+Discussion
+↓
+Options
+↓
+Owner Decision
+↓
+Adopt
+↓
+Implement
+```
 
 ---
 
 # 21. S15.5 Boundary
 
-The following belongs to **S15.5 — Checkout Foundation**:
+Current S15.5 sequence:
 
-* Rebuilding `Complete your order`.
+```text
+S15.5.1 Trusted Checkout Summary                         CLOSED ✅
+S15.5.2 Customer Details + Guest Checkout Foundation     CLOSED ✅
+S15.5.3 Shipping / Final Total Boundary                  NEXT
+S15.5.4 Order Creation Transactional Design              LATER
+Payment integration                                      SEPARATE LAYER
+```
+
+S15.5 already owns or will own:
+
 * Trusted Checkout summary.
 * Customer shipping/contact input handling.
-* Guest Checkout implementation.
-* Secure transition from Quote toward Order creation.
+* Guest/Auth Checkout behavior.
 * Checkout-side server revalidation.
-* Removing localStorage Order creation.
-* Per-customer Coupon usage enforcement where Customer identity is available.
+* Shipping/final-total boundary.
+* Secure transition from Quote toward real Order creation.
+* Removing insecure local/browser Order creation.
+* Future secure per-customer Coupon Redemption enforcement at the approved real Order transaction point.
 
-Payment provider integration, Courier integration and full Order/Shipment lifecycle should not be silently pulled into S15.5 without an approved subtask boundary.
+Payment provider integration, Courier integration and full Order/Shipment lifecycle must not be silently pulled into S15.5 without an approved subtask boundary.
 
 ---
 
@@ -1003,6 +1114,8 @@ S15.4.3 Coupon DB Foundation
 S15.4.4 Coupon Calculation
 S15.4.5 Cart Promotion/Coupon UI
 S15.4.6 Security / Edge Integration Closure
+S15.5.1 Trusted Checkout Summary
+S15.5.2 Customer Details + Guest Checkout Foundation
 ```
 
 ---
@@ -1048,6 +1161,24 @@ Update Project Status
 
 # 25. Change Log
 
+## 31 August 2026 — S15.5.1 + S15.5.2 Closure
+
+* Closed S15.5.1 — Trusted Checkout Summary.
+* Closed S15.5.2 — Customer Details + Guest Checkout Foundation.
+* Recorded and retained approved S15.5 Checkout decisions in `docs/IRTH_S15_5_DECISION_REGISTER.md`.
+* Replaced the old insecure Checkout prototype summary with trusted server-authoritative merchandise data.
+* Added server-side Checkout customer/contact/delivery validation without creating a real Order.
+* Added Guest Checkout customer details with Market-locked delivery country and Egypt Governorate validation.
+* Kept sensitive customer PII out of `localStorage` and `sessionStorage`.
+* Added authenticated Customer name/email prefill without silently overwriting account data.
+* Added safe Sign in from Checkout with return to `/checkout` and no open redirect.
+* Confirmed Quote/Checkout validation does not consume Coupon Redemption or mutate inventory.
+* Confirmed Shipping price, Payment and real Order creation remain intentionally inactive at this stage.
+* Corrected Supabase Market-country relation shape at the shared server helper boundary.
+* Production Build / TypeScript passed.
+* Manual Guest validation, invalid field, PII refresh, Market-country lock and Guest → Login → Checkout return/prefill scenarios passed.
+* Advanced the next task to S15.5.3 — Shipping / Final Total Boundary.
+
 ## 30 August 2026 — S15.4 Closure
 
 * Closed S15.4.5 — Cart Promotion/Coupon UI.
@@ -1062,7 +1193,7 @@ Update Project Status
 * Reconciled Git migration history to Live Supabase for the S15.4.6 privilege correction.
 * Re-verified Coupon/Promotion RLS boundaries and no customer Redemption write during Quote.
 * Disabled temporary Live UI test Coupons after validation.
-* Isolated the local E2E Next build directory to `.next-e2e` so tests can run beside the normal dev server.
+* Isolated the local E2E Next build directory to `.next-e2e` so tests can run beside the normal local dev server.
 * Final Production Build / TypeScript passed after application changes.
 * Final `npm.cmd run test:coupon-e2e` passed with public-response security checks and full Coupon calculation matrix.
 * Confirmed S15.5 — Checkout Foundation as next task.
