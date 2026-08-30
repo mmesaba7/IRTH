@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import Header from "../../components/Header";
 import { createClient } from "@/lib/supabase/server";
+import FulfillmentActionForm from "./FulfillmentActionForm";
 
 type ArtisanOrderItem = {
   id: string;
@@ -155,6 +156,49 @@ export default async function ArtisanOrdersPage() {
                     <p className="mt-1 text-sm font-medium text-[var(--color-espresso)]">{statusLabel(order.payment_status)}</p>
                   </div>
                 </div>
+
+                {(order.fulfillment_status === "received" || order.fulfillment_status === "confirmed") && (
+                  <div className="border-b border-[var(--border-soft)] px-6 py-5">
+                    <p className="text-sm font-medium text-[var(--color-espresso)]">جاهز لبدء تنفيذ الطلب؟</p>
+                    <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                      استخدم هذا الإجراء فقط عندما تبدأ فعليًا في تجهيز منتجات هذا الطلب.
+                    </p>
+                    <div className="mt-3">
+                      <FulfillmentActionForm
+                        artisanGroupId={order.artisan_group_id}
+                        targetStatus="preparing"
+                        label="بدأت التجهيز"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {order.fulfillment_status === "preparing" && (
+                  <div className="border-b border-[var(--border-soft)] px-6 py-5">
+                    <p className="text-sm font-medium text-[var(--color-espresso)]">هل انتهى تجهيز منتجاتك؟</p>
+                    <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                      بعد التأكيد سيصبح الطلب جاهزًا للاستلام من شركة الشحن، ولن تتمكن من إرجاعه إلى حالة التجهيز بنفسك.
+                    </p>
+                    <div className="mt-3">
+                      <FulfillmentActionForm
+                        artisanGroupId={order.artisan_group_id}
+                        targetStatus="ready_for_courier_pickup"
+                        label="جاهز للاستلام"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {order.fulfillment_status === "ready_for_courier_pickup" && (
+                  <div className="border-b border-[var(--border-soft)] bg-[var(--surface-muted)]/40 px-6 py-5">
+                    <p className="text-sm font-medium text-[var(--color-espresso)]">
+                      الطلب جاهز للاستلام من شركة الشحن.
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                      حالات الاستلام والشحن التالية يتم تحديثها من خلال IRTH / شركة الشحن، وليست من لوحة الحرفي.
+                    </p>
+                  </div>
+                )}
 
                 <div className="p-6">
                   <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Products to prepare</p>
