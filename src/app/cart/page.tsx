@@ -72,6 +72,7 @@ type QuoteState = {
 };
 
 const EMPTY_CART_SNAPSHOT = "[]";
+const CHECKOUT_COUPON_KEY = "irth-checkout-coupon";
 
 function subscribeToCart(onStoreChange: () => void) {
   const handleCartUpdated = () => onStoreChange();
@@ -255,6 +256,14 @@ export default function CartPage() {
   const removeCoupon = () => {
     setAppliedCouponCode(null);
     setCouponInput("");
+  };
+
+  const prepareCheckout = () => {
+    if (quote?.couponCode) {
+      sessionStorage.setItem(CHECKOUT_COUPON_KEY, quote.couponCode);
+    } else {
+      sessionStorage.removeItem(CHECKOUT_COUPON_KEY);
+    }
   };
 
   return (
@@ -473,6 +482,7 @@ export default function CartPage() {
               {quote?.canCheckout ? (
                 <Link
                   href="/checkout"
+                  onClick={prepareCheckout}
                   className="mt-7 block w-full rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-center text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)]"
                 >
                   Continue to checkout
