@@ -18,6 +18,15 @@ type QuoteItemStatus =
   | "out_of_stock"
   | "insufficient_stock";
 
+type CouponQuoteStatus =
+  | "not_requested"
+  | "applied"
+  | "invalid_or_unavailable"
+  | "not_applicable"
+  | "minimum_not_met"
+  | "promotion_preferred"
+  | "no_discount";
+
 type QuoteItem = {
   slug: string;
   requestedQuantity: number;
@@ -33,6 +42,9 @@ type QuoteItem = {
     available_quantity: number | null;
   };
   unitPrice: string | null;
+  originalLineTotal: string | null;
+  promotionDiscount: string | null;
+  couponDiscount: string | null;
   lineTotal: string | null;
 };
 
@@ -43,6 +55,12 @@ type CartQuote = {
     currency_code: string;
   };
   items: QuoteItem[];
+  subtotalBeforePromotions: string;
+  promotionDiscountTotal: string;
+  subtotalBeforeCoupon: string;
+  couponDiscountTotal: string;
+  couponCode: string | null;
+  couponStatus: CouponQuoteStatus;
   subtotal: string;
   canCheckout: boolean;
 };
@@ -58,9 +76,7 @@ const EMPTY_CART_SNAPSHOT = "[]";
 function subscribeToCart(onStoreChange: () => void) {
   const handleCartUpdated = () => onStoreChange();
   const handleStorage = (event: StorageEvent) => {
-    if (event.key === "irth-cart") {
-      onStoreChange();
-    }
+    if (event.key === "irth-cart") onStoreChange();
   };
 
   window.addEventListener("irth-cart-updated", handleCartUpdated);
@@ -83,10 +99,7 @@ function getServerCartSnapshot() {
 function parseCartSnapshot(snapshot: string): LegacyCartItem[] {
   try {
     const parsed = JSON.parse(snapshot) as unknown;
-
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
+    if (!Array.isArray(parsed)) return [];
 
     return parsed.filter(
       (item): item is LegacyCartItem =>
@@ -103,12 +116,10 @@ function parseCartSnapshot(snapshot: string): LegacyCartItem[] {
 
 function groupCart(cart: LegacyCartItem[]) {
   const grouped: Record<string, number> = {};
-
   for (const item of cart) {
     const slug = item.slug.trim();
     grouped[slug] = (grouped[slug] ?? 0) + 1;
   }
-
   return grouped;
 }
 
@@ -127,28 +138,51 @@ function availabilityMessage(item: QuoteItem) {
   }
 }
 
+function couponStatusMessage(status: CouponQuoteStatus) {
+  switch (status) {
+    case "applied":
+      return "Coupon applied successfully.";
+    case "invalid_or_unavailable":
+      return "This coupon is invalid or unavailable for the selected market.";
+    case "not_applicable":
+      return "This coupon does not apply to the products in your cart.";
+    case "minimum_not_met":
+      return "Your eligible items do not meet this coupon’s minimum order amount.";
+    case "promotion_preferred":
+      return "Your current product promotion gives you the better price, so it was kept.";
+    case "no_discount":
+      return "This coupon does not create an additional discount for this cart.";
+    default:
+      return "";
+  }
+}
+
+function hasPositiveMoney(value: string | null | undefined) {
+  if (!value) return false;
+  return Number(value) > 0;
+}
+
 export default function CartPage() {
   const cartSnapshot = useSyncExternalStore(
     subscribeToCart,
     getCartSnapshot,
     getServerCartSnapshot
   );
-  const cartItems = useMemo(
-    () => parseCartSnapshot(cartSnapshot),
-    [cartSnapshot]
-  );
+  const cartItems = useMemo(() => parseCartSnapshot(cartSnapshot), [cartSnapshot]);
   const quantities = useMemo(() => groupCart(cartItems), [cartItems]);
   const quoteItems = useMemo(
-    () =>
-      Object.entries(quantities).map(([slug, quantity]) => ({
-        slug,
-        quantity,
-      })),
+    () => Object.entries(quantities).map(([slug, quantity]) => ({ slug, quantity })),
     [quantities]
   );
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
   const quoteRequestBody = useMemo(
-    () => JSON.stringify({ items: quoteItems }),
-    [quoteItems]
+    () =>
+      JSON.stringify({
+        items: quoteItems,
+        couponCode: appliedCouponCode,
+      }),
+    [quoteItems, appliedCouponCode]
   );
   const [quoteState, setQuoteState] = useState<QuoteState>({
     requestKey: "",
@@ -157,30 +191,20 @@ export default function CartPage() {
   });
 
   useEffect(() => {
-    if (quoteItems.length === 0) {
-      return;
-    }
+    if (quoteItems.length === 0) return;
 
     const controller = new AbortController();
 
     fetch("/api/cart/quote", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       cache: "no-store",
       body: quoteRequestBody,
       signal: controller.signal,
     })
       .then(async (response) => {
-        const payload = (await response.json()) as {
-          quote?: CartQuote;
-          error?: string;
-        };
-
-        if (controller.signal.aborted) {
-          return;
-        }
+        const payload = (await response.json()) as { quote?: CartQuote; error?: string };
+        if (controller.signal.aborted) return;
 
         if (!response.ok || !payload.quote) {
           setQuoteState({
@@ -194,17 +218,10 @@ export default function CartPage() {
           return;
         }
 
-        setQuoteState({
-          requestKey: quoteRequestBody,
-          quote: payload.quote,
-          error: "",
-        });
+        setQuoteState({ requestKey: quoteRequestBody, quote: payload.quote, error: "" });
       })
       .catch((error: unknown) => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
+        if (controller.signal.aborted) return;
         console.error("Could not load secure cart quote:", error);
         setQuoteState({
           requestKey: quoteRequestBody,
@@ -213,26 +230,32 @@ export default function CartPage() {
         });
       });
 
-    return () => {
-      controller.abort();
-    };
+    return () => controller.abort();
   }, [quoteItems.length, quoteRequestBody]);
 
-  const quoteLoading =
-    quoteItems.length > 0 && quoteState.requestKey !== quoteRequestBody;
-  const quote =
-    quoteState.requestKey === quoteRequestBody ? quoteState.quote : null;
-  const quoteError =
-    quoteState.requestKey === quoteRequestBody ? quoteState.error : "";
+  const quoteLoading = quoteItems.length > 0 && quoteState.requestKey !== quoteRequestBody;
+  const quote = quoteState.requestKey === quoteRequestBody ? quoteState.quote : null;
+  const quoteError = quoteState.requestKey === quoteRequestBody ? quoteState.error : "";
+  const currency = quote?.market.currency_code ?? "";
 
   const saveCart = (updatedCart: LegacyCartItem[]) => {
     localStorage.setItem("irth-cart", JSON.stringify(updatedCart));
     window.dispatchEvent(new Event("irth-cart-updated"));
   };
 
-  const quoteBySlug = new Map(
-    (quote?.items ?? []).map((item) => [item.slug, item])
-  );
+  const quoteBySlug = new Map((quote?.items ?? []).map((item) => [item.slug, item]));
+
+  const applyCoupon = () => {
+    const normalized = couponInput.trim();
+    if (!normalized || quoteLoading) return;
+    setCouponInput(normalized);
+    setAppliedCouponCode(normalized);
+  };
+
+  const removeCoupon = () => {
+    setAppliedCouponCode(null);
+    setCouponInput("");
+  };
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
@@ -242,20 +265,14 @@ export default function CartPage() {
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
           Your selection
         </p>
-
         <h1 className="mt-3 font-[var(--font-display)] text-5xl font-normal text-[var(--color-espresso)]">
           Your cart
         </h1>
 
         {cartItems.length === 0 ? (
           <div className="mt-12 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-10 text-center">
-            <p className="text-lg text-[var(--text-secondary)]">
-              Your cart is empty.
-            </p>
-            <Link
-              href="/"
-              className="mt-5 inline-block text-sm font-medium text-[var(--color-copper)]"
-            >
+            <p className="text-lg text-[var(--text-secondary)]">Your cart is empty.</p>
+            <Link href="/" className="mt-5 inline-block text-sm font-medium text-[var(--color-copper)]">
               Explore crafts →
             </Link>
           </div>
@@ -265,9 +282,7 @@ export default function CartPage() {
               {Object.entries(quantities).map(([slug, quantity]) => {
                 const storedItem = cartItems.find((item) => item.slug === slug);
                 const quotedItem = quoteBySlug.get(slug);
-                const unavailableMessage = quotedItem
-                  ? availabilityMessage(quotedItem)
-                  : null;
+                const unavailableMessage = quotedItem ? availabilityMessage(quotedItem) : null;
                 const canIncrease = Boolean(
                   quotedItem?.status === "available" &&
                     (quotedItem.product?.made_to_order ||
@@ -277,47 +292,49 @@ export default function CartPage() {
                 if (!storedItem) return null;
 
                 return (
-                  <div
-                    key={slug}
-                    className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5"
-                  >
+                  <div key={slug} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5">
                     <div className="flex gap-5">
                       <div className="h-28 w-28 shrink-0 rounded-[var(--radius-md)] bg-[var(--color-terracotta)]" />
-
                       <div className="flex flex-1 items-start justify-between gap-4">
                         <div>
                           <h2 className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-                            {quotedItem?.product?.name_en ??
-                              (quoteLoading ? "Checking product…" : slug)}
+                            {quotedItem?.product?.name_en ?? (quoteLoading ? "Checking product…" : slug)}
                           </h2>
-
                           {quotedItem?.product && (
                             <p className="mt-2 text-sm text-[var(--text-secondary)]">
                               By {quotedItem.product.artisan_name_en}
                             </p>
                           )}
-
                           {unavailableMessage && (
-                            <p className="mt-3 max-w-md text-sm text-[var(--color-terracotta)]">
-                              {unavailableMessage}
+                            <p className="mt-3 max-w-md text-sm text-[var(--color-terracotta)]">{unavailableMessage}</p>
+                          )}
+                          {quotedItem?.product?.made_to_order && quotedItem.product.preparation_time && (
+                            <p className="mt-3 text-xs text-[var(--text-muted)]">
+                              Preparation: {quotedItem.product.preparation_time}
                             </p>
                           )}
 
-                          {quotedItem?.product?.made_to_order &&
-                            quotedItem.product.preparation_time && (
-                              <p className="mt-3 text-xs text-[var(--text-muted)]">
-                                Preparation: {quotedItem.product.preparation_time}
-                              </p>
-                            )}
+                          {quotedItem?.status === "available" && (
+                            <div className="mt-3 space-y-1 text-xs">
+                              {hasPositiveMoney(quotedItem.promotionDiscount) && (
+                                <p className="text-[var(--color-olive)]">
+                                  Promotion saved {currency} {quotedItem.promotionDiscount}
+                                </p>
+                              )}
+                              {hasPositiveMoney(quotedItem.couponDiscount) && (
+                                <p className="text-[var(--color-olive)]">
+                                  Coupon saved {currency} {quotedItem.couponDiscount}
+                                </p>
+                              )}
+                            </div>
+                          )}
 
                           <div className="mt-4 flex w-fit items-center rounded-[var(--radius-md)] border border-[var(--border-soft)]">
                             <button
                               type="button"
                               onClick={() => {
                                 if (quantity <= 1) return;
-                                const index = cartItems.findIndex(
-                                  (item) => item.slug === slug
-                                );
+                                const index = cartItems.findIndex((item) => item.slug === slug);
                                 if (index === -1) return;
                                 const newCart = [...cartItems];
                                 newCart.splice(index, 1);
@@ -328,17 +345,10 @@ export default function CartPage() {
                             >
                               −
                             </button>
-
-                            <span className="w-10 text-center text-sm">
-                              {quantity}
-                            </span>
-
+                            <span className="w-10 text-center text-sm">{quantity}</span>
                             <button
                               type="button"
-                              onClick={() => {
-                                const newCart = [...cartItems, storedItem];
-                                saveCart(newCart);
-                              }}
+                              onClick={() => saveCart([...cartItems, storedItem])}
                               disabled={quoteLoading || !canIncrease}
                               className="flex h-9 w-9 items-center justify-center text-lg hover:text-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-40"
                             >
@@ -347,22 +357,21 @@ export default function CartPage() {
                           </div>
                         </div>
 
-                        <div className="flex flex-col items-end gap-4 text-right">
+                        <div className="flex flex-col items-end gap-2 text-right">
+                          {quotedItem?.originalLineTotal &&
+                            quotedItem.lineTotal &&
+                            quotedItem.originalLineTotal !== quotedItem.lineTotal && (
+                              <p className="text-xs text-[var(--text-muted)] line-through">
+                                {currency} {quotedItem.originalLineTotal}
+                              </p>
+                            )}
                           <p className="font-medium text-[var(--color-copper)]">
-                            {quotedItem?.lineTotal && quote
-                              ? `${quote.market.currency_code} ${quotedItem.lineTotal}`
-                              : "—"}
+                            {quotedItem?.lineTotal && quote ? `${currency} ${quotedItem.lineTotal}` : "—"}
                           </p>
-
                           <button
                             type="button"
-                            onClick={() => {
-                              const newCart = cartItems.filter(
-                                (item) => item.slug !== slug
-                              );
-                              saveCart(newCart);
-                            }}
-                            className="text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--color-copper)]"
+                            onClick={() => saveCart(cartItems.filter((item) => item.slug !== slug))}
+                            className="mt-2 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--color-copper)]"
                           >
                             Remove
                           </button>
@@ -375,38 +384,90 @@ export default function CartPage() {
             </div>
 
             <div className="h-fit rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-7">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
-                Secure summary
-              </p>
-
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">Secure summary</p>
               <p className="mt-3 text-xs leading-5 text-[var(--text-muted)]">
-                Prices and availability are verified by the server for your selected market.
+                Prices, availability and discounts are verified by the server for your selected market.
               </p>
 
               <div className="mt-6 flex items-center justify-between border-b border-[var(--border-soft)] pb-5">
-                <span className="text-sm text-[var(--text-secondary)]">
-                  Items
-                </span>
+                <span className="text-sm text-[var(--text-secondary)]">Items</span>
                 <span className="text-sm">{cartItems.length}</span>
               </div>
 
-              <div className="mt-5 flex items-center justify-between">
-                <span className="font-medium text-[var(--color-espresso)]">
-                  Subtotal
-                </span>
+              <div className="mt-5 space-y-3 border-b border-[var(--border-soft)] pb-5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[var(--text-secondary)]">Merchandise</span>
+                  <span>{quote ? `${currency} ${quote.subtotalBeforePromotions}` : "—"}</span>
+                </div>
+                {quote && hasPositiveMoney(quote.promotionDiscountTotal) && (
+                  <div className="flex items-center justify-between text-[var(--color-olive)]">
+                    <span>Promotions</span>
+                    <span>− {currency} {quote.promotionDiscountTotal}</span>
+                  </div>
+                )}
+                {quote && hasPositiveMoney(quote.couponDiscountTotal) && (
+                  <div className="flex items-center justify-between text-[var(--color-olive)]">
+                    <span>Coupon</span>
+                    <span>− {currency} {quote.couponDiscountTotal}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5">
+                <label htmlFor="cart-coupon" className="text-sm font-medium text-[var(--color-espresso)]">
+                  Coupon code
+                </label>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    id="cart-coupon"
+                    value={couponInput}
+                    onChange={(event) => setCouponInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        applyCoupon();
+                      }
+                    }}
+                    disabled={quoteLoading}
+                    placeholder="Enter code"
+                    className="min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--color-copper)] disabled:opacity-60"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyCoupon}
+                    disabled={quoteLoading || couponInput.trim().length === 0}
+                    className="rounded-[var(--radius-md)] border border-[var(--color-espresso)] px-4 py-2 text-sm font-medium text-[var(--color-espresso)] transition hover:bg-[var(--color-espresso)] hover:text-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Apply
+                  </button>
+                </div>
+
+                {appliedCouponCode && !quoteLoading && quote && quote.couponStatus !== "not_requested" && (
+                  <div className="mt-3 rounded-[var(--radius-md)] bg-[var(--surface)] p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-medium text-[var(--color-espresso)]">{quote.couponCode ?? appliedCouponCode}</p>
+                        <p className={`mt-1 text-xs leading-5 ${quote.couponStatus === "applied" ? "text-[var(--color-olive)]" : "text-[var(--text-secondary)]"}`}>
+                          {couponStatusMessage(quote.couponStatus)}
+                        </p>
+                      </div>
+                      <button type="button" onClick={removeCoupon} className="text-xs text-[var(--color-copper)] hover:underline">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex items-center justify-between">
+                <span className="font-medium text-[var(--color-espresso)]">Subtotal</span>
                 <span className="text-xl font-medium text-[var(--color-copper)]">
-                  {quoteLoading
-                    ? "Checking…"
-                    : quote
-                      ? `${quote.market.currency_code} ${quote.subtotal}`
-                      : "—"}
+                  {quoteLoading ? "Checking…" : quote ? `${currency} ${quote.subtotal}` : "—"}
                 </span>
               </div>
 
               {quoteError && (
-                <p className="mt-5 text-sm leading-6 text-[var(--color-terracotta)]">
-                  {quoteError}
-                </p>
+                <p className="mt-5 text-sm leading-6 text-[var(--color-terracotta)]">{quoteError}</p>
               )}
 
               {quote?.canCheckout ? (
