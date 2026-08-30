@@ -1,27 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
-
-const MARKET_COOKIE = "irth-market";
-
-async function getActiveMarketById(marketId: string) {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("markets")
-    .select(
-      "id, slug, currency_code, country:countries!markets_country_id_fkey(slug, name_ar, name_en)"
-    )
-    .eq("id", marketId)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
+import {
+  getActiveMarketById,
+  MARKET_COOKIE,
+} from "@/lib/marketSelection";
 
 export async function GET() {
   const cookieStore = await cookies();
