@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import Header from "../components/Header";
 
 type StoredCartItem = {
@@ -49,8 +55,79 @@ type QuoteState = {
   error: string;
 };
 
+type CheckoutContext = {
+  authenticated: boolean;
+  customer: null | {
+    recipientName: string;
+    email: string;
+  };
+  market: null | {
+    id: string;
+    slug: string;
+    currencyCode: string;
+    country: {
+      slug: string;
+      name_ar: string | null;
+      name_en: string;
+      iso_code: string;
+    };
+  };
+};
+
+type CustomerForm = {
+  recipientName: string;
+  email: string;
+  phone: string;
+  administrativeArea: string;
+  city: string;
+  addressLine1: string;
+  deliveryNotes: string;
+};
+
+type CustomerField = keyof CustomerForm | "countryCode";
+type FieldErrors = Partial<Record<CustomerField, string>>;
+
 const EMPTY_CART = "[]";
 const CHECKOUT_COUPON_KEY = "irth-checkout-coupon";
+const EGYPT_GOVERNORATES = [
+  "Alexandria",
+  "Aswan",
+  "Asyut",
+  "Beheira",
+  "Beni Suef",
+  "Cairo",
+  "Dakahlia",
+  "Damietta",
+  "Faiyum",
+  "Gharbia",
+  "Giza",
+  "Ismailia",
+  "Kafr El Sheikh",
+  "Luxor",
+  "Matrouh",
+  "Minya",
+  "Monufia",
+  "New Valley",
+  "North Sinai",
+  "Port Said",
+  "Qalyubia",
+  "Qena",
+  "Red Sea",
+  "Sharqia",
+  "Sohag",
+  "South Sinai",
+  "Suez",
+] as const;
+
+const EMPTY_FORM: CustomerForm = {
+  recipientName: "",
+  email: "",
+  phone: "",
+  administrativeArea: "",
+  city: "",
+  addressLine1: "",
+  deliveryNotes: "",
+};
 
 function subscribeToCart(onStoreChange: () => void) {
   const handleCartUpdated = () => onStoreChange();
@@ -108,6 +185,14 @@ function hasPositiveMoney(value: string | null | undefined) {
   return Boolean(value && Number(value) > 0);
 }
 
+function inputClass(hasError: boolean) {
+  return `mt-2 w-full rounded-[var(--radius-md)] border bg-[var(--background)] px-4 py-3 text-sm outline-none transition ${
+    hasError
+      ? "border-[var(--color-terracotta)]"
+      : "border-[var(--border-soft)] focus:border-[var(--color-copper)]"
+  }`;
+}
+
 export default function CheckoutPage() {
   const cartSnapshot = useSyncExternalStore(
     subscribeToCart,
@@ -118,10 +203,54 @@ export default function CheckoutPage() {
   const quoteItems = useMemo(() => groupCart(cartItems), [cartItems]);
   const [couponCode, setCouponCode] = useState<string | null>(null);
   const [couponReady, setCouponReady] = useState(false);
+  const [checkoutContext, setCheckoutContext] = useState<CheckoutContext | null>(null);
+  const [contextError, setContextError] = useState("");
+  const [contextLoading, setContextLoading] = useState(true);
+  const [customer, setCustomer] = useState<CustomerForm>(EMPTY_FORM);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [validationMessage, setValidationMessage] = useState("");
+  const [validationError, setValidationError] = useState("");
+  const [validating, setValidating] = useState(false);
 
   useEffect(() => {
     setCouponCode(sessionStorage.getItem(CHECKOUT_COUPON_KEY));
     setCouponReady(true);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch("/api/checkout/validate", {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as CheckoutContext & { error?: string };
+        if (controller.signal.aborted) return;
+
+        if (!response.ok) {
+          setContextError(payload.error ?? "Unable to load checkout details.");
+          setContextLoading(false);
+          return;
+        }
+
+        setCheckoutContext(payload);
+        setCustomer((current) => ({
+          ...current,
+          recipientName: current.recipientName || payload.customer?.recipientName || "",
+          email: current.email || payload.customer?.email || "",
+        }));
+        setContextLoading(false);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        console.error("Could not load checkout context:", error);
+        setContextError("Unable to load checkout details.");
+        setContextLoading(false);
+      });
+
+    return () => controller.abort();
   }, []);
 
   const requestBody = useMemo(
@@ -186,6 +315,69 @@ export default function CheckoutPage() {
   const quote = quoteState.requestKey === requestBody ? quoteState.quote : null;
   const quoteError = quoteState.requestKey === requestBody ? quoteState.error : "";
   const currency = quote?.market.currency_code ?? "";
+  const marketCountry = checkoutContext?.market?.country ?? null;
+
+  const updateCustomer = (field: keyof CustomerForm, value: string) => {
+    setCustomer((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    setValidationMessage("");
+    setValidationError("");
+  };
+
+  const validateDetails = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!quote?.canCheckout || !marketCountry || validating) return;
+
+    setValidating(true);
+    setFieldErrors({});
+    setValidationMessage("");
+    setValidationError("");
+
+    try {
+      const response = await fetch("/api/checkout/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          items: quoteItems,
+          couponCode,
+          customer: {
+            ...customer,
+            countryCode: marketCountry.iso_code,
+          },
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        valid?: boolean;
+        fieldErrors?: FieldErrors;
+        error?: string;
+        orderCreated?: boolean;
+      };
+
+      if (!response.ok || !payload.valid) {
+        if (payload.fieldErrors) setFieldErrors(payload.fieldErrors);
+        setValidationError(
+          payload.error ??
+            (response.status === 422
+              ? "Please correct the highlighted checkout details."
+              : "Checkout details could not be validated.")
+        );
+        return;
+      }
+
+      setValidationMessage(
+        payload.orderCreated === false
+          ? "Details validated securely. No order has been created yet."
+          : "Details validated securely."
+      );
+    } catch (error) {
+      console.error("Could not validate checkout details:", error);
+      setValidationError("Checkout details could not be validated.");
+    } finally {
+      setValidating(false);
+    }
+  };
 
   if (cartItems.length === 0) {
     return (
@@ -217,77 +409,282 @@ export default function CheckoutPage() {
           Secure checkout
         </p>
         <h1 className="mt-3 font-[var(--font-display)] text-5xl font-normal text-[var(--color-espresso)]">
-          Review your order
+          Complete your details
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-          This summary is revalidated by the server using your selected market. Shipping, payment and order creation are not part of this step yet.
+          Your cart is revalidated by the server. Customer contact and delivery details stay out of browser storage and no order is created in this step.
         </p>
 
         <div className="mt-12 grid gap-10 lg:grid-cols-[1fr_380px]">
-          <div className="space-y-5">
-            {quoteLoading && (
-              <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-7 text-sm text-[var(--text-secondary)]">
-                Verifying your cart…
-              </div>
-            )}
+          <div className="space-y-7">
+            <form
+              id="checkout-customer-form"
+              onSubmit={validateDetails}
+              className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-7"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
+                    Contact & delivery
+                  </p>
+                  <h2 className="mt-3 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
+                    Where should we deliver?
+                  </h2>
+                </div>
 
-            {quoteError && (
-              <div className="rounded-[var(--radius-lg)] border border-[var(--color-terracotta)] bg-[var(--surface)] p-7">
-                <p className="text-sm text-[var(--color-terracotta)]">{quoteError}</p>
-                <Link href="/cart" className="mt-4 inline-block text-sm font-medium text-[var(--color-copper)]">
-                  Return to cart →
-                </Link>
-              </div>
-            )}
+                {!contextLoading && checkoutContext && !checkoutContext.authenticated && (
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    Guest checkout ·{" "}
+                    <Link
+                      href="/account/login?returnTo=/checkout"
+                      className="font-medium text-[var(--color-copper)] hover:underline"
+                    >
+                      Sign in
+                    </Link>
+                  </p>
+                )}
 
-            {quote?.items.map((item) => (
-              <div key={item.slug} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-                <div className="flex items-start justify-between gap-6">
-                  <div>
-                    <h2 className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-                      {item.product?.name_en ?? item.slug}
-                    </h2>
-                    {item.product && (
-                      <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                        By {item.product.artisan_name_en}
-                      </p>
-                    )}
-                    <p className="mt-2 text-xs text-[var(--text-muted)]">
-                      Quantity: {item.requestedQuantity}
-                    </p>
-                    {item.status !== "available" && (
-                      <p className="mt-3 text-sm text-[var(--color-terracotta)]">
-                        This item must be resolved in your cart before checkout.
-                      </p>
-                    )}
-                    {item.status === "available" && (
-                      <div className="mt-3 space-y-1 text-xs text-[var(--color-olive)]">
-                        {hasPositiveMoney(item.promotionDiscount) && (
-                          <p>Promotion saved {currency} {item.promotionDiscount}</p>
+                {!contextLoading && checkoutContext?.authenticated && (
+                  <p className="text-sm text-[var(--color-olive)]">Signed in</p>
+                )}
+              </div>
+
+              {contextLoading && (
+                <p className="mt-5 text-sm text-[var(--text-secondary)]">
+                  Loading checkout context…
+                </p>
+              )}
+
+              {contextError && (
+                <p className="mt-5 text-sm text-[var(--color-terracotta)]">{contextError}</p>
+              )}
+
+              <div className="mt-7 grid gap-5 sm:grid-cols-2">
+                <label className="text-sm text-[var(--text-secondary)] sm:col-span-2">
+                  Recipient full name *
+                  <input
+                    type="text"
+                    autoComplete="name"
+                    value={customer.recipientName}
+                    onChange={(event) => updateCustomer("recipientName", event.target.value)}
+                    className={inputClass(Boolean(fieldErrors.recipientName))}
+                  />
+                  {fieldErrors.recipientName && (
+                    <span className="mt-1 block text-xs text-[var(--color-terracotta)]">
+                      {fieldErrors.recipientName}
+                    </span>
+                  )}
+                </label>
+
+                <label className="text-sm text-[var(--text-secondary)]">
+                  Email *
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    value={customer.email}
+                    onChange={(event) => updateCustomer("email", event.target.value)}
+                    className={inputClass(Boolean(fieldErrors.email))}
+                  />
+                  {fieldErrors.email && (
+                    <span className="mt-1 block text-xs text-[var(--color-terracotta)]">
+                      {fieldErrors.email}
+                    </span>
+                  )}
+                </label>
+
+                <label className="text-sm text-[var(--text-secondary)]">
+                  Phone *
+                  <input
+                    type="tel"
+                    autoComplete="tel"
+                    value={customer.phone}
+                    onChange={(event) => updateCustomer("phone", event.target.value)}
+                    className={inputClass(Boolean(fieldErrors.phone))}
+                  />
+                  {fieldErrors.phone && (
+                    <span className="mt-1 block text-xs text-[var(--color-terracotta)]">
+                      {fieldErrors.phone}
+                    </span>
+                  )}
+                </label>
+
+                <div className="text-sm text-[var(--text-secondary)]">
+                  Delivery country
+                  <div className="mt-2 rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface-muted)] px-4 py-3 text-[var(--color-espresso)]">
+                    {marketCountry
+                      ? `${marketCountry.name_en} (${marketCountry.iso_code})`
+                      : "Selected Market country"}
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">
+                    Delivery country follows the selected Market. Change Market to deliver to another country.
+                  </p>
+                  {fieldErrors.countryCode && (
+                    <span className="mt-1 block text-xs text-[var(--color-terracotta)]">
+                      {fieldErrors.countryCode}
+                    </span>
+                  )}
+                </div>
+
+                <label className="text-sm text-[var(--text-secondary)]">
+                  {marketCountry?.iso_code === "EG" ? "Governorate *" : "Administrative area *"}
+                  {marketCountry?.iso_code === "EG" ? (
+                    <select
+                      value={customer.administrativeArea}
+                      onChange={(event) => updateCustomer("administrativeArea", event.target.value)}
+                      className={inputClass(Boolean(fieldErrors.administrativeArea))}
+                    >
+                      <option value="">Select governorate</option>
+                      {EGYPT_GOVERNORATES.map((governorate) => (
+                        <option key={governorate} value={governorate}>
+                          {governorate}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={customer.administrativeArea}
+                      onChange={(event) => updateCustomer("administrativeArea", event.target.value)}
+                      className={inputClass(Boolean(fieldErrors.administrativeArea))}
+                    />
+                  )}
+                  {fieldErrors.administrativeArea && (
+                    <span className="mt-1 block text-xs text-[var(--color-terracotta)]">
+                      {fieldErrors.administrativeArea}
+                    </span>
+                  )}
+                </label>
+
+                <label className="text-sm text-[var(--text-secondary)]">
+                  City *
+                  <input
+                    type="text"
+                    autoComplete="address-level2"
+                    value={customer.city}
+                    onChange={(event) => updateCustomer("city", event.target.value)}
+                    className={inputClass(Boolean(fieldErrors.city))}
+                  />
+                  {fieldErrors.city && (
+                    <span className="mt-1 block text-xs text-[var(--color-terracotta)]">
+                      {fieldErrors.city}
+                    </span>
+                  )}
+                </label>
+
+                <label className="text-sm text-[var(--text-secondary)] sm:col-span-2">
+                  Detailed delivery address *
+                  <input
+                    type="text"
+                    autoComplete="street-address"
+                    value={customer.addressLine1}
+                    onChange={(event) => updateCustomer("addressLine1", event.target.value)}
+                    className={inputClass(Boolean(fieldErrors.addressLine1))}
+                  />
+                  {fieldErrors.addressLine1 && (
+                    <span className="mt-1 block text-xs text-[var(--color-terracotta)]">
+                      {fieldErrors.addressLine1}
+                    </span>
+                  )}
+                </label>
+
+                <label className="text-sm text-[var(--text-secondary)] sm:col-span-2">
+                  Delivery notes (optional)
+                  <textarea
+                    rows={3}
+                    value={customer.deliveryNotes}
+                    onChange={(event) => updateCustomer("deliveryNotes", event.target.value)}
+                    className={inputClass(Boolean(fieldErrors.deliveryNotes))}
+                    placeholder="Instructions for IRTH / delivery only"
+                  />
+                  <span className="mt-1 block text-xs text-[var(--text-muted)]">
+                    These notes are for IRTH and shipping, not for direct Artisan contact.
+                  </span>
+                  {fieldErrors.deliveryNotes && (
+                    <span className="mt-1 block text-xs text-[var(--color-terracotta)]">
+                      {fieldErrors.deliveryNotes}
+                    </span>
+                  )}
+                </label>
+              </div>
+
+              {validationError && (
+                <p className="mt-5 text-sm text-[var(--color-terracotta)]">{validationError}</p>
+              )}
+              {validationMessage && (
+                <p className="mt-5 text-sm text-[var(--color-olive)]">{validationMessage}</p>
+              )}
+            </form>
+
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
+                Order review
+              </p>
+              <div className="mt-4 space-y-5">
+                {quoteLoading && (
+                  <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-7 text-sm text-[var(--text-secondary)]">
+                    Verifying your cart…
+                  </div>
+                )}
+
+                {quoteError && (
+                  <div className="rounded-[var(--radius-lg)] border border-[var(--color-terracotta)] bg-[var(--surface)] p-7">
+                    <p className="text-sm text-[var(--color-terracotta)]">{quoteError}</p>
+                    <Link href="/cart" className="mt-4 inline-block text-sm font-medium text-[var(--color-copper)]">
+                      Return to cart →
+                    </Link>
+                  </div>
+                )}
+
+                {quote?.items.map((item) => (
+                  <div key={item.slug} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
+                    <div className="flex items-start justify-between gap-6">
+                      <div>
+                        <h2 className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
+                          {item.product?.name_en ?? item.slug}
+                        </h2>
+                        {item.product && (
+                          <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                            By {item.product.artisan_name_en}
+                          </p>
                         )}
-                        {hasPositiveMoney(item.couponDiscount) && (
-                          <p>Coupon saved {currency} {item.couponDiscount}</p>
+                        <p className="mt-2 text-xs text-[var(--text-muted)]">
+                          Quantity: {item.requestedQuantity}
+                        </p>
+                        {item.status !== "available" && (
+                          <p className="mt-3 text-sm text-[var(--color-terracotta)]">
+                            This item must be resolved in your cart before checkout.
+                          </p>
+                        )}
+                        {item.status === "available" && (
+                          <div className="mt-3 space-y-1 text-xs text-[var(--color-olive)]">
+                            {hasPositiveMoney(item.promotionDiscount) && (
+                              <p>Promotion saved {currency} {item.promotionDiscount}</p>
+                            )}
+                            {hasPositiveMoney(item.couponDiscount) && (
+                              <p>Coupon saved {currency} {item.couponDiscount}</p>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
 
-                  <div className="text-right">
-                    {item.originalLineTotal && item.lineTotal && item.originalLineTotal !== item.lineTotal && (
-                      <p className="text-xs text-[var(--text-muted)] line-through">
-                        {currency} {item.originalLineTotal}
-                      </p>
-                    )}
-                    <p className="mt-1 font-medium text-[var(--color-copper)]">
-                      {item.lineTotal ? `${currency} ${item.lineTotal}` : "—"}
-                    </p>
+                      <div className="text-right">
+                        {item.originalLineTotal && item.lineTotal && item.originalLineTotal !== item.lineTotal && (
+                          <p className="text-xs text-[var(--text-muted)] line-through">
+                            {currency} {item.originalLineTotal}
+                          </p>
+                        )}
+                        <p className="mt-1 font-medium text-[var(--color-copper)]">
+                          {item.lineTotal ? `${currency} ${item.lineTotal}` : "—"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
 
-          <aside className="h-fit rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-7">
+          <aside className="h-fit rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-7 lg:sticky lg:top-8">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
               Trusted summary
             </p>
@@ -327,9 +724,24 @@ export default function CheckoutPage() {
               </p>
             )}
 
+            <button
+              type="submit"
+              form="checkout-customer-form"
+              disabled={
+                validating ||
+                quoteLoading ||
+                contextLoading ||
+                !quote?.canCheckout ||
+                !marketCountry
+              }
+              className="mt-7 w-full rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {validating ? "Validating…" : "Validate checkout details"}
+            </button>
+
             <Link
               href="/cart"
-              className="mt-7 block w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] px-6 py-3 text-center text-sm font-medium text-[var(--color-espresso)] transition hover:border-[var(--color-copper)]"
+              className="mt-3 block w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] px-6 py-3 text-center text-sm font-medium text-[var(--color-espresso)] transition hover:border-[var(--color-copper)]"
             >
               Back to cart
             </Link>
@@ -337,12 +749,12 @@ export default function CheckoutPage() {
             <button
               type="button"
               disabled
-              className="mt-3 w-full cursor-not-allowed rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] opacity-50"
+              className="mt-3 w-full cursor-not-allowed rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] opacity-35"
             >
-              Continue — next checkout step
+              Continue to shipping — next task
             </button>
-            <p className="mt-3 text-center text-xs text-[var(--text-muted)]">
-              Customer details and order creation will be added in the next approved Checkout task.
+            <p className="mt-3 text-center text-xs leading-5 text-[var(--text-muted)]">
+              Shipping price, payment and real Order creation are intentionally not active yet.
             </p>
           </aside>
         </div>
