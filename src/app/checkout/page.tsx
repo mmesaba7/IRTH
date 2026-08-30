@@ -434,12 +434,13 @@ export default function CheckoutPage() {
                 {!contextLoading && checkoutContext && !checkoutContext.authenticated && (
                   <p className="text-sm text-[var(--text-secondary)]">
                     Guest checkout ·{" "}
-                    <a
-                      href="/account/login?returnTo=%2Fcheckout"
-                      className="font-medium text-[var(--color-copper)] hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => window.location.assign("/account/login?returnTo=%2Fcheckout")}
+                      className="cursor-pointer bg-transparent p-0 font-medium text-[var(--color-copper)] hover:underline"
                     >
                       Sign in
-                    </a>
+                    </button>
                   </p>
                 )}
 
