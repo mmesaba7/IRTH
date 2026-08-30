@@ -6,9 +6,11 @@
 -- 3. Return money values as text so JavaScript never receives PostgreSQL numeric
 --    through an implicit floating-point conversion before commerce arithmetic.
 -- 4. Resolve Product/Craft restriction OR/union and Artisan-funded scope inside
---    the trusted database boundary for the Product IDs already present in the quote.
--- 5. Do not consume Coupon usage here.
--- 6. Per-customer usage enforcement remains a Checkout/Identity concern (15A).
+--    the trusted database boundary for Product IDs already present in the quote.
+-- 5. Only return Product IDs that remain valid public commerce products in the
+--    requested active Market.
+-- 6. Do not consume Coupon usage here.
+-- 7. Per-customer usage enforcement remains a Checkout/Identity concern (15A).
 
 create function private.get_applicable_coupon(
   p_market_id uuid,
@@ -25,12 +27,6 @@ returns table (
   max_discount_amount text,
   stackable boolean,
   funding_source text,
-  artisan_id uuid,
-  start_at timestamptz,
-  end_at timestamptz,
-  total_usage_limit integer,
-  per_customer_usage_limit integer,
-  total_redemptions bigint,
   eligible_product_ids uuid[]
 )
 language sql
@@ -50,15 +46,6 @@ as $$
       c.stackable,
       c.funding_source,
       c.artisan_id,
-      c.start_at,
-      c.end_at,
-      c.total_usage_limit,
-      c.per_customer_usage_limit,
-      (
-        select count(*)
-        from public.coupon_redemptions cr
-        where cr.coupon_id = c.id
-      )::bigint as total_redemptions,
       exists (
         select 1
         from public.coupon_products cp
@@ -80,6 +67,14 @@ as $$
       and c.is_enabled = true
       and now() >= c.start_at
       and now() < c.end_at
+      and (
+        c.total_usage_limit is null
+        or (
+          select count(*)
+          from public.coupon_redemptions cr
+          where cr.coupon_id = c.id
+        ) < c.total_usage_limit
+      )
     limit 1
   ),
   eligible as (
@@ -93,9 +88,32 @@ as $$
     from candidate c
     left join public.products p
       on p.id = any(coalesce(p_product_ids, array[]::uuid[]))
+     and p.lifecycle_status = 'published'
      and (
        c.funding_source <> 'artisan'
        or p.artisan_id = c.artisan_id
+     )
+     and exists (
+       select 1
+       from public.artisan_profiles ap
+       join public.countries co
+         on co.id = ap.country_id
+        and co.is_active = true
+       where ap.id = p.artisan_id
+         and ap.status = 'active'
+     )
+     and exists (
+       select 1
+       from public.crafts cr
+       where cr.id = p.primary_craft_id
+         and cr.is_active = true
+     )
+     and exists (
+       select 1
+       from public.product_market_prices pmp
+       where pmp.product_id = p.id
+         and pmp.market_id = c.market_id
+         and pmp.is_active = true
      )
      and (
        (
@@ -127,18 +145,10 @@ as $$
     c.max_discount_amount::text,
     c.stackable,
     c.funding_source,
-    c.artisan_id,
-    c.start_at,
-    c.end_at,
-    c.total_usage_limit,
-    c.per_customer_usage_limit,
-    c.total_redemptions,
     coalesce(e.eligible_product_ids, array[]::uuid[])
   from candidate c
   left join eligible e
-    on e.coupon_id = c.id
-  where c.total_usage_limit is null
-     or c.total_redemptions < c.total_usage_limit;
+    on e.coupon_id = c.id;
 $$;
 
 -- The private implementation needs privileged reads because Coupon tables are
@@ -168,12 +178,6 @@ returns table (
   max_discount_amount text,
   stackable boolean,
   funding_source text,
-  artisan_id uuid,
-  start_at timestamptz,
-  end_at timestamptz,
-  total_usage_limit integer,
-  per_customer_usage_limit integer,
-  total_redemptions bigint,
   eligible_product_ids uuid[]
 )
 language sql
