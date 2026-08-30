@@ -37,28 +37,27 @@ This register records owner-approved S15.5 Checkout Foundation decisions. It sup
 ## S15.5.3 — Shipping / Final Total decisions
 
 **Decision date:** 31 August 2026  
-**Implementation state:** IN PROGRESS — one required Egypt value remains unapproved.
+**Implementation state:** IN PROGRESS — Egypt values approved and configured; final customer-surface verification remains.
 
 Approved:
 
-1. **Egypt flat shipping fee:** `2000 EGP` as explicitly approved by the owner. This value is recorded as the flat-rate decision but is not inserted into Live shipping configuration until the free-shipping threshold is also approved, so the Market cannot become partially configured.
-2. **Free Shipping basis:** evaluate the threshold against the trusted Merchandise subtotal **after all Product Promotions and Coupon effects**.
-3. **Shipping charge scope:** charge Shipping once on the unified customer Order, not once per Artisan/internal Shipment.
-4. **Threshold boundary:** `merchandise_subtotal >= free_shipping_threshold` qualifies for Free Shipping.
-5. **Data model:** use a separate one-to-one `market_shipping_settings` table rather than adding Shipping fields directly to `markets`.
-6. **Missing configuration behavior:** fail closed. Missing Market shipping configuration must not silently mean zero-cost Shipping and must prevent final Checkout confirmation.
-7. **Customer surfaces:** expose the same trusted Shipping calculation in Cart and Checkout; the browser must not calculate or supply trusted Shipping or Final Total values.
-8. **Final total formula:** `final_total = discounted_merchandise_subtotal + shipping_fee`.
-9. **Money handling:** Shipping and Final Total use the same exact currency-aware decimal/minor-unit approach and Round Half-Up boundary already used by the trusted commerce pipeline.
-10. **Scope boundary:** Courier integration, Payment integration, real Order creation, taxes/withholdings and any additional delivery surcharges are not part of S15.5.3 unless separately approved.
-
-Still unresolved and required before S15.5.3 can close:
-
-- **Egypt Free Shipping Threshold:** no numeric value has been approved yet. No value may be inferred or invented.
+1. **Egypt flat shipping fee:** `150 EGP`. This corrects the earlier mistaken `2000 EGP` entry; `2000 EGP` is the Free Shipping Threshold, not the flat fee.
+2. **Egypt Free Shipping Threshold:** `2000 EGP`.
+3. **Free Shipping basis:** evaluate the threshold against the trusted Merchandise subtotal **after all Product Promotions and Coupon effects**.
+4. **Shipping charge scope:** charge Shipping once on the unified customer Order, not once per Artisan/internal Shipment.
+5. **Threshold boundary:** `merchandise_subtotal >= free_shipping_threshold` qualifies for Free Shipping.
+6. **Data model:** use a separate one-to-one `market_shipping_settings` table rather than adding Shipping fields directly to `markets`.
+7. **Missing configuration behavior:** fail closed. Missing Market shipping configuration must not silently mean zero-cost Shipping and must prevent final Checkout confirmation.
+8. **Customer surfaces:** expose the same trusted Shipping calculation in Cart and Checkout; the browser must not calculate or supply trusted Shipping or Final Total values.
+9. **Final total formula:** `final_total = discounted_merchandise_subtotal + shipping_fee`.
+10. **Money handling:** Shipping and Final Total use the same exact currency-aware decimal/minor-unit approach and Round Half-Up boundary already used by the trusted commerce pipeline.
+11. **Scope boundary:** Courier integration, Payment integration, real Order creation, taxes/withholdings and any additional delivery surcharges are not part of S15.5.3 unless separately approved.
 
 Implemented foundation so far:
 
 - Live migration `20260830213531_create_market_shipping_settings_foundation`.
+- Live configuration migration `20260830214043_configure_egypt_shipping`.
+- Egypt Market shipping configuration: flat fee `150 EGP`, Free Shipping Threshold `2000 EGP`.
 - `public.market_shipping_settings` with RLS and Super Admin write boundary.
 - Exact-text `SECURITY INVOKER` RPC `public.get_market_shipping_settings_text(uuid)`.
 - Server-only `src/lib/shippingQuote.ts`.
