@@ -18,7 +18,7 @@ export async function getActiveMarketById(marketId: string) {
   const { data, error } = await supabase
     .from("markets")
     .select(
-      "id, slug, currency_code, country:countries!markets_country_id_fkey(slug, name_ar, name_en)"
+      "id, slug, currency_code, country:countries!markets_country_id_fkey(slug, name_ar, name_en, iso_code)"
     )
     .eq("id", marketId)
     .eq("is_active", true)
