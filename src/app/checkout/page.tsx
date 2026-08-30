@@ -1,13 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  FormEvent,
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Header from "../components/Header";
 
 type StoredCartItem = {
@@ -55,6 +49,26 @@ type QuoteState = {
   error: string;
 };
 
+type CheckoutCustomer = {
+  recipientName: string;
+  email: string;
+  phone: string;
+  countryCode: string;
+  administrativeArea: string;
+  city: string;
+  addressLine1: string;
+  deliveryNotes: string;
+};
+
+type FieldErrors = Partial<Record<keyof CheckoutCustomer, string>>;
+
+type MarketCountry = {
+  slug: string;
+  name_ar: string | null;
+  name_en: string;
+  iso_code: string;
+};
+
 type CheckoutContext = {
   authenticated: boolean;
   customer: null | {
@@ -65,30 +79,13 @@ type CheckoutContext = {
     id: string;
     slug: string;
     currencyCode: string;
-    country: {
-      slug: string;
-      name_ar: string | null;
-      name_en: string;
-      iso_code: string;
-    };
+    country: MarketCountry;
   };
 };
 
-type CustomerForm = {
-  recipientName: string;
-  email: string;
-  phone: string;
-  administrativeArea: string;
-  city: string;
-  addressLine1: string;
-  deliveryNotes: string;
-};
-
-type CustomerField = keyof CustomerForm | "countryCode";
-type FieldErrors = Partial<Record<CustomerField, string>>;
-
 const EMPTY_CART = "[]";
 const CHECKOUT_COUPON_KEY = "irth-checkout-coupon";
+
 const EGYPT_GOVERNORATES = [
   "Alexandria",
   "Aswan",
@@ -117,12 +114,13 @@ const EGYPT_GOVERNORATES = [
   "Sohag",
   "South Sinai",
   "Suez",
-] as const;
+];
 
-const EMPTY_FORM: CustomerForm = {
+const EMPTY_CUSTOMER: CheckoutCustomer = {
   recipientName: "",
   email: "",
   phone: "",
+  countryCode: "",
   administrativeArea: "",
   city: "",
   addressLine1: "",
@@ -185,8 +183,8 @@ function hasPositiveMoney(value: string | null | undefined) {
   return Boolean(value && Number(value) > 0);
 }
 
-function inputClass(hasError: boolean) {
-  return `mt-2 w-full rounded-[var(--radius-md)] border bg-[var(--background)] px-4 py-3 text-sm outline-none transition ${
+function inputClass(hasError = false) {
+  return `mt-2 w-full rounded-[var(--radius-md)] border bg-[var(--surface)] px-4 py-3 text-[var(--color-espresso)] outline-none transition ${
     hasError
       ? "border-[var(--color-terracotta)]"
       : "border-[var(--border-soft)] focus:border-[var(--color-copper)]"
@@ -204,12 +202,12 @@ export default function CheckoutPage() {
   const [couponCode, setCouponCode] = useState<string | null>(null);
   const [couponReady, setCouponReady] = useState(false);
   const [checkoutContext, setCheckoutContext] = useState<CheckoutContext | null>(null);
-  const [contextError, setContextError] = useState("");
   const [contextLoading, setContextLoading] = useState(true);
-  const [customer, setCustomer] = useState<CustomerForm>(EMPTY_FORM);
+  const [contextError, setContextError] = useState("");
+  const [customer, setCustomer] = useState<CheckoutCustomer>(EMPTY_CUSTOMER);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [validationMessage, setValidationMessage] = useState("");
   const [validationError, setValidationError] = useState("");
+  const [validationMessage, setValidationMessage] = useState("");
   const [validating, setValidating] = useState(false);
 
   useEffect(() => {
@@ -231,23 +229,24 @@ export default function CheckoutPage() {
 
         if (!response.ok) {
           setContextError(payload.error ?? "Unable to load checkout details.");
-          setContextLoading(false);
           return;
         }
 
         setCheckoutContext(payload);
         setCustomer((current) => ({
           ...current,
-          recipientName: current.recipientName || payload.customer?.recipientName || "",
-          email: current.email || payload.customer?.email || "",
+          recipientName: payload.customer?.recipientName ?? current.recipientName,
+          email: payload.customer?.email ?? current.email,
+          countryCode: payload.market?.country.iso_code ?? "",
         }));
-        setContextLoading(false);
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         console.error("Could not load checkout context:", error);
         setContextError("Unable to load checkout details.");
-        setContextLoading(false);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setContextLoading(false);
       });
 
     return () => controller.abort();
@@ -317,21 +316,21 @@ export default function CheckoutPage() {
   const currency = quote?.market.currency_code ?? "";
   const marketCountry = checkoutContext?.market?.country ?? null;
 
-  const updateCustomer = (field: keyof CustomerForm, value: string) => {
+  const updateCustomer = (field: keyof CheckoutCustomer, value: string) => {
     setCustomer((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
-    setValidationMessage("");
     setValidationError("");
+    setValidationMessage("");
   };
 
-  const validateDetails = async (event: FormEvent<HTMLFormElement>) => {
+  const validateDetails = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!quote?.canCheckout || !marketCountry || validating) return;
+    if (quoteLoading || !quote?.canCheckout || contextLoading || !marketCountry) return;
 
     setValidating(true);
     setFieldErrors({});
-    setValidationMessage("");
     setValidationError("");
+    setValidationMessage("");
 
     try {
       const response = await fetch("/api/checkout/validate", {
@@ -435,12 +434,12 @@ export default function CheckoutPage() {
                 {!contextLoading && checkoutContext && !checkoutContext.authenticated && (
                   <p className="text-sm text-[var(--text-secondary)]">
                     Guest checkout ·{" "}
-                    <Link
-                      href="/account/login?returnTo=/checkout"
+                    <a
+                      href="/account/login?returnTo=%2Fcheckout"
                       className="font-medium text-[var(--color-copper)] hover:underline"
                     >
                       Sign in
-                    </Link>
+                    </a>
                   </p>
                 )}
 
@@ -572,7 +571,7 @@ export default function CheckoutPage() {
                 </label>
 
                 <label className="text-sm text-[var(--text-secondary)] sm:col-span-2">
-                  Detailed delivery address *
+                  Detailed address *
                   <input
                     type="text"
                     autoComplete="street-address"
@@ -590,14 +589,14 @@ export default function CheckoutPage() {
                 <label className="text-sm text-[var(--text-secondary)] sm:col-span-2">
                   Delivery notes (optional)
                   <textarea
-                    rows={3}
                     value={customer.deliveryNotes}
                     onChange={(event) => updateCustomer("deliveryNotes", event.target.value)}
+                    rows={3}
+                    maxLength={500}
                     className={inputClass(Boolean(fieldErrors.deliveryNotes))}
-                    placeholder="Instructions for IRTH / delivery only"
                   />
                   <span className="mt-1 block text-xs text-[var(--text-muted)]">
-                    These notes are for IRTH and shipping, not for direct Artisan contact.
+                    Delivery notes stay private to IRTH/shipping operations and are not intended for Artisan contact.
                   </span>
                   {fieldErrors.deliveryNotes && (
                     <span className="mt-1 block text-xs text-[var(--color-terracotta)]">
@@ -607,84 +606,76 @@ export default function CheckoutPage() {
                 </label>
               </div>
 
+              <button
+                type="submit"
+                disabled={
+                  validating ||
+                  quoteLoading ||
+                  !quote?.canCheckout ||
+                  contextLoading ||
+                  !marketCountry
+                }
+                className="mt-7 w-full rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {validating ? "Validating securely…" : "Validate checkout details"}
+              </button>
+
               {validationError && (
-                <p className="mt-5 text-sm text-[var(--color-terracotta)]">{validationError}</p>
+                <p className="mt-4 text-sm text-[var(--color-terracotta)]">{validationError}</p>
               )}
               {validationMessage && (
-                <p className="mt-5 text-sm text-[var(--color-olive)]">{validationMessage}</p>
+                <p className="mt-4 text-sm text-[var(--color-olive)]">{validationMessage}</p>
               )}
             </form>
 
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
-                Order review
-              </p>
-              <div className="mt-4 space-y-5">
-                {quoteLoading && (
-                  <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-7 text-sm text-[var(--text-secondary)]">
-                    Verifying your cart…
-                  </div>
-                )}
-
-                {quoteError && (
-                  <div className="rounded-[var(--radius-lg)] border border-[var(--color-terracotta)] bg-[var(--surface)] p-7">
-                    <p className="text-sm text-[var(--color-terracotta)]">{quoteError}</p>
-                    <Link href="/cart" className="mt-4 inline-block text-sm font-medium text-[var(--color-copper)]">
-                      Return to cart →
-                    </Link>
-                  </div>
-                )}
-
-                {quote?.items.map((item) => (
-                  <div key={item.slug} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-                    <div className="flex items-start justify-between gap-6">
-                      <div>
-                        <h2 className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-                          {item.product?.name_en ?? item.slug}
-                        </h2>
-                        {item.product && (
-                          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                            By {item.product.artisan_name_en}
-                          </p>
+            {quote?.items.map((item) => (
+              <div key={item.slug} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
+                <div className="flex items-start justify-between gap-6">
+                  <div>
+                    <h2 className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
+                      {item.product?.name_en ?? item.slug}
+                    </h2>
+                    {item.product && (
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                        By {item.product.artisan_name_en}
+                      </p>
+                    )}
+                    <p className="mt-2 text-xs text-[var(--text-muted)]">
+                      Quantity: {item.requestedQuantity}
+                    </p>
+                    {item.status !== "available" && (
+                      <p className="mt-3 text-sm text-[var(--color-terracotta)]">
+                        This item must be resolved in your cart before checkout.
+                      </p>
+                    )}
+                    {item.status === "available" && (
+                      <div className="mt-3 space-y-1 text-xs text-[var(--color-olive)]">
+                        {hasPositiveMoney(item.promotionDiscount) && (
+                          <p>Promotion saved {currency} {item.promotionDiscount}</p>
                         )}
-                        <p className="mt-2 text-xs text-[var(--text-muted)]">
-                          Quantity: {item.requestedQuantity}
-                        </p>
-                        {item.status !== "available" && (
-                          <p className="mt-3 text-sm text-[var(--color-terracotta)]">
-                            This item must be resolved in your cart before checkout.
-                          </p>
-                        )}
-                        {item.status === "available" && (
-                          <div className="mt-3 space-y-1 text-xs text-[var(--color-olive)]">
-                            {hasPositiveMoney(item.promotionDiscount) && (
-                              <p>Promotion saved {currency} {item.promotionDiscount}</p>
-                            )}
-                            {hasPositiveMoney(item.couponDiscount) && (
-                              <p>Coupon saved {currency} {item.couponDiscount}</p>
-                            )}
-                          </div>
+                        {hasPositiveMoney(item.couponDiscount) && (
+                          <p>Coupon saved {currency} {item.couponDiscount}</p>
                         )}
                       </div>
-
-                      <div className="text-right">
-                        {item.originalLineTotal && item.lineTotal && item.originalLineTotal !== item.lineTotal && (
-                          <p className="text-xs text-[var(--text-muted)] line-through">
-                            {currency} {item.originalLineTotal}
-                          </p>
-                        )}
-                        <p className="mt-1 font-medium text-[var(--color-copper)]">
-                          {item.lineTotal ? `${currency} ${item.lineTotal}` : "—"}
-                        </p>
-                      </div>
-                    </div>
+                    )}
                   </div>
-                ))}
+
+                  <div className="text-right">
+                    {item.originalLineTotal && item.lineTotal && item.originalLineTotal !== item.lineTotal && (
+                      <p className="text-xs text-[var(--text-muted)] line-through">
+                        {currency} {item.originalLineTotal}
+                      </p>
+                    )}
+                    <p className="mt-1 font-medium text-[var(--color-copper)]">
+                      {item.lineTotal ? `${currency} ${item.lineTotal}` : "—"}
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
 
-          <aside className="h-fit rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-7 lg:sticky lg:top-8">
+          <aside className="h-fit rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-7">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
               Trusted summary
             </p>
@@ -724,24 +715,9 @@ export default function CheckoutPage() {
               </p>
             )}
 
-            <button
-              type="submit"
-              form="checkout-customer-form"
-              disabled={
-                validating ||
-                quoteLoading ||
-                contextLoading ||
-                !quote?.canCheckout ||
-                !marketCountry
-              }
-              className="mt-7 w-full rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {validating ? "Validating…" : "Validate checkout details"}
-            </button>
-
             <Link
               href="/cart"
-              className="mt-3 block w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] px-6 py-3 text-center text-sm font-medium text-[var(--color-espresso)] transition hover:border-[var(--color-copper)]"
+              className="mt-7 block w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] px-6 py-3 text-center text-sm font-medium text-[var(--color-espresso)] transition hover:border-[var(--color-copper)]"
             >
               Back to cart
             </Link>
@@ -749,12 +725,12 @@ export default function CheckoutPage() {
             <button
               type="button"
               disabled
-              className="mt-3 w-full cursor-not-allowed rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] opacity-35"
+              className="mt-3 w-full cursor-not-allowed rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] opacity-50"
             >
-              Continue to shipping — next task
+              Continue — shipping comes next
             </button>
-            <p className="mt-3 text-center text-xs leading-5 text-[var(--text-muted)]">
-              Shipping price, payment and real Order creation are intentionally not active yet.
+            <p className="mt-3 text-center text-xs text-[var(--text-muted)]">
+              Shipping pricing, order creation and payment are intentionally not active yet.
             </p>
           </aside>
         </div>
