@@ -65,18 +65,20 @@ function parseDecimal(value: string): Decimal {
 }
 
 function pow10(scale: number) {
-  return 10n ** BigInt(scale);
+  return BigInt(10) ** BigInt(scale);
 }
 
 function roundHalfUp(numerator: bigint, denominator: bigint) {
-  if (denominator <= 0n) {
+  if (denominator <= BigInt(0)) {
     throw new Error("Invalid rounding denominator");
   }
 
   const quotient = numerator / denominator;
   const remainder = numerator % denominator;
 
-  return remainder * 2n >= denominator ? quotient + 1n : quotient;
+  return remainder * BigInt(2) >= denominator
+    ? quotient + BigInt(1)
+    : quotient;
 }
 
 function decimalToMinorUnits(value: string, currencyScale: number) {
@@ -91,7 +93,7 @@ function decimalToMinorUnits(value: string, currencyScale: number) {
 }
 
 function formatMinorUnits(value: bigint, currencyScale: number) {
-  if (value < 0n) {
+  if (value < BigInt(0)) {
     throw new Error("Negative money value is not allowed");
   }
 
@@ -129,7 +131,7 @@ function percentageDiscountMinorUnits(
 ) {
   const percentage = parseDecimal(percentageValue);
   const numerator = lineTotalMinor * BigInt(percentage.digits);
-  const denominator = 100n * pow10(percentage.scale);
+  const denominator = BigInt(100) * pow10(percentage.scale);
   const discount = roundHalfUp(numerator, denominator);
 
   return discount > lineTotalMinor ? lineTotalMinor : discount;
@@ -214,7 +216,7 @@ function chooseBestPromotion(
 }
 
 function emptyFunding(currencyScale: number): PromotionFunding {
-  const zero = formatMinorUnits(0n, currencyScale);
+  const zero = formatMinorUnits(BigInt(0), currencyScale);
 
   return { irth: zero, artisan: zero };
 }
@@ -223,7 +225,6 @@ export async function applyPromotionsToQuote(
   quote: CartQuote
 ): Promise<PromotionCartQuote> {
   const currencyScale = getCurrencyMinorUnitScale(quote.market.currency_code);
-  const zero = formatMinorUnits(0n, currencyScale);
   const productIds = quote.items.flatMap((item) =>
     item.status === "available" && item.product ? [item.product.id] : []
   );
@@ -253,11 +254,11 @@ export async function applyPromotionsToQuote(
     promotionsByProduct.set(promotion.product_id, current);
   }
 
-  let subtotalBeforeMinor = 0n;
-  let promotionDiscountMinor = 0n;
-  let subtotalMinor = 0n;
-  let irthFundingMinor = 0n;
-  let artisanFundingMinor = 0n;
+  let subtotalBeforeMinor = BigInt(0);
+  let promotionDiscountMinor = BigInt(0);
+  let subtotalMinor = BigInt(0);
+  let irthFundingMinor = BigInt(0);
+  let artisanFundingMinor = BigInt(0);
 
   const items: PromotionQuoteItem[] = quote.items.map((item) => {
     if (
@@ -277,7 +278,7 @@ export async function applyPromotionsToQuote(
 
     const unitPriceMinor = decimalToMinorUnits(item.unitPrice, currencyScale);
 
-    if (unitPriceMinor <= 0n) {
+    if (unitPriceMinor <= BigInt(0)) {
       throw new Error("Market price rounds below the currency minor unit");
     }
 
@@ -290,7 +291,7 @@ export async function applyPromotionsToQuote(
       item.requestedQuantity,
       currencyScale
     );
-    const itemDiscountMinor = best?.discountMinor ?? 0n;
+    const itemDiscountMinor = best?.discountMinor ?? BigInt(0);
     const discountedLineTotalMinor = originalLineTotalMinor - itemDiscountMinor;
     const funding = emptyFunding(currencyScale);
 
