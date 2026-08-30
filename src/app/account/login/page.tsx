@@ -5,6 +5,7 @@ type CustomerLoginPageProps = {
   searchParams: Promise<{
     error?: string;
     status?: string;
+    returnTo?: string;
   }>;
 };
 
@@ -12,6 +13,7 @@ export default async function CustomerLoginPage({
   searchParams,
 }: CustomerLoginPageProps) {
   const params = await searchParams;
+  const returnTo = params.returnTo === "/checkout" ? "/checkout" : null;
 
   return (
     <main className="min-h-screen bg-[var(--background)] flex items-center justify-center px-6">
@@ -24,7 +26,15 @@ export default async function CustomerLoginPage({
           Login to IRTH
         </h1>
 
+        {returnTo && (
+          <p className="mt-4 text-center text-sm text-[var(--text-secondary)]">
+            Sign in and you will return to checkout.
+          </p>
+        )}
+
         <form action={customerLogin} className="mt-10 space-y-6">
+          {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
+
           <input
             type="email"
             name="email"
