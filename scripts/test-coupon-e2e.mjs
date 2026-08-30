@@ -166,6 +166,32 @@ function assertMoney(actual, expected, label) {
   assert.equal(actual, expected, `${label}: expected ${expected}, got ${actual}`);
 }
 
+function assertPublicQuoteBoundary(quote) {
+  for (const field of [
+    "promotionFunding",
+    "couponFunding",
+    "coupon",
+    "couponEligibleSubtotal",
+  ]) {
+    assert.equal(field in quote, false, `Public quote must not expose ${field}`);
+  }
+
+  for (const item of quote.items) {
+    for (const field of [
+      "promotion",
+      "promotionFunding",
+      "couponEligible",
+      "couponFunding",
+    ]) {
+      assert.equal(
+        field in item,
+        false,
+        `Public quote item must not expose ${field}`
+      );
+    }
+  }
+}
+
 async function main() {
   const { apiUrl, anonKey } = getLocalSupabaseEnv();
 
@@ -178,8 +204,6 @@ async function main() {
   assert.equal(markets.length, 1, "Expected one active Egypt test Market");
   const market = markets[0];
 
-  // Verify only through the public marketplace boundary. Do not weaken local
-  // table grants just to give the test harness privileged direct reads.
   const fixtureProducts = await supabaseRest(
     apiUrl,
     anonKey,
@@ -230,6 +254,12 @@ async function main() {
         body: JSON.stringify(body),
       });
 
+      assert.equal(
+        response.headers.get("cache-control"),
+        "no-store",
+        "Quote responses must disable caching"
+      );
+
       const payload = await response.json();
 
       if (!response.ok) {
@@ -239,6 +269,7 @@ async function main() {
       }
 
       assert.ok(payload.quote, "Quote response must contain quote");
+      assertPublicQuoteBoundary(payload.quote);
       return payload.quote;
     }
 
@@ -248,7 +279,6 @@ async function main() {
       { slug: "copper-piece", quantity: 1 },
     ];
 
-    // Baseline Promotions: 100 + 200 + 300 = 600; discounts 10 + 20 + 30 = 60.
     {
       const result = await quote(coreCart);
       assert.equal(result.couponStatus, "not_requested");
@@ -261,30 +291,26 @@ async function main() {
       assertMoney(itemBySlug(result, "copper-piece").lineTotal, "270.00", "copper promo line");
     }
 
-    // Invalid codes are a normal quote state, not an HTTP error.
     {
       const result = await quote(coreCart, "NOT-A-COUPON");
       assert.equal(result.couponStatus, "invalid_or_unavailable");
       assertMoney(result.subtotal, "540.00", "invalid coupon subtotal");
     }
 
-    // 6A + 16A + 21A: Promotions first; normalized STACK10 applies 10% once to
-    // eligible post-Promotion subtotal 90 + 180 = 270 => 27.00.
     {
       const result = await quote(coreCart, "  stack10  ");
       assert.equal(result.couponStatus, "applied");
-      assert.equal(result.coupon.code, "STACK10");
-      assertMoney(result.couponEligibleSubtotal, "270.00", "STACK10 eligible subtotal");
+      assert.equal(result.couponCode, "STACK10");
       assertMoney(result.couponDiscountTotal, "27.00", "STACK10 discount");
-      assertMoney(result.couponFunding.irth, "27.00", "STACK10 IRTH funding");
+      assertMoney(itemBySlug(result, "clay-vessel").couponDiscount, "9.00", "STACK10 clay coupon");
+      assertMoney(itemBySlug(result, "heritage-textile").couponDiscount, "18.00", "STACK10 textile coupon");
+      assertMoney(itemBySlug(result, "copper-piece").couponDiscount, "0.00", "STACK10 copper coupon");
       assertMoney(itemBySlug(result, "clay-vessel").lineTotal, "81.00", "STACK10 clay line");
       assertMoney(itemBySlug(result, "heritage-textile").lineTotal, "162.00", "STACK10 textile line");
       assertMoney(itemBySlug(result, "copper-piece").lineTotal, "270.00", "STACK10 copper line");
       assertMoney(result.subtotal, "513.00", "STACK10 subtotal");
     }
 
-    // 10A + 11A + 22A: cart-level 50.00 allocated over weights 90:180.
-    // Exact proportional result is 16.67 / 33.33 after deterministic remainder.
     {
       const result = await quote(coreCart, "FIXED50");
       assert.equal(result.couponStatus, "applied");
@@ -296,8 +322,6 @@ async function main() {
       assertMoney(result.subtotal, "490.00", "FIXED50 subtotal");
     }
 
-    // 24A: non-stackable Coupon wins only on Coupon-eligible clay. Promotions on
-    // coupon-ineligible textile/copper lines remain active.
     {
       const result = await quote(coreCart, "NONSTACK50");
       const clay = itemBySlug(result, "clay-vessel");
@@ -305,68 +329,54 @@ async function main() {
       const copper = itemBySlug(result, "copper-piece");
 
       assert.equal(result.couponStatus, "applied");
-      assertMoney(result.couponEligibleSubtotal, "100.00", "NONSTACK50 eligible original subtotal");
       assertMoney(result.couponDiscountTotal, "50.00", "NONSTACK50 coupon discount");
       assertMoney(result.promotionDiscountTotal, "50.00", "NONSTACK50 remaining promotions");
-      assert.equal(clay.promotion, null, "Clay promotion must be removed when Coupon wins");
-      assertMoney(clay.promotionDiscount, "0.00", "Clay promotion discount after Coupon wins");
+      assertMoney(clay.promotionDiscount, "0.00", "Clay promotion removed when Coupon wins");
       assertMoney(clay.lineTotal, "50.00", "Clay non-stackable final");
-      assert.ok(textile.promotion, "Textile unrelated Promotion must remain active");
-      assert.ok(copper.promotion, "Copper unrelated Promotion must remain active");
+      assertMoney(textile.promotionDiscount, "20.00", "Textile unrelated Promotion remains");
+      assertMoney(copper.promotionDiscount, "30.00", "Copper unrelated Promotion remains");
       assertMoney(textile.lineTotal, "180.00", "Textile unrelated promo final");
       assertMoney(copper.lineTotal, "270.00", "Copper unrelated promo final");
       assertMoney(result.subtotal, "500.00", "24A final subtotal");
     }
 
-    // 7A: smaller non-stackable Coupon must not worsen the customer result.
     {
       const result = await quote(coreCart, "NONSTACK5");
       assert.equal(result.couponStatus, "promotion_preferred");
-      assert.equal(result.coupon, null);
       assertMoney(result.couponDiscountTotal, "0.00", "NONSTACK5 applied Coupon discount");
       assertMoney(result.subtotal, "540.00", "NONSTACK5 promotion-preferred subtotal");
     }
 
-    // 23A: exact 10.00 Coupon vs 10.00 clay Promotion tie => Promotion-only wins.
     {
       const result = await quote(coreCart, "NONSTACK10");
       assert.equal(result.couponStatus, "promotion_preferred");
-      assert.equal(result.coupon, null);
       assertMoney(result.subtotal, "540.00", "non-stackable exact tie subtotal");
     }
 
-    // 9A: stackable minimum uses post-Promotion eligible subtotal. Clay is 90 < 100.
     {
       const result = await quote(coreCart, "MIN100");
       assert.equal(result.couponStatus, "minimum_not_met");
-      assertMoney(result.couponEligibleSubtotal, "90.00", "MIN100 eligible subtotal");
       assertMoney(result.subtotal, "540.00", "MIN100 subtotal");
     }
 
-    // 10A: 50% of promoted textile 180 = 90, capped by max_discount at 30.
     {
       const result = await quote(coreCart, "MAX30");
       assert.equal(result.couponStatus, "applied");
-      assertMoney(result.couponEligibleSubtotal, "180.00", "MAX30 eligible subtotal");
       assertMoney(result.couponDiscountTotal, "30.00", "MAX30 capped discount");
       assertMoney(itemBySlug(result, "heritage-textile").lineTotal, "150.00", "MAX30 textile final");
       assertMoney(result.subtotal, "510.00", "MAX30 subtotal");
     }
 
-    // 20A + 21A: 10% of 10.05 = 1.005 => Round Half-Up once => 1.01.
     {
       const result = await quote(
         [{ slug: "coupon-rounding-item", quantity: 1 }],
         "ROUND10"
       );
       assert.equal(result.couponStatus, "applied");
-      assertMoney(result.couponEligibleSubtotal, "10.05", "ROUND10 eligible subtotal");
       assertMoney(result.couponDiscountTotal, "1.01", "ROUND10 rounded discount");
       assertMoney(result.subtotal, "9.04", "ROUND10 subtotal");
     }
 
-    // 22A exact fractional tie: both lines weigh 1.00 and fixed Coupon is 0.01.
-    // Input order is intentionally B then A. Lowest product_id (A) gets the penny.
     {
       const result = await quote(
         [
@@ -386,20 +396,15 @@ async function main() {
       assertMoney(result.subtotal, "1.99", "TIEPENNY subtotal");
     }
 
-    // 8A: Product restriction OR Craft restriction. clay is explicit, textile is
-    // included by craft, copper is outside both.
     {
       const result = await quote(coreCart, "UNION10");
       assert.equal(result.couponStatus, "applied");
-      assert.equal(itemBySlug(result, "clay-vessel").couponEligible, true);
-      assert.equal(itemBySlug(result, "heritage-textile").couponEligible, true);
-      assert.equal(itemBySlug(result, "copper-piece").couponEligible, false);
-      assertMoney(result.couponEligibleSubtotal, "270.00", "UNION10 eligible subtotal");
+      assertMoney(itemBySlug(result, "clay-vessel").couponDiscount, "9.00", "UNION10 clay discount");
+      assertMoney(itemBySlug(result, "heritage-textile").couponDiscount, "18.00", "UNION10 textile discount");
+      assertMoney(itemBySlug(result, "copper-piece").couponDiscount, "0.00", "UNION10 copper excluded");
       assertMoney(result.couponDiscountTotal, "27.00", "UNION10 discount");
     }
 
-    // 12A + 13A: unrestricted Artisan-funded Coupon is still restricted to that
-    // Artisan by the trusted DB lookup, and funding is attributed separately.
     {
       const result = await quote(
         [
@@ -409,30 +414,30 @@ async function main() {
         "ARTISAN25"
       );
       assert.equal(result.couponStatus, "applied");
-      assert.equal(itemBySlug(result, "clay-vessel").couponEligible, true);
-      assert.equal(itemBySlug(result, "heritage-textile").couponEligible, false);
+      assertMoney(itemBySlug(result, "clay-vessel").couponDiscount, "25.00", "ARTISAN25 artisan product discount");
+      assertMoney(itemBySlug(result, "heritage-textile").couponDiscount, "0.00", "ARTISAN25 other artisan excluded");
       assertMoney(result.couponDiscountTotal, "25.00", "ARTISAN25 discount");
-      assertMoney(result.couponFunding.irth, "0.00", "ARTISAN25 IRTH funding");
-      assertMoney(result.couponFunding.artisan, "25.00", "ARTISAN25 Artisan funding");
       assertMoney(result.subtotal, "245.00", "ARTISAN25 subtotal");
     }
 
-    console.log("PASS S15.4.4 coupon quote E2E");
+    console.log("PASS S15.4.4/S15.4.6 coupon quote E2E");
     console.log("- Secure local RPC + real /api/cart/quote path");
+    console.log("- Public quote hides internal Promotion/Coupon funding metadata");
+    console.log("- Quote responses are no-store");
     console.log("- Stackable percentage and fixed Coupons");
     console.log("- Proportional allocation + deterministic remainder tie-break");
     console.log("- Non-stackable win / lose / exact tie");
     console.log("- Decision 24A unrelated Promotions remain active");
     console.log("- Minimum, max cap, Round Half-Up, restriction union");
-    console.log("- Artisan funding scope");
-    console.log("- No Redemption consumption was verified separately at the DB boundary");
+    console.log("- Artisan-funded Coupon scope remains enforced by discounted Product scope");
+    console.log("- No Redemption consumption is verified separately at the DB boundary");
   } finally {
     stopServer(server);
   }
 }
 
 main().catch((error) => {
-  console.error("FAIL S15.4.4 coupon quote E2E");
+  console.error("FAIL S15.4.4/S15.4.6 coupon quote E2E");
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 });
