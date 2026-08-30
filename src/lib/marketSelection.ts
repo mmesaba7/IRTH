@@ -8,7 +8,21 @@ export const MARKET_COOKIE = "irth-market";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function getActiveMarketById(marketId: string) {
+type MarketCountry = {
+  slug: string;
+  name_ar: string | null;
+  name_en: string;
+  iso_code: string;
+};
+
+export type ActiveMarket = {
+  id: string;
+  slug: string;
+  currency_code: string;
+  country: MarketCountry;
+};
+
+export async function getActiveMarketById(marketId: string): Promise<ActiveMarket | null> {
   if (!UUID_PATTERN.test(marketId)) {
     return null;
   }
@@ -28,7 +42,22 @@ export async function getActiveMarketById(marketId: string) {
     throw error;
   }
 
-  return data;
+  if (!data) {
+    return null;
+  }
+
+  const country = Array.isArray(data.country) ? data.country[0] : data.country;
+
+  if (!country) {
+    return null;
+  }
+
+  return {
+    id: data.id,
+    slug: data.slug,
+    currency_code: data.currency_code,
+    country,
+  };
 }
 
 export async function getSelectedMarket() {
