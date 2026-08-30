@@ -1,124 +1,167 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-type AdminSettings = {
-  commissionRate: number;
-  returnPeriod: number;
-  payoutCycle: "weekly" | "monthly" | "quarterly";
-  shippingDefault: number;
-  productApproval: "auto" | "manual";
-  currency: string;
-  notifications: {
-    email: boolean;
-    sms: boolean;
-    whatsapp: boolean;
-  };
+type ShippingMarket = {
+  id: string;
+  slug: string;
+  currencyCode: string;
+  flatShippingFee: string | null;
+  freeShippingThreshold: string | null;
+};
+
+type ShippingDraft = {
+  flatShippingFee: string;
+  freeShippingThreshold: string;
 };
 
 export default function AdminSettingsPage() {
-  const router = useRouter();
-  const [settings, setSettings] = useState<AdminSettings>({
-    commissionRate: 15,
-    returnPeriod: 14,
-    payoutCycle: "monthly",
-    shippingDefault: 30,
-    productApproval: "manual",
-    currency: "USD",
-    notifications: {
-      email: true,
-      sms: false,
-      whatsapp: false,
-    },
-  });
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+  const [markets, setMarkets] = useState<ShippingMarket[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, ShippingDraft>>({});
   const [loading, setLoading] = useState(true);
+  const [savingMarketId, setSavingMarketId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
+    const controller = new AbortController();
 
-    // تحميل الإعدادات المحفوظة
-    const saved = localStorage.getItem("irth-admin-settings");
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        setSettings({
-          commissionRate: data.commissionRate || 15,
-          returnPeriod: data.returnPeriod || 14,
-          payoutCycle: data.payoutCycle || "monthly",
-          shippingDefault: data.shippingDefault || 30,
-          productApproval: data.productApproval || "manual",
-          currency: data.currency || "USD",
-          notifications: {
-            email: data.notifications?.email ?? true,
-            sms: data.notifications?.sms ?? false,
-            whatsapp: data.notifications?.whatsapp ?? false,
-          },
-        });
-      } catch (error) {
-        console.error("Error loading settings:", error);
-      }
-    }
-    setLoading(false);
-  }, [router]);
+    fetch("/api/admin/shipping-settings", {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as {
+          markets?: ShippingMarket[];
+          error?: string;
+        };
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+        if (controller.signal.aborted) return;
+
+        if (!response.ok || !payload.markets) {
+          setError(payload.error ?? "Unable to load shipping settings.");
+          return;
+        }
+
+        setMarkets(payload.markets);
+        setDrafts(
+          Object.fromEntries(
+            payload.markets.map((market) => [
+              market.id,
+              {
+                flatShippingFee: market.flatShippingFee ?? "",
+                freeShippingThreshold: market.freeShippingThreshold ?? "",
+              },
+            ])
+          )
+        );
+      })
+      .catch((requestError: unknown) => {
+        if (controller.signal.aborted) return;
+        console.error("Could not load shipping settings:", requestError);
+        setError("Unable to load shipping settings.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  const updateDraft = (
+    marketId: string,
+    field: keyof ShippingDraft,
+    value: string
   ) => {
-    const { name, value, type } = e.target;
-    if (type === "checkbox") {
-      const checked = (e.target as HTMLInputElement).checked;
-      const [parent, child] = name.split(".");
-      if (child) {
-        setSettings((prev) => ({
-          ...prev,
-          [parent]: {
-            ...(prev[parent as keyof AdminSettings] as any),
-            [child]: checked,
-          },
-        }));
-      }
-      return;
-    }
-    setSettings((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+    setDrafts((current) => ({
+      ...current,
+      [marketId]: {
+        ...(current[marketId] ?? {
+          flatShippingFee: "",
+          freeShippingThreshold: "",
+        }),
+        [field]: value,
+      },
+    }));
     setMessage("");
-
-    localStorage.setItem("irth-admin-settings", JSON.stringify(settings));
-    setSaving(false);
-    setMessage("✅ All settings saved successfully");
-
-    setTimeout(() => setMessage(""), 3000);
+    setError("");
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[var(--background)]">
-        <p className="text-[var(--text-secondary)]">Loading...</p>
-      </div>
-    );
-  }
+  const saveShipping = async (market: ShippingMarket) => {
+    const draft = drafts[market.id];
+    if (!draft || savingMarketId) return;
+
+    setSavingMarketId(market.id);
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await fetch("/api/admin/shipping-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          marketId: market.id,
+          flatShippingFee: draft.flatShippingFee,
+          freeShippingThreshold: draft.freeShippingThreshold,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        flatShippingFee?: string;
+        freeShippingThreshold?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.flatShippingFee || !payload.freeShippingThreshold) {
+        setError(payload.error ?? "Unable to save shipping settings.");
+        return;
+      }
+
+      setMarkets((current) =>
+        current.map((item) =>
+          item.id === market.id
+            ? {
+                ...item,
+                flatShippingFee: payload.flatShippingFee ?? item.flatShippingFee,
+                freeShippingThreshold:
+                  payload.freeShippingThreshold ?? item.freeShippingThreshold,
+              }
+            : item
+        )
+      );
+      setDrafts((current) => ({
+        ...current,
+        [market.id]: {
+          flatShippingFee: payload.flatShippingFee ?? draft.flatShippingFee,
+          freeShippingThreshold:
+            payload.freeShippingThreshold ?? draft.freeShippingThreshold,
+        },
+      }));
+      setMessage(`${market.slug} shipping settings saved.`);
+    } catch (requestError) {
+      console.error("Could not save shipping settings:", requestError);
+      setError("Unable to save shipping settings.");
+    } finally {
+      setSavingMarketId(null);
+    }
+  };
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
       <div className="mx-auto max-w-4xl px-6 py-10">
-        {/* رأس الصفحة */}
         <div className="flex flex-col items-start justify-between gap-4 border-b border-[var(--border-soft)] pb-6 sm:flex-row sm:items-center">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
               Admin Panel
             </p>
             <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">
-              ⚙️ Settings
+              Shipping Settings
             </h1>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Manage platform-wide configurations
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
+              Shipping is configured per Market. These values are read from and written to the trusted database configuration used by Cart and Checkout.
             </p>
           </div>
           <Link
@@ -135,160 +178,123 @@ export default function AdminSettingsPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-8">
-          {/* مجموعة: المالية */}
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <h2 className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-              Financial Settings
-            </h2>
-            <div className="mt-4 grid gap-6 sm:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  Commission Rate (%)
-                </label>
-                <input
-                  type="number"
-                  name="commissionRate"
-                  value={settings.commissionRate}
-                  onChange={handleChange}
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-                  min="0"
-                  max="100"
-                  step="0.5"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  Return Period (days)
-                </label>
-                <input
-                  type="number"
-                  name="returnPeriod"
-                  value={settings.returnPeriod}
-                  onChange={handleChange}
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-                  min="0"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  Payout Cycle
-                </label>
-                <select
-                  name="payoutCycle"
-                  value={settings.payoutCycle}
-                  onChange={handleChange}
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-                >
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  Default Currency
-                </label>
-                <select
-                  name="currency"
-                  value={settings.currency}
-                  onChange={handleChange}
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-                >
-                  <option value="USD">USD ($)</option>
-                  <option value="EGP">EGP (ج.م)</option>
-                  <option value="SAR">SAR (ر.س)</option>
-                  <option value="AED">AED (د.إ)</option>
-                </select>
-              </div>
-            </div>
+        {error && (
+          <div className="mt-6 rounded-[var(--radius-md)] bg-red-50 p-4 text-sm text-red-700">
+            {error}
           </div>
+        )}
 
-          {/* مجموعة: الشحن والموافقة */}
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <h2 className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-              Shipping & Approval
-            </h2>
-            <div className="mt-4 grid gap-6 sm:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  Default Shipping Cost ($)
-                </label>
-                <input
-                  type="number"
-                  name="shippingDefault"
-                  value={settings.shippingDefault}
-                  onChange={handleChange}
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-                  min="0"
-                  step="0.5"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-[var(--text-secondary)]">
-                  Product Approval
-                </label>
-                <select
-                  name="productApproval"
-                  value={settings.productApproval}
-                  onChange={handleChange}
-                  className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
+        {loading ? (
+          <div className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
+            <p className="text-sm text-[var(--text-secondary)]">Loading shipping settings…</p>
+          </div>
+        ) : markets.length === 0 ? (
+          <div className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
+            <p className="text-sm text-[var(--text-secondary)]">No active Markets found.</p>
+          </div>
+        ) : (
+          <div className="mt-8 space-y-6">
+            {markets.map((market) => {
+              const draft = drafts[market.id] ?? {
+                flatShippingFee: "",
+                freeShippingThreshold: "",
+              };
+              const isSaving = savingMarketId === market.id;
+
+              return (
+                <section
+                  key={market.id}
+                  className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6"
                 >
-                  <option value="manual">Manual Review</option>
-                  <option value="auto">Auto Approve</option>
-                </select>
-              </div>
-            </div>
-          </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
+                        Active Market
+                      </p>
+                      <h2 className="mt-2 font-[var(--font-display)] text-2xl capitalize text-[var(--color-espresso)]">
+                        {market.slug}
+                      </h2>
+                    </div>
+                    <span className="w-fit rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
+                      {market.currencyCode}
+                    </span>
+                  </div>
 
-          {/* مجموعة: الإشعارات */}
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <h2 className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-              Notification Channels
-            </h2>
-            <div className="mt-4 space-y-3">
-              <label className="flex cursor-pointer items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="notifications.email"
-                  checked={settings.notifications.email}
-                  onChange={handleChange}
-                  className="h-4 w-4 accent-[var(--color-copper)]"
-                />
-                <span className="text-sm text-[var(--text-secondary)]">Email</span>
-              </label>
-              <label className="flex cursor-pointer items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="notifications.sms"
-                  checked={settings.notifications.sms}
-                  onChange={handleChange}
-                  className="h-4 w-4 accent-[var(--color-copper)]"
-                />
-                <span className="text-sm text-[var(--text-secondary)]">SMS</span>
-              </label>
-              <label className="flex cursor-pointer items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="notifications.whatsapp"
-                  checked={settings.notifications.whatsapp}
-                  onChange={handleChange}
-                  className="h-4 w-4 accent-[var(--color-copper)]"
-                />
-                <span className="text-sm text-[var(--text-secondary)]">WhatsApp</span>
-              </label>
-            </div>
-          </div>
+                  <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor={`shipping-fee-${market.id}`}
+                        className="mb-2 block text-sm text-[var(--text-secondary)]"
+                      >
+                        Flat shipping fee ({market.currencyCode})
+                      </label>
+                      <input
+                        id={`shipping-fee-${market.id}`}
+                        inputMode="decimal"
+                        value={draft.flatShippingFee}
+                        onChange={(event) =>
+                          updateDraft(market.id, "flatShippingFee", event.target.value)
+                        }
+                        className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
+                        placeholder="0.00"
+                      />
+                    </div>
 
-          {/* زر الحفظ */}
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "💾 Save All Settings"}
-          </button>
-        </form>
+                    <div>
+                      <label
+                        htmlFor={`free-shipping-${market.id}`}
+                        className="mb-2 block text-sm text-[var(--text-secondary)]"
+                      >
+                        Free shipping threshold ({market.currencyCode})
+                      </label>
+                      <input
+                        id={`free-shipping-${market.id}`}
+                        inputMode="decimal"
+                        value={draft.freeShippingThreshold}
+                        onChange={(event) =>
+                          updateDraft(
+                            market.id,
+                            "freeShippingThreshold",
+                            event.target.value
+                          )
+                        }
+                        className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  {(!market.flatShippingFee || !market.freeShippingThreshold) && (
+                    <p className="mt-4 text-sm text-[var(--color-terracotta)]">
+                      Shipping configuration is incomplete. Checkout will fail closed for this Market until valid values are saved.
+                    </p>
+                  )}
+
+                  <div className="mt-6 flex flex-col gap-3 border-t border-[var(--border-soft)] pt-5 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs leading-5 text-[var(--text-muted)]">
+                      Free shipping is applied when the trusted merchandise subtotal after Promotions and Coupon effects reaches this threshold.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => saveShipping(market)}
+                      disabled={Boolean(savingMarketId)}
+                      className="shrink-0 rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-5 py-3 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isSaving ? "Saving…" : "Save shipping"}
+                    </button>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface-muted)] p-5">
+          <p className="text-sm font-medium text-[var(--color-espresso)]">Scope note</p>
+          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+            The previous localStorage-based values on this page were prototype-only and are no longer used for Shipping. Commission, payout, return-policy and notification settings will be connected to their own real modules when those modules are implemented.
+          </p>
+        </div>
       </div>
     </main>
   );
