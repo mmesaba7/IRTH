@@ -15,6 +15,11 @@ type QuoteItemStatus =
   | "out_of_stock"
   | "insufficient_stock";
 
+type ShippingQuoteStatus =
+  | "flat_rate"
+  | "free_shipping"
+  | "configuration_missing";
+
 type QuoteItem = {
   slug: string;
   requestedQuantity: number;
@@ -40,6 +45,11 @@ type CheckoutQuote = {
   couponDiscountTotal: string;
   couponCode: string | null;
   subtotal: string;
+  merchandiseSubtotal: string;
+  shippingFee: string | null;
+  freeShippingThreshold: string | null;
+  shippingStatus: ShippingQuoteStatus;
+  finalTotal: string | null;
   canCheckout: boolean;
 };
 
@@ -325,7 +335,16 @@ export default function CheckoutPage() {
 
   const validateDetails = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (quoteLoading || !quote?.canCheckout || contextLoading || !marketCountry) return;
+    if (
+      quoteLoading ||
+      !quote?.canCheckout ||
+      !quote.finalTotal ||
+      quote.shippingStatus === "configuration_missing" ||
+      contextLoading ||
+      !marketCountry
+    ) {
+      return;
+    }
 
     setValidating(true);
     setFieldErrors({});
@@ -367,8 +386,8 @@ export default function CheckoutPage() {
 
       setValidationMessage(
         payload.orderCreated === false
-          ? "Details validated securely. No order has been created yet."
-          : "Details validated securely."
+          ? "Details and final total validated securely. No order has been created yet."
+          : "Details and final total validated securely."
       );
     } catch (error) {
       console.error("Could not validate checkout details:", error);
@@ -411,7 +430,7 @@ export default function CheckoutPage() {
           Complete your details
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-          Your cart is revalidated by the server. Customer contact and delivery details stay out of browser storage and no order is created in this step.
+          Your cart, discounts, shipping and final total are revalidated by the server. Customer contact and delivery details stay out of browser storage and no order is created in this step.
         </p>
 
         <div className="mt-12 grid gap-10 lg:grid-cols-[1fr_380px]">
@@ -613,6 +632,8 @@ export default function CheckoutPage() {
                   validating ||
                   quoteLoading ||
                   !quote?.canCheckout ||
+                  !quote.finalTotal ||
+                  quote.shippingStatus === "configuration_missing" ||
                   contextLoading ||
                   !marketCountry
                 }
@@ -681,7 +702,7 @@ export default function CheckoutPage() {
               Trusted summary
             </p>
             <p className="mt-3 text-xs leading-5 text-[var(--text-muted)]">
-              Browser-stored prices are ignored. All money shown here comes from the server quote.
+              Browser-stored prices are ignored. Merchandise, discounts, shipping and final total come from the server quote.
             </p>
 
             <div className="mt-6 space-y-3 border-b border-[var(--border-soft)] pb-5 text-sm">
@@ -701,19 +722,57 @@ export default function CheckoutPage() {
                   <span>− {currency} {quote.couponDiscountTotal}</span>
                 </div>
               )}
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-secondary)]">Merchandise subtotal</span>
+                <span>{quote ? `${currency} ${quote.merchandiseSubtotal}` : "—"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-secondary)]">Shipping</span>
+                <span className={quote?.shippingStatus === "free_shipping" ? "text-[var(--color-olive)]" : undefined}>
+                  {quote?.shippingStatus === "configuration_missing"
+                    ? "Unavailable"
+                    : quote?.shippingStatus === "free_shipping"
+                      ? "Free"
+                      : quote?.shippingFee
+                        ? `${currency} ${quote.shippingFee}`
+                        : "—"}
+                </span>
+              </div>
             </div>
 
+            {quote?.shippingStatus === "flat_rate" && quote.freeShippingThreshold && (
+              <p className="mt-4 text-xs leading-5 text-[var(--text-muted)]">
+                Free shipping starts at {currency} {quote.freeShippingThreshold} after promotions and coupons.
+              </p>
+            )}
+
+            {quote?.shippingStatus === "free_shipping" && quote.freeShippingThreshold && (
+              <p className="mt-4 text-xs leading-5 text-[var(--color-olive)]">
+                Free shipping applied. Your merchandise subtotal reached {currency} {quote.freeShippingThreshold}.
+              </p>
+            )}
+
+            {quote?.shippingStatus === "configuration_missing" && (
+              <p className="mt-4 text-xs leading-5 text-[var(--color-terracotta)]">
+                Shipping is not configured for the selected market yet.
+              </p>
+            )}
+
             <div className="mt-5 flex items-center justify-between">
-              <span className="font-medium text-[var(--color-espresso)]">Merchandise subtotal</span>
+              <span className="font-medium text-[var(--color-espresso)]">Final total</span>
               <span className="text-2xl font-medium text-[var(--color-copper)]">
-                {quote ? `${currency} ${quote.subtotal}` : "—"}
+                {quote?.finalTotal ? `${currency} ${quote.finalTotal}` : "—"}
               </span>
             </div>
 
             {!quote?.canCheckout && !quoteLoading && (
               <p className="mt-4 text-xs leading-5 text-[var(--color-terracotta)]">
-                Checkout cannot continue until every item is valid for the selected market and inventory.
+                Checkout cannot continue until every item and shipping rule are valid for the selected market.
               </p>
+            )}
+
+            {quoteError && (
+              <p className="mt-4 text-xs leading-5 text-[var(--color-terracotta)]">{quoteError}</p>
             )}
 
             <Link
@@ -724,14 +783,23 @@ export default function CheckoutPage() {
             </Link>
 
             <button
-              type="button"
-              disabled
-              className="mt-3 w-full cursor-not-allowed rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] opacity-50"
+              type="submit"
+              form="checkout-customer-form"
+              disabled={
+                validating ||
+                quoteLoading ||
+                !quote?.canCheckout ||
+                !quote.finalTotal ||
+                quote.shippingStatus === "configuration_missing" ||
+                contextLoading ||
+                !marketCountry
+              }
+              className="mt-3 w-full rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Continue — shipping comes next
+              {validating ? "Validating securely…" : "Validate final total"}
             </button>
             <p className="mt-3 text-center text-xs text-[var(--text-muted)]">
-              Shipping pricing, order creation and payment are intentionally not active yet.
+              Order creation and payment remain intentionally inactive until S15.5.4 and the Payment layer.
             </p>
           </aside>
         </div>
