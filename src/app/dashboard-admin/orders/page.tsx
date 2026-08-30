@@ -1,251 +1,260 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 
-type Order = {
+type AdminOrderItem = {
   id: string;
-  customer: {
-    name: string;
-    phone: string;
-    address: string;
-    notes: string;
-  };
-  paymentMethod: string;
-  items: {
-    slug: string;
-    artisan: string;
-    name: string;
-    price: number;
-  }[];
-  total: number;
-  status: string;
-  createdAt: string;
+  productSlug: string;
+  productNameAr: string | null;
+  productNameEn: string;
+  quantity: number;
+  unitPrice: string;
+  originalLineTotal: string;
+  promotionDiscount: string;
+  couponDiscount: string;
+  lineTotal: string;
+  commissionRatePercent: string;
 };
 
-export default function AdminOrdersPage() {
-  const router = useRouter();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [filter, setFilter] = useState("all");
-  const [loading, setLoading] = useState(true);
+type AdminArtisanGroup = {
+  artisanGroupId: string;
+  artisanId: string;
+  artisanNameAr: string | null;
+  artisanNameEn: string;
+  fulfillmentStatus: string;
+  merchandiseSubtotal: string;
+  items: AdminOrderItem[];
+};
 
-  useEffect(() => {
-    // التحقق من تسجيل الدخول
+type AdminOrderRow = {
+  order_id: string;
+  order_number: string;
+  order_status: string;
+  payment_status: string;
+  currency_code: string;
+  subtotal_before_promotions: string;
+  promotion_discount_total: string;
+  coupon_discount_total: string;
+  merchandise_subtotal: string;
+  shipping_fee: string;
+  final_total: string;
+  customer_recipient_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  customer_country_code: string | null;
+  customer_administrative_area: string | null;
+  customer_city: string | null;
+  customer_address_line1: string | null;
+  customer_delivery_notes: string | null;
+  created_at: string;
+  artisan_groups: AdminArtisanGroup[];
+};
 
-    // جلب الطلبات من localStorage
-    const allOrders: Order[] = JSON.parse(
-      localStorage.getItem("irth-orders") || "[]"
-    );
+const STATUS_LABELS: Record<string, string> = {
+  received: "تم استلام الطلب",
+  confirmed: "تم تأكيد الطلب",
+  preparing: "قيد التجهيز",
+  ready_for_courier_pickup: "جاهز للاستلام من شركة الشحن",
+  picked_up_from_artisan: "تم الاستلام من الحرفي",
+  in_transit: "في الطريق",
+  delivered: "تم التسليم",
+  cancelled: "ملغي",
+  returned: "مرتجع",
+  delivery_failed: "فشل التسليم",
+  pending: "قيد الانتظار",
+  paid: "مدفوع",
+  failed: "فشل الدفع",
+  refunded: "تم رد المبلغ",
+};
 
-    // ترتيب الطلبات من الأحدث للأقدم
-    const sortedOrders = allOrders.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+function statusLabel(value: string) {
+  return STATUS_LABELS[value] ?? value;
+}
 
-    setOrders(sortedOrders);
-    setLoading(false);
-  }, [router]);
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("ar-EG", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
 
-  // دالة تغيير حالة الطلب
-  const updateOrderStatus = (orderId: string, newStatus: string) => {
-    const allOrders: Order[] = JSON.parse(
-      localStorage.getItem("irth-orders") || "[]"
-    );
+function hasPositiveMoney(value: string) {
+  return Number(value) > 0;
+}
 
-    const updatedOrders = allOrders.map((order) => {
-      if (order.id === orderId) {
-        return { ...order, status: newStatus };
-      }
-      return order;
-    });
+export const dynamic = "force-dynamic";
 
-    localStorage.setItem("irth-orders", JSON.stringify(updatedOrders));
+export default async function AdminOrdersPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    // تحديث الطلبات في الصفحة
-    const sortedUpdated = updatedOrders.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-    setOrders(sortedUpdated);
-  };
-
-  // فلترة الطلبات
-  const filteredOrders = orders.filter((order) => {
-    if (filter === "all") return true;
-    if (filter === "new") return order.status === "تم استلام الطلب";
-    if (filter === "processing") return order.status === "قيد التجهيز";
-    if (filter === "completed") return order.status === "تم التسليم";
-    return true;
-  });
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[var(--background)]">
-        <p className="text-[var(--text-secondary)]">Loading...</p>
-      </div>
-    );
+  if (!user) {
+    redirect("/dashboard-admin/login");
   }
 
+  const { data, error } = await supabase.rpc("get_admin_orders");
+  const orders = (data ?? []) as AdminOrderRow[];
+  const unauthorized = error?.message?.includes("admin_required") ?? false;
+
   return (
-    <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
-      <div className="mx-auto max-w-[var(--container-max)] px-6 py-10">
-        {/* رأس الصفحة */}
-        <div className="flex flex-col items-start justify-between gap-4 border-b border-[var(--border-soft)] pb-6 sm:flex-row sm:items-center">
+    <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] pb-20">
+      <section className="mx-auto max-w-[var(--container-max)] px-6 py-10 md:py-16">
+        <div className="flex flex-col gap-4 border-b border-[var(--border-soft)] pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
               Admin Panel
             </p>
-            <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">
-              📦 Orders
+            <h1 className="mt-2 font-[var(--font-display)] text-4xl text-[var(--color-espresso)] md:text-5xl">
+              الطلبات
             </h1>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Manage all orders ({orders.length})
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
+              عرض موحد للطلبات الحقيقية، بيانات العميل، تقسيم الحرفيين، وحالة التجهيز. هذه المرحلة للقراءة فقط.
             </p>
           </div>
+
           <Link
             href="/dashboard-admin/dashboard"
-            className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)]"
+            className="w-fit rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2.5 text-sm text-[var(--text-secondary)] transition hover:bg-[var(--surface-muted)]"
           >
-            ← Back to Dashboard
+            ← لوحة الإدارة
           </Link>
         </div>
 
-        {/* أزرار الفلترة */}
-        <div className="mt-6 flex flex-wrap gap-2">
-          <button
-            onClick={() => setFilter("all")}
-            className={`rounded-full px-4 py-2 text-xs font-medium transition ${
-              filter === "all"
-                ? "bg-[var(--color-espresso)] text-[var(--color-ivory)]"
-                : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--border-soft)]"
-            }`}
-          >
-            All ({orders.length})
-          </button>
-          <button
-            onClick={() => setFilter("new")}
-            className={`rounded-full px-4 py-2 text-xs font-medium transition ${
-              filter === "new"
-                ? "bg-[var(--color-espresso)] text-[var(--color-ivory)]"
-                : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--border-soft)]"
-            }`}
-          >
-            New ({orders.filter((o) => o.status === "تم استلام الطلب").length})
-          </button>
-          <button
-            onClick={() => setFilter("processing")}
-            className={`rounded-full px-4 py-2 text-xs font-medium transition ${
-              filter === "processing"
-                ? "bg-[var(--color-espresso)] text-[var(--color-ivory)]"
-                : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--border-soft)]"
-            }`}
-          >
-            Processing ({orders.filter((o) => o.status === "قيد التجهيز").length})
-          </button>
-          <button
-            onClick={() => setFilter("completed")}
-            className={`rounded-full px-4 py-2 text-xs font-medium transition ${
-              filter === "completed"
-                ? "bg-[var(--color-espresso)] text-[var(--color-ivory)]"
-                : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--border-soft)]"
-            }`}
-          >
-            Completed ({orders.filter((o) => o.status === "تم التسليم").length})
-          </button>
-        </div>
-
-        {/* جدول الطلبات */}
-        {filteredOrders.length === 0 ? (
-          <div className="mt-8 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-10 text-center">
-            <p className="text-lg text-[var(--text-secondary)]">No orders found</p>
-            <p className="mt-2 text-sm text-[var(--text-muted)]">
-              {filter === "all"
-                ? "Orders will appear here once customers make purchases"
-                : "No orders match this filter"}
+        {unauthorized ? (
+          <div className="mt-10 rounded-[var(--radius-lg)] border border-[var(--color-terracotta)] bg-[var(--surface)] p-6">
+            <p className="font-medium text-[var(--color-terracotta)]">غير مصرح لك بعرض طلبات الإدارة.</p>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              الصفحة والبيانات متاحة لحساب Super Admin فقط.
             </p>
           </div>
+        ) : error ? (
+          <div className="mt-10 rounded-[var(--radius-lg)] border border-[var(--color-terracotta)] bg-[var(--surface)] p-6">
+            <p className="font-medium text-[var(--color-terracotta)]">تعذر تحميل الطلبات الآن.</p>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">حاول تحديث الصفحة مرة أخرى.</p>
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="mt-12 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-10 text-center">
+            <p className="text-lg text-[var(--color-espresso)]">لا توجد طلبات حتى الآن.</p>
+          </div>
         ) : (
-          <div className="mt-8 overflow-x-auto">
-            <div className="min-w-full rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)]">
-              {/* رأس الجدول */}
-              <div className="grid grid-cols-6 gap-4 border-b border-[var(--border-soft)] bg-[var(--surface-muted)] px-6 py-3 text-xs font-medium uppercase tracking-[0.1em] text-[var(--text-muted)]">
-                <span>Order ID</span>
-                <span>Customer</span>
-                <span>Artisan</span>
-                <span>Total</span>
-                <span>Status</span>
-                <span className="text-center">Actions</span>
-              </div>
+          <div className="mt-8 space-y-6">
+            <p className="text-sm text-[var(--text-secondary)]">إجمالي الطلبات: {orders.length}</p>
 
-              {/* صفوف الجدول */}
-              {filteredOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="grid grid-cols-6 gap-4 border-b border-[var(--border-soft)] px-6 py-4 text-sm last:border-0 hover:bg-[var(--surface-muted)]"
-                >
-                  <span className="font-mono text-xs">{order.id.slice(0, 12)}</span>
-                  <span>{order.customer.name}</span>
-                  <span>
-                    {order.items.length > 0
-                      ? order.items.map((item) => item.artisan).join(", ")
-                      : "N/A"}
-                  </span>
-                  <span className="font-medium text-[var(--color-copper)]">
-                    ${order.total.toFixed(2)}
-                  </span>
-                  <span>
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${
-                        order.status === "تم التسليم"
-                          ? "bg-green-100 text-green-700"
-                          : order.status === "قيد التجهيز"
-                          ? "bg-blue-100 text-blue-700"
-                          : order.status === "جاهز للشحن"
-                          ? "bg-purple-100 text-purple-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}
-                    >
-                      {order.status}
-                    </span>
-                  </span>
-                  <div className="flex flex-wrap items-center justify-center gap-1">
-                    {order.status === "تم استلام الطلب" && (
-                      <button
-                        onClick={() =>
-                          updateOrderStatus(order.id, "قيد التجهيز")
-                        }
-                        className="rounded bg-blue-500 px-3 py-1 text-xs text-white transition hover:bg-blue-600"
-                      >
-                        Process
-                      </button>
-                    )}
-                    {order.status === "قيد التجهيز" && (
-                      <button
-                        onClick={() =>
-                          updateOrderStatus(order.id, "جاهز للشحن")
-                        }
-                        className="rounded bg-purple-500 px-3 py-1 text-xs text-white transition hover:bg-purple-600"
-                      >
-                        Ready
-                      </button>
-                    )}
-                    {order.status === "جاهز للشحن" && (
-                      <button
-                        onClick={() =>
-                          updateOrderStatus(order.id, "تم التسليم")
-                        }
-                        className="rounded bg-green-500 px-3 py-1 text-xs text-white transition hover:bg-green-600"
-                      >
-                        Deliver
-                      </button>
-                    )}
+            {orders.map((order) => (
+              <article
+                key={order.order_id}
+                className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)]"
+              >
+                <div className="grid gap-5 border-b border-[var(--border-soft)] p-6 md:grid-cols-[1.4fr_1fr_1fr]">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Order</p>
+                    <p className="mt-2 font-mono text-sm font-semibold text-[var(--color-espresso)]">{order.order_number}</p>
+                    <p className="mt-2 text-xs text-[var(--text-muted)]">{formatDate(order.created_at)}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Status</p>
+                    <p className="mt-2 text-sm font-medium text-[var(--color-espresso)]">{statusLabel(order.order_status)}</p>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">Payment: {statusLabel(order.payment_status)}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Final total</p>
+                    <p className="mt-2 text-xl font-medium text-[var(--color-copper)]">
+                      {order.currency_code} {order.final_total}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                <div className="grid gap-6 border-b border-[var(--border-soft)] bg-[var(--surface-muted)]/40 p-6 lg:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Customer & delivery</p>
+                    <div className="mt-3 space-y-1.5 text-sm text-[var(--text-secondary)]">
+                      <p><span className="font-medium text-[var(--color-espresso)]">Name:</span> {order.customer_recipient_name ?? "—"}</p>
+                      <p><span className="font-medium text-[var(--color-espresso)]">Email:</span> {order.customer_email ?? "—"}</p>
+                      <p><span className="font-medium text-[var(--color-espresso)]">Phone:</span> {order.customer_phone ?? "—"}</p>
+                      <p>
+                        <span className="font-medium text-[var(--color-espresso)]">Address:</span>{" "}
+                        {[order.customer_address_line1, order.customer_city, order.customer_administrative_area, order.customer_country_code]
+                          .filter(Boolean)
+                          .join(", ") || "—"}
+                      </p>
+                      {order.customer_delivery_notes && (
+                        <p><span className="font-medium text-[var(--color-espresso)]">Delivery notes:</span> {order.customer_delivery_notes}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Money snapshot</p>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <div className="flex justify-between gap-4"><span>Original merchandise</span><span>{order.currency_code} {order.subtotal_before_promotions}</span></div>
+                      {hasPositiveMoney(order.promotion_discount_total) && (
+                        <div className="flex justify-between gap-4"><span>Promotion discount</span><span>- {order.currency_code} {order.promotion_discount_total}</span></div>
+                      )}
+                      {hasPositiveMoney(order.coupon_discount_total) && (
+                        <div className="flex justify-between gap-4"><span>Coupon discount</span><span>- {order.currency_code} {order.coupon_discount_total}</span></div>
+                      )}
+                      <div className="flex justify-between gap-4"><span>Merchandise subtotal</span><span>{order.currency_code} {order.merchandise_subtotal}</span></div>
+                      <div className="flex justify-between gap-4"><span>Shipping</span><span>{order.currency_code} {order.shipping_fee}</span></div>
+                      <div className="flex justify-between gap-4 border-t border-[var(--border-soft)] pt-2 font-medium text-[var(--color-espresso)]">
+                        <span>Final total</span><span>{order.currency_code} {order.final_total}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Artisan groups</p>
+                  <div className="mt-4 space-y-4">
+                    {order.artisan_groups.map((group) => (
+                      <details
+                        key={group.artisanGroupId}
+                        className="rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)]"
+                        open
+                      >
+                        <summary className="cursor-pointer list-none p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="font-medium text-[var(--color-espresso)]">{group.artisanNameEn}</p>
+                              {group.artisanNameAr && <p className="mt-1 text-sm text-[var(--text-secondary)]">{group.artisanNameAr}</p>}
+                            </div>
+                            <div className="text-sm sm:text-right">
+                              <p className="font-medium text-[var(--color-espresso)]">{statusLabel(group.fulfillmentStatus)}</p>
+                              <p className="mt-1 text-[var(--color-copper)]">{order.currency_code} {group.merchandiseSubtotal}</p>
+                            </div>
+                          </div>
+                        </summary>
+
+                        <div className="space-y-3 border-t border-[var(--border-soft)] p-4">
+                          {group.items.map((item) => (
+                            <div key={item.id} className="rounded-[var(--radius-md)] bg-[var(--surface)] p-4">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                  <p className="font-medium text-[var(--color-espresso)]">{item.productNameEn}</p>
+                                  {item.productNameAr && <p className="mt-1 text-sm text-[var(--text-secondary)]">{item.productNameAr}</p>}
+                                  <p className="mt-2 text-xs text-[var(--text-muted)]">Quantity: {item.quantity}</p>
+                                  <p className="mt-1 text-xs text-[var(--text-muted)]">Commission snapshot: {item.commissionRatePercent}%</p>
+                                </div>
+                                <div className="text-sm sm:text-right">
+                                  <p>Unit: {order.currency_code} {item.unitPrice}</p>
+                                  <p className="mt-1 font-medium text-[var(--color-copper)]">Line: {order.currency_code} {item.lineTotal}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
         )}
-      </div>
+      </section>
     </main>
   );
 }
