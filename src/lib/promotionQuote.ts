@@ -20,6 +20,11 @@ type Decimal = {
   scale: number;
 };
 
+type PromotionCandidate = {
+  promotion: ActivePromotionRow;
+  discountMinor: string;
+};
+
 export type AppliedPromotion = {
   id: string;
   sourceType: PromotionSource;
@@ -48,6 +53,10 @@ export type PromotionCartQuote = Omit<CartQuote, "items" | "subtotal"> & {
   promotionFunding: PromotionFunding;
 };
 
+function trimLeadingZeros(value: string) {
+  return value.replace(/^0+(?=\d)/, "") || "0";
+}
+
 function parseDecimal(value: string): Decimal {
   const normalized = value.trim();
 
@@ -56,48 +65,140 @@ function parseDecimal(value: string): Decimal {
   }
 
   const [whole, fraction = ""] = normalized.split(".");
-  const digits = `${whole}${fraction}`.replace(/^0+(?=\d)/, "");
 
   return {
-    digits: digits || "0",
+    digits: trimLeadingZeros(`${whole}${fraction}`),
     scale: fraction.length,
   };
 }
 
-function pow10(scale: number) {
-  return BigInt(10) ** BigInt(scale);
-}
+function compareIntegerStrings(left: string, right: string) {
+  const normalizedLeft = trimLeadingZeros(left);
+  const normalizedRight = trimLeadingZeros(right);
 
-function roundHalfUp(numerator: bigint, denominator: bigint) {
-  if (denominator <= BigInt(0)) {
-    throw new Error("Invalid rounding denominator");
+  if (normalizedLeft.length !== normalizedRight.length) {
+    return normalizedLeft.length > normalizedRight.length ? 1 : -1;
   }
 
-  const quotient = numerator / denominator;
-  const remainder = numerator % denominator;
+  if (normalizedLeft === normalizedRight) {
+    return 0;
+  }
 
-  return remainder * BigInt(2) >= denominator
-    ? quotient + BigInt(1)
-    : quotient;
+  return normalizedLeft > normalizedRight ? 1 : -1;
+}
+
+function addIntegerStrings(left: string, right: string) {
+  let leftIndex = left.length - 1;
+  let rightIndex = right.length - 1;
+  let carry = 0;
+  let result = "";
+
+  while (leftIndex >= 0 || rightIndex >= 0 || carry > 0) {
+    const leftDigit = leftIndex >= 0 ? Number(left[leftIndex]) : 0;
+    const rightDigit = rightIndex >= 0 ? Number(right[rightIndex]) : 0;
+    const sum = leftDigit + rightDigit + carry;
+
+    result = `${sum % 10}${result}`;
+    carry = Math.floor(sum / 10);
+    leftIndex -= 1;
+    rightIndex -= 1;
+  }
+
+  return trimLeadingZeros(result);
+}
+
+function subtractIntegerStrings(left: string, right: string) {
+  if (compareIntegerStrings(left, right) < 0) {
+    throw new Error("Negative integer subtraction is not allowed");
+  }
+
+  let leftIndex = left.length - 1;
+  let rightIndex = right.length - 1;
+  let borrow = 0;
+  let result = "";
+
+  while (leftIndex >= 0) {
+    let digit = Number(left[leftIndex]) - borrow;
+    const rightDigit = rightIndex >= 0 ? Number(right[rightIndex]) : 0;
+
+    if (digit < rightDigit) {
+      digit += 10;
+      borrow = 1;
+    } else {
+      borrow = 0;
+    }
+
+    result = `${digit - rightDigit}${result}`;
+    leftIndex -= 1;
+    rightIndex -= 1;
+  }
+
+  return trimLeadingZeros(result);
+}
+
+function multiplyIntegerByDigit(value: string, digit: number) {
+  if (digit === 0 || value === "0") {
+    return "0";
+  }
+
+  let carry = 0;
+  let result = "";
+
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    const product = Number(value[index]) * digit + carry;
+    result = `${product % 10}${result}`;
+    carry = Math.floor(product / 10);
+  }
+
+  if (carry > 0) {
+    result = `${carry}${result}`;
+  }
+
+  return trimLeadingZeros(result);
+}
+
+function multiplyIntegerStrings(left: string, right: string) {
+  let result = "0";
+  let zeroPadding = "";
+
+  for (let index = right.length - 1; index >= 0; index -= 1) {
+    const digit = Number(right[index]);
+    const partial = `${multiplyIntegerByDigit(left, digit)}${zeroPadding}`;
+    result = addIntegerStrings(result, partial);
+    zeroPadding += "0";
+  }
+
+  return trimLeadingZeros(result);
+}
+
+function roundByPowerOfTenHalfUp(digits: string, placesToRemove: number) {
+  if (placesToRemove <= 0) {
+    return `${trimLeadingZeros(digits)}${"0".repeat(-placesToRemove)}`;
+  }
+
+  const padded = trimLeadingZeros(digits).padStart(placesToRemove + 1, "0");
+  const splitIndex = padded.length - placesToRemove;
+  const kept = trimLeadingZeros(padded.slice(0, splitIndex));
+  const firstRemovedDigit = Number(padded[splitIndex] ?? "0");
+
+  return firstRemovedDigit >= 5 ? addIntegerStrings(kept, "1") : kept;
 }
 
 function decimalToMinorUnits(value: string, currencyScale: number) {
   const decimal = parseDecimal(value);
-  const digits = BigInt(decimal.digits);
 
   if (decimal.scale <= currencyScale) {
-    return digits * pow10(currencyScale - decimal.scale);
+    return `${decimal.digits}${"0".repeat(currencyScale - decimal.scale)}`;
   }
 
-  return roundHalfUp(digits, pow10(decimal.scale - currencyScale));
+  return roundByPowerOfTenHalfUp(
+    decimal.digits,
+    decimal.scale - currencyScale
+  );
 }
 
-function formatMinorUnits(value: bigint, currencyScale: number) {
-  if (value < BigInt(0)) {
-    throw new Error("Negative money value is not allowed");
-  }
-
-  const digits = value.toString();
+function formatMinorUnits(value: string, currencyScale: number) {
+  const digits = trimLeadingZeros(value);
 
   if (currencyScale === 0) {
     return digits;
@@ -126,34 +227,43 @@ function getCurrencyMinorUnitScale(currencyCode: string) {
 }
 
 function percentageDiscountMinorUnits(
-  lineTotalMinor: bigint,
+  lineTotalMinor: string,
   percentageValue: string
 ) {
   const percentage = parseDecimal(percentageValue);
-  const numerator = lineTotalMinor * BigInt(percentage.digits);
-  const denominator = BigInt(100) * pow10(percentage.scale);
-  const discount = roundHalfUp(numerator, denominator);
+  const numerator = multiplyIntegerStrings(
+    lineTotalMinor,
+    percentage.digits
+  );
+  const discount = roundByPowerOfTenHalfUp(
+    numerator,
+    percentage.scale + 2
+  );
 
-  return discount > lineTotalMinor ? lineTotalMinor : discount;
+  return compareIntegerStrings(discount, lineTotalMinor) > 0
+    ? lineTotalMinor
+    : discount;
 }
 
 function fixedDiscountMinorUnits(
-  unitPriceMinor: bigint,
+  unitPriceMinor: string,
   quantity: number,
   discountValue: string,
   currencyScale: number
 ) {
   const perUnitDiscount = decimalToMinorUnits(discountValue, currencyScale);
   const cappedPerUnitDiscount =
-    perUnitDiscount > unitPriceMinor ? unitPriceMinor : perUnitDiscount;
+    compareIntegerStrings(perUnitDiscount, unitPriceMinor) > 0
+      ? unitPriceMinor
+      : perUnitDiscount;
 
-  return cappedPerUnitDiscount * BigInt(quantity);
+  return multiplyIntegerStrings(cappedPerUnitDiscount, String(quantity));
 }
 
 function calculatePromotionDiscount(
   promotion: ActivePromotionRow,
-  unitPriceMinor: bigint,
-  lineTotalMinor: bigint,
+  unitPriceMinor: string,
+  lineTotalMinor: string,
   quantity: number,
   currencyScale: number
 ) {
@@ -171,12 +281,12 @@ function calculatePromotionDiscount(
 
 function chooseBestPromotion(
   promotions: ActivePromotionRow[],
-  unitPriceMinor: bigint,
-  lineTotalMinor: bigint,
+  unitPriceMinor: string,
+  lineTotalMinor: string,
   quantity: number,
   currencyScale: number
 ) {
-  let best: { promotion: ActivePromotionRow; discountMinor: bigint } | null = null;
+  let best: PromotionCandidate | null = null;
 
   for (const promotion of promotions) {
     const discountMinor = calculatePromotionDiscount(
@@ -186,13 +296,16 @@ function chooseBestPromotion(
       quantity,
       currencyScale
     );
+    const comparison = best
+      ? compareIntegerStrings(discountMinor, best.discountMinor)
+      : 1;
 
-    if (!best || discountMinor > best.discountMinor) {
+    if (!best || comparison > 0) {
       best = { promotion, discountMinor };
       continue;
     }
 
-    if (discountMinor !== best.discountMinor) {
+    if (comparison < 0) {
       continue;
     }
 
@@ -216,7 +329,7 @@ function chooseBestPromotion(
 }
 
 function emptyFunding(currencyScale: number): PromotionFunding {
-  const zero = formatMinorUnits(BigInt(0), currencyScale);
+  const zero = formatMinorUnits("0", currencyScale);
 
   return { irth: zero, artisan: zero };
 }
@@ -254,11 +367,11 @@ export async function applyPromotionsToQuote(
     promotionsByProduct.set(promotion.product_id, current);
   }
 
-  let subtotalBeforeMinor = BigInt(0);
-  let promotionDiscountMinor = BigInt(0);
-  let subtotalMinor = BigInt(0);
-  let irthFundingMinor = BigInt(0);
-  let artisanFundingMinor = BigInt(0);
+  let subtotalBeforeMinor = "0";
+  let promotionDiscountMinor = "0";
+  let subtotalMinor = "0";
+  let irthFundingMinor = "0";
+  let artisanFundingMinor = "0";
 
   const items: PromotionQuoteItem[] = quote.items.map((item) => {
     if (
@@ -278,12 +391,14 @@ export async function applyPromotionsToQuote(
 
     const unitPriceMinor = decimalToMinorUnits(item.unitPrice, currencyScale);
 
-    if (unitPriceMinor <= BigInt(0)) {
+    if (compareIntegerStrings(unitPriceMinor, "0") <= 0) {
       throw new Error("Market price rounds below the currency minor unit");
     }
 
-    const originalLineTotalMinor =
-      unitPriceMinor * BigInt(item.requestedQuantity);
+    const originalLineTotalMinor = multiplyIntegerStrings(
+      unitPriceMinor,
+      String(item.requestedQuantity)
+    );
     const best = chooseBestPromotion(
       promotionsByProduct.get(item.product.id) ?? [],
       unitPriceMinor,
@@ -291,21 +406,33 @@ export async function applyPromotionsToQuote(
       item.requestedQuantity,
       currencyScale
     );
-    const itemDiscountMinor = best?.discountMinor ?? BigInt(0);
-    const discountedLineTotalMinor = originalLineTotalMinor - itemDiscountMinor;
+    const itemDiscountMinor = best?.discountMinor ?? "0";
+    const discountedLineTotalMinor = subtractIntegerStrings(
+      originalLineTotalMinor,
+      itemDiscountMinor
+    );
     const funding = emptyFunding(currencyScale);
 
     if (best?.promotion.source_type === "irth") {
       funding.irth = formatMinorUnits(itemDiscountMinor, currencyScale);
-      irthFundingMinor += itemDiscountMinor;
+      irthFundingMinor = addIntegerStrings(irthFundingMinor, itemDiscountMinor);
     } else if (best?.promotion.source_type === "artisan") {
       funding.artisan = formatMinorUnits(itemDiscountMinor, currencyScale);
-      artisanFundingMinor += itemDiscountMinor;
+      artisanFundingMinor = addIntegerStrings(
+        artisanFundingMinor,
+        itemDiscountMinor
+      );
     }
 
-    subtotalBeforeMinor += originalLineTotalMinor;
-    promotionDiscountMinor += itemDiscountMinor;
-    subtotalMinor += discountedLineTotalMinor;
+    subtotalBeforeMinor = addIntegerStrings(
+      subtotalBeforeMinor,
+      originalLineTotalMinor
+    );
+    promotionDiscountMinor = addIntegerStrings(
+      promotionDiscountMinor,
+      itemDiscountMinor
+    );
+    subtotalMinor = addIntegerStrings(subtotalMinor, discountedLineTotalMinor);
 
     return {
       ...item,
