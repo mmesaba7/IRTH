@@ -1,12 +1,12 @@
 # IRTH Project Status
 
-**Project:** IRTH
-**Document Purpose:** Current implementation status of the IRTH MVP
+**Project:** IRTH  
+**Document Purpose:** Current implementation status of the IRTH MVP  
 **Last Updated:** 30 August 2026
 
 ---
 
-# 1. Purpose of This Document
+# 1. Purpose
 
 This document answers:
 
@@ -14,27 +14,14 @@ This document answers:
 
 It is NOT the product specification.
 
-The main project references are:
+Primary references:
 
-1. **IRTH MVP Specification v0.1**
+1. **IRTH MVP Specification v0.1** — source of truth for approved Product and Architecture decisions.
+2. **IRTH_PROJECT_STATUS.md** — source of truth for what has actually been implemented, tested, closed, deferred, or remains incomplete.
+3. **Git Repository** — source of truth for application code and migration files.
+4. **Live Supabase** — source of truth for the currently running database state.
 
-   * Defines what IRTH should become.
-   * Contains approved product and architecture decisions.
-
-2. **IRTH_PROJECT_STATUS.md**
-
-   * Defines what has actually been implemented.
-   * Records completed milestones, current work, known gaps, and next tasks.
-
-3. **Git Repository**
-
-   * Source of truth for application code and migration files.
-
-4. **Supabase**
-
-   * Source of truth for the currently running database state.
-
-If a product decision conflicts with the Specification, the Specification wins unless the decision is explicitly changed and approved.
+If this Status document conflicts with the Specification on a Product decision, the Specification wins unless the owner explicitly approves a change.
 
 ---
 
@@ -42,11 +29,15 @@ If a product decision conflicts with the Specification, the Specification wins u
 
 Approved architecture:
 
-* Next.js
-* TypeScript
-* Supabase
-* PostgreSQL
-* Modular Monolith
+```text
+Next.js
++
+TypeScript
++
+Supabase / PostgreSQL
++
+Modular Monolith
+```
 
 MVP does NOT use Microservices.
 
@@ -54,7 +45,7 @@ Core principle:
 
 > Build simple, but build it correctly.
 
-Architecture should allow future expansion for:
+Architecture should remain extensible for later support of:
 
 * Multiple Payment Gateways
 * Multiple Couriers
@@ -72,19 +63,17 @@ These advanced systems should not be built before they are needed.
 
 # 3. Overall MVP Progress
 
-Current high-level state:
-
 ```text
 Foundation                  ✅ Core implemented
 Identity & Structure        🟨 Mostly implemented
 Marketplace                 ✅ Core implemented
-Shopping                    🟨 Foundation in progress
-Orders                      ⬜ Prototype only
-Money                       ⬜ Prototype / not implemented
+Shopping                    🟨 Real foundation in progress
+Orders                      🟧 Prototype only
+Money                       🟨 Pricing foundation real; payments later
 Testing & Final Polish      ⬜ Later
 ```
 
-Current project position:
+Current major position:
 
 ```text
 Discovery / Marketplace
@@ -110,13 +99,13 @@ Payouts
 
 # 4. Status Legend
 
-| Status | Meaning                                                               |
-| ------ | --------------------------------------------------------------------- |
-| ✅      | Real implementation exists and has been tested                        |
-| 🟨     | Real foundation exists but feature is incomplete                      |
-| 🟧     | UI / Prototype exists but does not count as completed business system |
-| ⬜      | Not built yet                                                         |
-| ⚠️     | Technical debt, gap, or issue requiring attention                     |
+| Status | Meaning |
+| --- | --- |
+| ✅ | Real implementation exists and has been tested |
+| 🟨 | Real foundation exists but feature is incomplete |
+| 🟧 | UI / prototype exists but does not count as completed business system |
+| ⬜ | Not built yet |
+| ⚠️ | Technical debt, gap, or issue requiring attention |
 
 ---
 
@@ -131,9 +120,15 @@ Payouts
 Implemented:
 
 * Product quantity
-* Inventory foundation
+* Fixed-stock foundation
+* Made-to-order foundation
 * Product ownership rules
 * Product lifecycle integration
+* Secure artisan inventory quantity update boundary
+
+A gap discovered during S15.3 was fixed without broadening general Product UPDATE permissions.
+
+Published-product quantity updates now use a dedicated ownership-checked database RPC that updates quantity only.
 
 ---
 
@@ -160,11 +155,11 @@ Implemented and tested:
 
 ---
 
-# 6. S13 — Product Approval Workflow
+## S13 — Product Approval Workflow
 
 **Status: CLOSED ✅**
 
-Implemented real workflow:
+Real workflow:
 
 ```text
 Artisan Draft
@@ -184,23 +179,22 @@ Implemented:
 
 * Product moderation requests
 * Artisan submission
-* Super Admin approval
-* Super Admin rejection
+* Super Admin approval/rejection
 * Rejection reason
-* Lifecycle status enforcement
-* Product moderation security
+* Lifecycle enforcement
+* Moderation security
 * Artisan safe draft updates
 * Super Admin review access
 
-Public users cannot see products that are not published.
+Public users cannot see non-published products.
 
 ---
 
-# 7. S14 — Public Marketplace DB Integration
+## S14 — Public Marketplace DB Integration
 
 **Status: CLOSED ✅**
 
-Subtasks:
+Completed:
 
 * S14.1 Artisan Public Page Integration ✅
 * S14.2 Craft/Public Products Integration ✅
@@ -208,11 +202,7 @@ Subtasks:
 * S14.4 Homepage + Promotions Integration ✅
 * S14.5 Integration & Security Test ✅
 
----
-
-# 8. Public Visibility Rule
-
-Public Marketplace now follows this chain:
+Public visibility chain:
 
 ```text
 Country Active
@@ -226,125 +216,474 @@ Product Published
 Public Marketplace
 ```
 
-If any required parent entity becomes inactive, dependent public marketplace content becomes hidden.
+This rule is enforced through application logic and database security.
 
-This rule is enforced through both application logic and database security.
-
----
-
-# 9. Public Marketplace Testing Completed
-
-Verified:
-
-```text
-Draft Product
-→ Hidden ✅
-
-Pending Product
-→ Hidden ✅
-
-Published Product
-→ Visible ✅
-
-Inactive Artisan
-→ Artisan + products hidden ✅
-
-Inactive Craft
-→ Craft + dependent artisan/product visibility hidden ✅
-
-Inactive Country
-→ Dependent marketplace content hidden ✅
-```
-
-Final controlled edge-case test:
-
-Pottery was temporarily marked inactive inside a transaction.
-
-Expected anonymous visibility:
-
-```text
-Clay Vessel                → hidden
-Ahmed Hassan               → hidden
-Ahmed artisan_crafts       → hidden
-Pottery                     → hidden
-Egypt                       → still visible
-```
-
-Test passed.
-
-Transaction was rolled back.
-
-Final database state was verified:
-
-```text
-Pottery       → active
-Ahmed Hassan  → active
-Clay Vessel   → published
-Egypt         → active
-```
-
----
-
-# 10. Public Marketplace Pages
-
-Real Supabase-backed public pages include:
-
-```text
-/
- /artisans
- /artisan/[slug]
- /countries
- /country/[slug]
- /crafts
- /product/[slug]
- /search
- /saved
- /recently-viewed
-```
-
-A shared public catalog layer exists:
+Shared public catalog layer:
 
 ```text
 src/lib/publicMarketplace.ts
 ```
 
-Purpose:
-
-* Centralize public marketplace visibility rules.
-* Prevent different pages from exposing different versions of the marketplace.
-* Prevent Super Admin sessions from accidentally exposing private entities through public pages.
-
 ---
 
-# 11. Legacy Route Cleanup
+## S15.0 — Database Migration Reconciliation
 
-Legacy product/admin routes no longer implement separate business rules.
+**Status: CLOSED ✅**
 
-Examples:
+Completed:
+
+* Recovered missing migration files from Live Supabase migration history.
+* Reconstructed missing Inventory, Product Media, Media Reorder, Artisan Product Read, RLS Auto-Enable, and ACL foundations.
+* Verified fresh local database replay from repository migrations.
+* Reconciled Local and Remote migration history.
+* Reconstructed required Live table/function/default privilege state.
+* Restored safe anonymous Artisan Profile column-level grants.
+* Reconciled Promotion RPC privileges.
+* Hardened public Product Storage visibility.
+
+Result:
 
 ```text
-/product?slug=clay-vessel
-→ /product/clay-vessel
-
-/product/new
-→ /artisan/products
-
-/admin/review
-→ /dashboard-admin/products
-
-/admin/settings
-→ /dashboard-admin/settings
+Git migration history
+        =
+Reproducible database history
+        =
+Live migration history
 ```
-
-Goal:
-
-> One canonical route per business workflow.
 
 ---
 
-# 12. Identity & Roles
+## S15.1 — Market & Pricing Foundation
 
-Real Supabase authentication exists.
+**Status: CLOSED ✅**
+
+Implemented:
+
+* `markets`
+* `product_market_prices`
+* Country ≠ Market
+* Market activation independent from Country activation
+* One local ISO currency per Market for MVP
+* No automatic FX conversion
+* Product → Market → Price
+* Active/inactive market-price availability
+* Legacy `products.price` retained temporarily without guessed market/currency mapping
+* Artisan market-price proposals through `moderation_requests`
+* One pending price request per Product + Market
+* Existing live price remains active while a replacement price is pending
+* Atomic Super Admin approval/rejection workflow
+* Artisans may prepare prices for inactive Markets without exposing those Markets publicly
+
+Important transition rule:
+
+> Legacy `products.price` must NOT be treated as a trusted market-aware commerce price.
+
+---
+
+## S15.2 — Market Selection
+
+**Status: CLOSED ✅**
+
+Approved and implemented behavior:
+
+```text
+System suggests market
+        ↓
+Customer confirms / changes market
+        ↓
+Selected market is stored
+        ↓
+Prices / currency / later shipping adapt
+```
+
+Implemented:
+
+* `GET /api/markets`
+* Market selection API
+* Market selection server helper
+* Header Market Selector
+* Session cookie `irth-market`
+* Active-market validation
+* Geo-based market suggestion
+* Geo is suggestion only, never authoritative
+* Manual customer confirmation/change
+* ISO country codes on Countries
+* No guessing when one country has multiple active Markets
+
+Launch Market approved and implemented:
+
+```text
+Market: Egypt
+Currency: EGP
+Status: Active
+```
+
+Important:
+
+> Egypt being the Launch Market does NOT mean legacy `products.price` values are EGP.
+
+---
+
+## S15.3 — Secure Cart / Server Quote
+
+**Status: CLOSED ✅**
+
+Goal achieved:
+
+> Browser state may identify products and quantity, but client-provided prices and totals are never trusted.
+
+Current secure flow:
+
+```text
+Browser Cart
+(slug + quantity intent)
+        ↓
+POST /api/cart/quote
+        ↓
+Selected active Market
+        ↓
+Published Product validation
+        ↓
+Active Artisan / Country / Craft validation
+        ↓
+Approved active Market Price
+        ↓
+Inventory validation
+        ↓
+Server-authoritative Quote
+```
+
+Implemented:
+
+* `src/lib/cartQuote.ts`
+* `src/app/api/cart/quote/route.ts`
+* Secure cart quote UI integration
+* Product page server-quoted price
+* Product cards server-quoted price
+* Selected Market currency display
+* Duplicate cart slug quantity aggregation
+* Fixed-stock inventory validation
+* Out-of-stock protection
+* Insufficient-stock protection
+* Missing/unpublished product protection
+* Not-priced-for-market protection
+* Checkout enablement only when the full quote is available
+* New Add-to-Cart writes slug-only entries instead of browser price/name/artisan data
+* Legacy cart entries remain parseable during transition, but their price/name/artisan fields are ignored for commerce calculation
+
+Server quote statuses:
+
+```text
+available
+product_unavailable
+not_priced_for_market
+out_of_stock
+insufficient_stock
+```
+
+### Exact Money Transport
+
+PostgreSQL `numeric` remains the storage type for Market prices.
+
+To avoid JavaScript floating-point conversion before commerce arithmetic, S15.3 added:
+
+```text
+public.get_product_market_prices_text(...)
+```
+
+The RPC:
+
+* Uses `SECURITY INVOKER`.
+* Respects existing RLS.
+* Returns approved Market price as PostgreSQL `text`.
+* Prevents the Server Quote from relying on JS floating-point representation for price transport.
+
+Commerce arithmetic path:
+
+```text
+PostgreSQL numeric
+        ↓
+price::text
+        ↓
+Server decimal-string arithmetic
+```
+
+Verified example:
+
+```text
+Market          Egypt
+Currency        EGP
+Product         clay-vessel
+Inventory       5
+Unit Price      "350"
+Quantity        2
+Line Total      "700"
+Subtotal        "700"
+canCheckout     true
+```
+
+### S15.3 Security / Edge Tests Passed
+
+* Client Price Tampering Protection ✅
+* Duplicate Quantity Aggregation ✅
+* Missing Product Protection ✅
+* Not Priced for Market Protection ✅
+* Fixed-stock overflow → `insufficient_stock` ✅
+* Invalid quantity API rejection ✅
+* Exact stock boundary UI behavior ✅
+* Product Page market-aware price ✅
+* Product Card market-aware price ✅
+* Cart market-aware totals ✅
+* Exact Money Transport ✅
+* Focused ESLint ✅
+* Production Build / TypeScript ✅
+
+### Made-to-Order Test Note
+
+The code contains the Made-to-Order branch and intentionally does not apply fixed inventory quantity checks to Made-to-Order products.
+
+At S15.3 closure, Live Supabase had no suitable **published Made-to-Order product with valid Market pricing** available as a controlled test fixture.
+
+No production Business Data was mutated only to manufacture this test.
+
+This is documented as a test-fixture gap, not a known blocker in the implemented branch.
+
+---
+
+# 6. Current Shopping State
+
+Real foundations now exist for:
+
+```text
+Market & Pricing             ✅
+Market Selection             ✅
+Secure Cart / Server Quote   ✅
+```
+
+Still pending:
+
+```text
+Promotion Calculation        ⬜
+Coupon Foundation            ⬜
+Secure Checkout              ⬜
+Orders                       ⬜
+Shipping                     ⬜
+Payments                     ⬜
+```
+
+---
+
+# 7. Cart Current State
+
+**Status: Secure Cart Foundation CLOSED ✅**
+
+Cart persistence is still browser-based for the MVP transition:
+
+```text
+localStorage("irth-cart")
+```
+
+But this browser storage is NOT authoritative for price, availability, or totals.
+
+New cart additions store product identity only.
+
+Server Quote resolves and validates:
+
+* Current Market
+* Currency
+* Current approved Market Price
+* Product public availability
+* Fixed-stock inventory
+* Quantity
+* Trusted line totals
+* Trusted subtotal
+* `canCheckout`
+
+Promotion, Coupon, and Shipping are intentionally not calculated yet because they belong to later Shopping tasks.
+
+No persistent Cart database table has been approved or created yet.
+
+---
+
+# 8. Product Commerce UI
+
+Product Page and ProductCard no longer use legacy `products.price` for the commercial price shown to the customer.
+
+They call the Server Quote and reflect the selected Market.
+
+For the Egypt Launch Market, the tested Product displays:
+
+```text
+350 EGP
+```
+
+instead of the old legacy `$85` prototype price.
+
+---
+
+# 9. Checkout
+
+**Status: Prototype 🟧 — NOT S15.5 IMPLEMENTATION**
+
+Route exists:
+
+```text
+/checkout
+```
+
+Page heading includes:
+
+```text
+Complete your order
+```
+
+This page is an old prototype and must NOT be treated as secure Checkout.
+
+Current prototype still:
+
+```text
+Reads cart from localStorage
+        ↓
+Uses client-side item fields / prices
+        ↓
+Collects customer details
+        ↓
+Creates JavaScript Order object
+        ↓
+Stores order in localStorage
+        ↓
+Stores notifications in localStorage
+```
+
+After S15.3, new cart entries no longer contain the old price/name/artisan fields, so this prototype can display errors or inconsistent data.
+
+This is expected and is NOT being patched during S15.3.
+
+Correct action:
+
+> Rebuild the Checkout foundation properly during **S15.5 — Checkout Foundation** using trusted server-side commerce inputs.
+
+Do not spend time patching the legacy Complete Your Order prototype before S15.5.
+
+---
+
+# 10. Orders
+
+**Status: Prototype 🟧**
+
+Existing routes include:
+
+```text
+/account/orders
+/artisan/orders
+/dashboard-admin/orders
+/order-success
+```
+
+But there is currently no real PostgreSQL Orders module.
+
+Approved architecture remains:
+
+```text
+Customer sees ONE order
+        ↓
+IRTH internally splits by artisan / shipment
+```
+
+Exact future table names are not yet approved.
+
+---
+
+# 11. Promotions
+
+**Status: Foundation real; secure Shopping calculation pending 🟨**
+
+Approved decision:
+
+> Promotion ≠ Coupon
+
+Promotion foundation currently supports:
+
+* IRTH Promotion
+* Artisan Promotion
+* Percentage discount
+* Fixed discount
+* Start/end date
+* Funding source
+* Pending/Approved/Rejected
+* Enabled/Disabled
+* Product linking
+
+Artisan Promotions require IRTH approval.
+
+Important S15.4 gap:
+
+The Homepage promotion prototype still contains a legacy original-price display sourced from the old product price path.
+
+Do NOT invent Market-aware promotion math before resolving the approved Shopping rules.
+
+---
+
+# 12. Coupon System
+
+**Status: NOT IMPLEMENTED ⬜**
+
+Coupon Engine remains MVP scope.
+
+S15.4 is expected to establish the minimum Coupon foundation needed before Checkout.
+
+---
+
+# 13. Promotion Decisions Required Before S15.4 Calculation
+
+These points are not yet fully approved:
+
+## Promotion Overlap
+
+If multiple active Promotions apply to the same Product:
+
+* Priority?
+* Best discount?
+* Stack?
+* Reject overlap?
+
+A final rule is required before secure Promotion calculation.
+
+## Fixed Promotion Amount Across Markets
+
+Fixed-value discounts are currency-dependent.
+
+The rule for scoping or applying fixed-value Promotions across Markets has not yet been approved.
+
+This must be resolved before Market-aware fixed-discount calculation is used in Secure Shopping.
+
+---
+
+# 14. Market & Pricing Rules Already Approved
+
+Do not reopen without a genuine technical/business conflict:
+
+* Country and Market are separate concepts.
+* Market activation is independent from Country activation.
+* One local currency per Market in MVP.
+* Product prices are Market-specific.
+* No automatic FX conversion.
+* Published Market-price changes require IRTH review.
+* Previous approved live price remains live during a pending replacement request.
+* Artisans may prepare prices for inactive Markets.
+* Geo only suggests a Market.
+* Customer confirms or changes the Market.
+* Selected Market is stored in the customer session.
+* No independent display-currency switch in MVP.
+* Egypt is the approved Launch Market.
+* Egypt Launch Market uses EGP.
+* Legacy `products.price` must not be auto-mapped to Egypt/EGP.
+
+---
+
+# 15. Public Marketplace / Identity / Security Snapshot
+
+Public Marketplace, Product Approval, Identity, and core marketplace security remain real.
 
 Roles:
 
@@ -356,27 +695,15 @@ super_admin
 
 Implemented:
 
-* Customer signup ✅
-* Customer login ✅
+* Customer signup/login ✅
 * Artisan login ✅
 * Super Admin login ✅
 * Role-based routing ✅
 * Protected dashboard routes ✅
 * Single Super Admin database rule ✅
-* Customer self-role creation limited to customer ✅
+* Customer cannot self-assign Artisan or Super Admin ✅
 
-Customer cannot assign themselves:
-
-```text
-artisan
-super_admin
-```
-
----
-
-# 13. Privacy & Security
-
-Customer privacy is a core IRTH rule.
+Customer privacy remains a core business rule.
 
 Artisans must NOT receive:
 
@@ -386,182 +713,22 @@ Artisans must NOT receive:
 * Full address
 * Direct contact information
 
-Public users must NOT receive internal artisan fields such as:
-
-```text
-auth_user_id
-```
-
-Anonymous access to sensitive artisan profile columns has been restricted.
-
-Database grants have also been hardened.
-
-Unnecessary privileges such as:
-
-```text
-TRUNCATE
-TRIGGER
-REFERENCES
-```
-
-were removed from public application roles where they were not needed.
-
 ---
 
-# 14. Product Foundation
-
-Real product database supports:
-
-* Arabic name
-* English name
-* Arabic description
-* English description
-* Arabic story
-* English story
-* Arabic material
-* English material
-* Legacy product-level price
-* Market-specific prices
-* Quantity
-* Dimensions
-* Weight
-* Made-to-order
-* Preparation time
-* One-of-a-kind
-* Customization
-* Artisan
-* Primary craft
-* Lifecycle status
-
----
-
-# 15. Artisan Product Management
-
-**Status: Real ✅**
-
-Artisan product dashboard uses:
-
-* Supabase Auth
-* Real artisan profile
-* Real product rows
-* Product lifecycle status
-* Moderation requests
-* Product media
-
-Artisan ownership is enforced.
-
----
-
-# 16. Super Admin Product Management
-
-**Status: Real ✅**
-
-Admin Product Moderation uses:
-
-* Real products
-* Real moderation requests
-* Real artisans
-* Real media
-* Approval/rejection workflow
-
-This is NOT localStorage prototype code.
-
----
-
-# 17. Promotions
-
-**Status: Foundation implemented and tested ✅**
-
-Approved decision:
-
-> Promotion ≠ Coupon
-
-Promotion means automatic / campaign-based discounts.
-
-Coupon means customer-entered code with eligibility rules.
-
-Implemented promotion system supports:
-
-* IRTH Promotion
-* Artisan Promotion
-* Percentage discount
-* Fixed discount
-* Start date
-* End date
-* Funding source
-* Pending
-* Approved
-* Rejected
-* Enabled / Disabled
-* Product linking
-
-Artisan promotions require IRTH approval.
-
-Public promotions require:
-
-```text
-Approved
-+
-Enabled
-+
-Inside active date window
-+
-Published Product
-+
-Active Artisan
-+
-Active Craft
-+
-Active Country
-```
-
-Important future integration note:
-
-Fixed-value discounts are currency-dependent. Their market behavior must be explicitly resolved before secure market-aware promotion calculation is implemented.
-
----
-
-# 18. Coupon System
-
-**Status: NOT IMPLEMENTED ⬜**
-
-Coupon Engine remains MVP scope.
-
-Expected future support includes:
-
-* Percentage
-* Fixed value
-* Minimum order
-* Maximum discount
-* Start/end dates
-* Total usage limit
-* Per-customer usage
-* Product restrictions
-* Craft restrictions
-* Stackability
-* Funding source
-* Enable/disable
-
-Coupon implementation should happen with the Shopping / Checkout system.
-
----
-
-# 19. Search
+# 16. Search
 
 ## Search Core
 
 **Status: Real ✅**
 
-Search currently uses the live public marketplace catalog.
-
-Searches:
+Search uses the live public Marketplace catalog and supports:
 
 * Products
 * Artisans
 * Countries
 * Crafts
 
-Current simple ranking:
+Current MVP ranking remains intentionally simple:
 
 ```text
 Exact match     → highest
@@ -569,15 +736,11 @@ Starts with     → medium
 Contains        → lower
 ```
 
-This is intentionally simple for MVP.
-
----
-
 ## Full Search v0.1
 
 **Status: PARTIAL 🟨**
 
-Still missing or deferred:
+Still missing/deferred:
 
 * Autocomplete
 * Story/content search
@@ -585,62 +748,25 @@ Still missing or deferred:
 * Rating ranking
 * Quality ranking
 
-Some ranking factors depend on real Orders and Reviews, so they should not be invented before those systems exist.
+Some ranking inputs depend on future real Orders and Reviews.
 
 ---
 
-# 20. Saved / Wishlist
+# 17. Saved / Wishlist & Recently Viewed
 
 **Status: PARTIAL 🟨**
 
-Current browser storage keeps product slugs.
+Browser storage keeps product identity, while displayed product data is re-resolved from the live public Marketplace.
 
-Displayed product data is resolved again from the live public database.
+A hidden/unpublished product is therefore not exposed merely because stale browser state exists.
 
-Therefore:
-
-If a saved product becomes unpublished or unavailable publicly, stale local data does not expose it.
-
-Still required later:
-
-* Account-level persistence
-* Out-of-stock state
-* Restock notification
+Account-level persistence remains later work.
 
 ---
 
-# 21. Recently Viewed
+# 18. Language / RTL / LTR
 
-**Status: PARTIAL 🟨**
-
-Browser stores product slugs.
-
-Live product data is resolved again from the public marketplace.
-
-This prevents stale local data from exposing hidden products.
-
-Later improvement:
-
-* Customer-account persistence
-* Cross-device history if required
-
----
-
-# 22. Language / RTL / LTR
-
-Foundation exists.
-
-Implemented:
-
-* Arabic locale state ✅
-* English locale state ✅
-* RTL direction ✅
-* LTR direction ✅
-* Browser language preference ✅
-
-But full bilingual application content is NOT complete.
-
-Current state:
+Foundation exists:
 
 ```text
 RTL / LTR foundation       ✅
@@ -653,562 +779,116 @@ Final bilingual QA          ⬜
 
 ---
 
-# 23. Design Status
+# 19. Design Status
 
-Current design must NOT be considered final product design.
+Current state remains:
 
-Current state should be described as:
+> **Functional Design Foundation**
 
-> Functional Design Foundation
-
-Implemented foundations:
-
-* IRTH visual direction
-* Base color system
-* Typography foundation
-* Spacing foundation
-* Card patterns
-* Button patterns
-* Responsive layouts
-* Mobile-first foundation
-* RTL/LTR foundation
-
-Status:
+The project should NOT stop for a full redesign before the MVP transaction journey works.
 
 ```text
-Visual Foundation                  ✅
-Mobile-first Foundation            ✅
-RTL/LTR Foundation                 ✅
-
-Marketplace UX                     🟨 Functional
-Full bilingual UX                  🟨 Incomplete
-
-Cart UX                            🟧 Prototype
-Checkout UX                        🟧 Prototype
-Orders UX                          🟧 Prototype
-Returns UX                         ⬜
-Payments UX                        ⬜
-
-Artisan Dashboard UX               🟨 Mixed
-Admin Dashboard UX                 🟨 Mixed
-
-Final Design System                ⬜
-Final Product UX Review            ⬜
-Final Mobile UX Pass               ⬜
-Final Arabic / English QA          ⬜
-```
-
-The project should NOT stop now for a complete redesign.
-
-Design approach:
-
-```text
-Business Rule
-      ↓
-UX Decision
-      ↓
-Implementation
-      ↓
-Testing
-```
-
-When the complete MVP journey works, IRTH should have a final dedicated:
-
-```text
-Final Product Design
-+
-UX Consolidation
-+
-Design System
-+
-Responsive Polish
-+
-Arabic / English QA
+Marketplace UX              🟨 Functional
+Cart UX                     🟨 Secure foundation; polish later
+Checkout UX                 🟧 Prototype
+Orders UX                   🟧 Prototype
+Returns UX                  ⬜
+Payments UX                 ⬜
+Artisan Dashboard UX        🟨 Mixed
+Admin Dashboard UX          🟨 Mixed
+Final Design System         ⬜
+Final Product UX Review     ⬜
+Final Mobile UX Pass        ⬜
+Final Arabic/English QA     ⬜
 ```
 
 ---
 
-# 24. Admin Dashboard Status
+# 20. Other Major Modules
 
-Not all Admin pages are real database systems yet.
+## Shipping
 
-## Real
+**Status: NOT IMPLEMENTED ⬜**
 
-```text
-Admin Product Moderation      ✅
-Admin Promotions              ✅
-Artisan Promotion Review      ✅
-```
+Approved architecture:
 
-## Prototype / Needs DB Integration
+> Shipping Layer remains separate from Order System.
 
-```text
-Admin Artisans                🟧
-Admin Countries               🟧
-Admin Crafts                  🟧
-Admin Orders                  🟧
-Admin Commission              🟧
-Admin Reviews                 🟧
-```
+MVP starts with one Courier, but the first Courier is not yet approved.
+
+## Payment
+
+**Status: NOT IMPLEMENTED ⬜**
+
+Approved architecture:
+
+> Payment Layer remains separate from Checkout.
+
+MVP starts with one Payment Gateway, but the first Gateway is not yet approved.
 
 Important:
 
-The existence of an Admin page does NOT mean its business module is complete.
+```text
+Order Status ≠ Payment Status
+```
 
----
-
-# 25. Shopping — Current State
-
-The real Shopping transaction system has NOT been built yet.
-
-Market & Pricing Foundation is now real and tested.
-
-Secure Cart, Market Selection, Checkout, Orders, Shipping, and Payments still require implementation.
-
----
-
-# 26. Cart
+## Commission
 
 **Status: Prototype 🟧**
-
-Current Cart uses:
-
-```text
-localStorage("irth-cart")
-```
-
-It stores data including:
-
-```text
-slug
-artisan
-name
-price
-```
-
-Current Cart calculates totals using client-provided prices.
-
-This MUST NOT be used for real commerce.
-
-Client-side prices cannot be trusted.
-
-Future secure Cart should store/request product identity + quantity and allow the server/database to resolve:
-
-```text
-Current Market
-Current Price
-Inventory
-Product availability
-Promotion
-Coupon
-Shipping
-```
-
-before trusting totals.
-
----
-
-# 27. Checkout
-
-**Status: Prototype 🟧**
-
-Current checkout:
-
-```text
-Reads cart from localStorage
-        ↓
-Uses client prices
-        ↓
-Collects customer details
-        ↓
-Creates JavaScript Order object
-        ↓
-Stores order in localStorage
-        ↓
-Stores notifications in localStorage
-```
-
-This is NOT a real checkout system.
-
-Missing real components:
-
-* Server price verification
-* Inventory validation
-* Market validation
-* Promotion calculation
-* Coupon validation
-* Database Order
-* Transaction
-* Payment Layer
-* Shipping Layer
-* Internal artisan split
-
----
-
-# 28. Guest Checkout
-
-Approved MVP rule:
-
-> Customer can buy as Guest.
-
-Account creation during purchase is optional.
-
-Real Guest Checkout implementation is still pending because the secure Checkout system has not been built yet.
-
----
-
-# 29. Orders
-
-**Status: Prototype 🟧**
-
-Pages already exist:
-
-```text
-/account/orders
-/artisan/orders
-/dashboard-admin/orders
-/order-success
-```
-
-But current order data is stored in:
-
-```text
-localStorage("irth-orders")
-```
-
-There is currently no real PostgreSQL Orders module.
-
----
-
-# 30. Approved Order Architecture
-
-Customer sees ONE order.
-
-Internally IRTH splits the order by artisan / shipment.
 
 Approved model:
-
-```text
-Customer Order
-│
-├── Artisan A
-│   └── Shipment A
-│
-├── Artisan B
-│   └── Shipment B
-│
-└── Artisan C
-    └── Shipment C
-```
-
-Future Order architecture will likely require concepts such as:
-
-```text
-orders
-order_items
-internal artisan groups
-shipments
-status history
-```
-
-Exact table names are NOT approved yet.
-
----
-
-# 31. Shipping
-
-**Status: NOT IMPLEMENTED ⬜**
-
-Approved architecture:
-
-> Shipping Layer must remain separate from Order System.
-
-MVP starts with one courier.
-
-Architecture should allow additional couriers later.
-
-Still not selected:
-
-* First courier
-* Final shipping configuration
-* Shipping fees
-* Free-shipping thresholds
-
----
-
-# 32. Payment
-
-**Status: NOT IMPLEMENTED ⬜**
-
-Approved architecture:
-
-> Payment Layer must remain separate from Checkout.
-
-MVP starts with one payment gateway.
-
-Architecture should support additional gateways later.
-
-Important:
-
-```text
-Order Status
-≠
-Payment Status
-```
-
-Still not decided:
-
-* First Payment Gateway
-
----
-
-# 33. Market & Pricing Foundation
-
-**Status: CLOSED ✅**
-
-Implemented architecture:
-
-```text
-Country
-  ≠
-Market
-
-Product
-   ↓
-Market
-   ↓
-Price
-```
-
-Implemented:
-
-* Separate `markets` entity for commercial market configuration.
-* Separate `product_market_prices` entity for Product → Market → Price.
-* One local ISO currency code per market in MVP.
-* Market-specific prices are stored directly; no automatic FX conversion engine.
-* Market activation is independent from Country activation.
-* No launch market was assumed or seeded.
-* Product market availability can be controlled through active/inactive market-price rows.
-* Public users can read active markets only.
-* Artisans can read inactive markets for price preparation without exposing those markets publicly.
-* Approved live market prices cannot be directly changed by artisans.
-
-Price change workflow:
-
-```text
-Artisan proposes market price
-        ↓
-Moderation Request: pending
-        ↓
-Existing live price remains unchanged
-        ↓
-Super Admin approves / rejects
-        ↓
-Approved price becomes live atomically
-```
-
-Additional protections:
-
-* Only one pending price request per Product + Market.
-* Proposed prices must be positive.
-* Approval is performed by an authenticated Super Admin RPC with server-side authorization.
-* Approval/rejection and live-price update are atomic.
-
-Controlled transaction tests passed for:
-
-* Artisan price-request submission.
-* Pending request preserving the existing live price.
-* Duplicate pending request blocking.
-* Super Admin approval applying the proposed price.
-* Moderation reviewer/status update.
-* Inactive-market pricing preparation by Artisan.
-* Inactive market remaining hidden from anonymous users.
-
-All controlled test data was rolled back.
-
----
-
-# 34. Current Database Pricing
-
-The live database now contains:
-
-```text
-markets
-product_market_prices
-```
-
-The legacy `products.price` column is intentionally still present temporarily.
-
-It has NOT been backfilled into any market because the existing values do not carry reliable market/currency identity.
-
-Approved transition rule:
-
-> Do not guess a market or currency for legacy product prices.
-
-The legacy column should only be retired after a verified migration/backfill strategy exists.
-
----
-
-# 35. Market Selection
-
-**Status: NOT IMPLEMENTED ⬜**
-
-Approved behavior:
-
-```text
-System suggests market
-        ↓
-Customer confirms / changes market
-        ↓
-Selected market is stored
-        ↓
-Prices / currency / shipping adapt
-```
-
-Geolocation should only suggest the market.
-
-It must not force the user into a market.
-
----
-
-# 36. Commission
-
-**Status: Prototype 🟧**
-
-Approved business logic:
 
 ```text
 Craft Default Commission
         ↓
 Optional Artisan Override
         ↓
-Order Historical Snapshot
+Historical Applied Snapshot
 ```
 
-Current Admin Commission page does NOT represent the final system.
-
-Real database support for:
-
-* Craft commission
-* Artisan override
-* Historical order commission snapshot
-
-still needs to be built.
-
----
-
-# 37. Payout
+## Payout
 
 **Status: Prototype 🟧**
 
-Approved logic:
+Payout is not immediately payable after sale.
+
+Approved high-level sequence:
 
 ```text
 Sale
-  ↓
+↓
 Delivery
-  ↓
+↓
 Return period expires
-  ↓
+↓
 Payout becomes eligible
-  ↓
+↓
 Payout cycle
 ```
 
-Payout does NOT become payable immediately after sale.
-
-Current payout UI is only prototype.
-
----
-
-# 38. Sensitive Payout Data
-
-Current prototype stores payout/bank settings locally.
-
-This is NOT acceptable for the final system.
-
-Sensitive information such as:
-
-* Bank account
-* IBAN
-* SWIFT
-* Payout details
-
-must eventually be stored securely server-side with strict authorization.
-
----
-
-# 39. Returns & Refunds
+## Returns / Refunds
 
 **Status: NOT IMPLEMENTED ⬜**
 
-Returns and Refunds are confirmed MVP requirements.
+Confirmed MVP requirement.
 
-Expected high-level flow:
+Final Return period, exclusions, and shipping responsibility still need approved decisions.
 
-```text
-Customer requests return
-        ↓
-Reason
-        ↓
-IRTH review
-        ↓
-Approve / Reject
-        ↓
-Return coordination
-        ↓
-Item received / inspected
-        ↓
-Refund
-```
-
-Still requiring future decisions:
-
-* Return period duration
-* Return shipping responsibility
-* Specific exclusions
-* Made-to-order / customized rules
-
-These points must NOT be invented silently.
-
----
-
-# 40. Reviews
+## Reviews
 
 **Status: Prototype 🟧**
 
-Current prototype includes concepts for:
+Real Reviews must depend on a real delivered Order / verified purchase.
 
-* Product rating
-* Artisan rating
-* Delivered-order requirement
-* Customer edit
-* Artisan reply
-* Artisan reply moderation
+Artisan reply remains subject to IRTH moderation.
 
-But the current system uses localStorage.
-
-Real Reviews must eventually depend on:
-
-```text
-Real delivered Order
-        ↓
-Verified Purchase
-        ↓
-Review
-```
-
-Artisan replies must continue requiring IRTH moderation.
-
----
-
-# 41. Notifications
+## Notifications
 
 **Status: Prototype 🟧**
 
 Approved architecture:
 
-> Notification Layer should remain independent from the rest of the system.
+> Notification Layer remains independent.
 
 MVP channels:
 
@@ -1217,207 +897,101 @@ In-App
 Email
 ```
 
-Later:
-
-```text
-SMS
-WhatsApp
-Push
-```
-
-Current notification system uses localStorage and contains prototype/hardcoded user logic.
-
-Real Notification Layer still needs to be built.
-
----
-
-# 42. Wholesale
-
-Wholesale Request is part of the MVP.
-
-Approved privacy flow:
-
-```text
-Customer
-   ↓
-Wholesale Request
-   ↓
-IRTH
-   ↓
-IRTH coordinates with Artisan
-```
-
-Customer contact details must not be passed directly to artisan.
+## Wholesale
 
 **Status: NOT IMPLEMENTED ⬜**
 
----
-
-# 43. Customization
-
-Simple Product customization support exists in the product foundation.
-
-**Status: MVP foundation ✅**
-
-Advanced Custom Order system involving:
-
-* Conversations
-* Design revisions
-* Quotes
-* Custom project workflow
-
-is Post-MVP.
+Wholesale Request is MVP scope and must preserve customer-contact privacy from Artisans.
 
 ---
 
-# 44. Database Migration Reconciliation
+# 21. Database Does NOT Yet Have Real Transactional Modules For
 
-**Status: CLOSED ✅**
-
-The migration drift identified during the project audit has been reconciled.
-
-Completed:
-
-* Recovered missing migration files from Live Supabase migration history.
-* Reconstructed missing Inventory, Product Media, Media Reorder, Artisan Product Read, RLS Auto-Enable, and ACL foundations.
-* Verified a fresh Local database replay from repository migration history.
-* Reconciled Local and Remote migration history.
-* Reconstructed Live table, function, and default privilege state where required.
-* Restored safe anonymous Artisan Profile column-level grants.
-* Reconciled Promotion RPC privileges.
-* Hardened public Product Storage visibility.
-* Applied and verified the Storage hardening on Live Supabase.
-
-Current public Product Storage access requires:
+Exact future table names remain unapproved, but the Live database does not yet contain complete business modules for:
 
 ```text
-Published Product
-+
-Active Artisan
-+
-Active Country
-+
-Active Craft
-```
-
-Result:
-
-```text
-Git migration history
-        =
-Reproducible database history
-        =
-Live migration history
-```
-
----
-
-# 45. Existing Database Does NOT Yet Have
-
-At the time of this update, the live database does NOT yet contain real transactional modules for:
-
-```text
-carts
-cart_items
-
-orders
-order_items
-internal order groups
-
+persistent carts / cart items
+orders / order items / internal order groups
 shipments
-
-payments
-payment_transactions
-
+payments / payment transactions
 coupons
-
 reviews
 notifications
-
 commission ledger
-payouts
-payout accounts
-
-returns
-refunds
-
+payouts / payout accounts
+returns / refunds
 wholesale requests
 ```
 
-Exact future table names are not yet approved.
+Do not create these all at once.
+
+Build them according to dependency order.
 
 ---
 
-# 46. Security Advisor
+# 22. Security Advisor / Security Notes
 
-Last reviewed Supabase Security Advisor state:
+Current known Supabase Security Advisor warnings:
 
-No newly introduced marketplace security error remained.
+1. `public.review_product_market_price_request(...)` is a `SECURITY DEFINER` function executable by `authenticated`. The function performs an internal Super Admin authorization check, but its boundary should be reviewed/hardened in the appropriate Security/Polish pass rather than silently changing the already-closed S15.1 workflow.
+2. Leaked Password Protection is disabled in Supabase Auth.
 
-Known existing warning:
+The S15.3 exact-price reader introduced **no new Security Advisor warning**.
 
-```text
-Leaked Password Protection Disabled
-```
-
-This is not currently treated as a marketplace architecture blocker.
-
-Any change to Auth security settings should be discussed before changing production behavior.
+`get_product_market_prices_text(...)` uses `SECURITY INVOKER` and existing RLS.
 
 ---
 
-# 47. Known Technical Debt / Cleanup
+# 23. Known Technical Debt / Gaps
 
-Known items:
-
-* Admin Artisans still prototype
-* Admin Countries still prototype
-* Admin Crafts still prototype
-* Cart uses client/localStorage prices
-* Checkout is prototype
-* Orders are prototype
-* Notifications are prototype
-* Reviews are prototype
-* Commission page is prototype
-* Payout page is prototype
-* Payout bank settings are prototype and insecure for production use
-* Full bilingual UI is incomplete
-* Search v0.1 is incomplete
-* Market Selector is missing
-* Legacy `products.price` remains temporarily and must not be trusted as a market-aware commerce price
-* Fixed-value promotion behavior across different market currencies still requires an explicit rule before secure promotion calculation
-
-These should be addressed according to dependency order rather than all at once.
+* Admin Artisans remains prototype.
+* Admin Countries remains prototype.
+* Admin Crafts remains prototype.
+* Checkout / Complete Your Order remains insecure prototype until S15.5.
+* Orders remain prototype.
+* Notifications remain prototype.
+* Reviews remain prototype.
+* Commission UI remains prototype.
+* Payout UI remains prototype.
+* Sensitive payout/bank settings must eventually move to strict server-side storage.
+* Full bilingual UI is incomplete.
+* Search v0.1 is incomplete.
+* Legacy `products.price` remains temporarily and must not be trusted for commerce.
+* Homepage Promotion original-price display still uses legacy pricing and must be addressed in S15.4.
+* Fixed-value Promotion behavior across Markets still needs an approved rule.
+* Promotion overlap behavior still needs an approved rule.
+* Made-to-Order Server Quote branch lacks a suitable current Live test fixture.
+* Product page currently has non-blocking `next/image` optimization warnings for existing `<img>` usage.
+* Full repository lint still contains older unrelated debt; focused Shopping lint passes.
 
 ---
 
-# 48. Product Decisions Already Approved — Do Not Reopen Without Reason
+# 24. Product Decisions Already Approved — Do Not Reopen Without Reason
 
-Do NOT automatically reopen these decisions:
+Do NOT automatically reopen:
 
-* IRTH is a handmade / heritage marketplace.
+* IRTH is a handmade / heritage Marketplace.
 * Arabic + English.
 * Arabic RTL + English LTR.
-* Mobile-First.
-* Responsive.
+* Mobile-First + Responsive.
 * Craft is a primary Shop entry.
 * Explore can start from Country.
 * Search is comprehensive.
 * Guest Checkout is allowed.
 * Customer account creation is optional during purchase.
 * Customer sees one Order.
-* Order internally splits by artisan/shipment.
+* Order internally splits by Artisan / Shipment.
 * Artisan does not receive sensitive customer contact information.
 * Artisan does not directly contact customer.
 * Product Approval exists in MVP.
 * Artisan Promotions require IRTH approval.
 * Reviews require a real delivered purchase.
-* Artisan review replies require IRTH moderation.
+* Artisan Review replies require IRTH moderation.
 * One Super Admin in MVP.
-* Commission can vary by craft.
+* Commission can vary by Craft.
 * Artisan commission override is allowed.
 * Payout is delayed and not immediately payable after sale.
-* Returns/Refunds are MVP.
+* Returns / Refunds are MVP.
 * Payment Layer is separate from Checkout.
 * Shipping Layer is separate from Order System.
 * Notification Layer is separate.
@@ -1428,236 +1002,62 @@ Do NOT automatically reopen these decisions:
 * Country and Market are separate concepts.
 * Market activation is independent from Country activation.
 * One local currency per Market in MVP.
-* Product prices are Market-specific and are not automatic currency conversion.
-* Published market-price changes require IRTH review while the previous approved price remains live.
-* Artisans may prepare prices for inactive markets without exposing those markets publicly.
-* No first Launch Market is assumed without explicit approval.
+* Product prices are Market-specific and are not automatic FX conversion.
+* Published Market-price changes require IRTH review while previous approved price remains live.
+* Artisans may prepare prices for inactive Markets.
+* Geo suggestion is never authoritative.
+* Customer explicitly confirms/changes Market.
+* Egypt is the Launch Market.
+* Egypt Launch Market currency is EGP.
+* Legacy Product prices are not automatically mapped to Egypt/EGP.
 
 ---
 
-# 49. Decisions Still Needed Later
+# 25. Decisions Still Needed Later
 
-These are NOT finalized yet.
+These points are NOT finalized unless separately approved later:
 
-## Launch Market
-
-Which market is the first operational launch market?
+## First Payment Gateway
 
 Not yet approved.
 
----
-
-## Payment Gateway
-
-Which Payment Gateway will be used first?
+## First Courier
 
 Not yet approved.
-
----
-
-## Courier
-
-Which shipping/courier provider will be used first?
-
-Not yet approved.
-
----
 
 ## Shipping Rules
 
-Final market shipping costs and free-shipping thresholds.
-
-Not yet approved.
-
-Examples used in design discussions must not be treated as final production rules.
-
----
+Final market shipping cost and free-shipping threshold values are not yet approved.
 
 ## Return Window
 
-Examples:
-
-```text
-7 days
-14 days
-...
-```
-
 No final period approved yet.
-
----
 
 ## Return Shipping Responsibility
 
 Not yet fully decided.
 
----
-
 ## Payout Cycle
-
-Examples:
-
-```text
-Weekly
-Biweekly
-Monthly
-```
 
 No final payout schedule approved yet.
 
----
-
 ## Promotion Overlap
 
-If multiple active promotions apply to the same product:
-
-* Priority?
-* Best discount?
-* Stack?
-* Reject overlap?
-
-No final rule approved yet.
-
-Must be decided before final Shopping discount calculation.
-
----
+Must be resolved for S15.4 secure Promotion calculation.
 
 ## Fixed Promotion Amount Across Markets
 
-Fixed-value discounts depend on currency.
+Must be resolved for S15.4 Market-aware fixed-discount calculation.
 
-The rule for applying or scoping fixed-value promotions across markets has not yet been approved.
+## Money Fixed Scale
 
-This must be resolved before market-aware promotion calculation is used in secure Shopping.
+PostgreSQL exact `numeric` is used, but the final fixed decimal scale policy has not yet been approved.
 
----
-
-# 50. Recommended Next Phase
-
-Approved working phase:
-
-```text
-S15 — Shopping Foundation
-```
-
-Current completed tasks:
-
-```text
-S15.0 — Database Migration Reconciliation ✅
-S15.1 — Market & Pricing Foundation ✅
-```
+S15.3 does not require guessing this decision because exact prices are transported as text and calculated using decimal-string arithmetic.
 
 ---
 
-# 51. Recommended First Task
-
-## S15.0 — Database Migration Reconciliation
-
-**Status: CLOSED ✅**
-
-Goal:
-
-Reconcile:
-
-```text
-Live Supabase migration history
-```
-
-with:
-
-```text
-supabase/migrations/
-```
-
-inside Git.
-
-Expected result:
-
-```text
-Fresh database
-+
-Repository migrations
-=
-Expected IRTH database structure
-```
-
-Completed:
-
-* Recovered missing migration files from Live Supabase history.
-* Reconstructed missing Inventory, Product Media, Media Reorder, Artisan Product Read, RLS Auto-Enable, and ACL foundations.
-* Verified fresh Local database replay from migration history.
-* Reconciled Local and Remote migration history.
-* Reconstructed Live table, function, and default privilege state.
-* Fixed anonymous Artisan Profile column-level grants.
-* Reconciled Promotion RPC privileges.
-* Hardened public Product Storage visibility to require:
-  * Published product
-  * Active artisan
-  * Active country
-  * Active craft
-* Applied the Storage security hardening to Live Supabase.
-* Verified the resulting Live Storage policy.
-
-Result:
-
-```text
-Git migration history
-        =
-Reproducible database history
-        =
-Live migration history
-```
-
----
-
-# 52. Market & Pricing Foundation
-
-## S15.1 — Market & Pricing Foundation
-
-**Status: CLOSED ✅**
-
-Goal:
-
-Establish the trusted Market-aware pricing layer required before Secure Cart.
-
-Completed:
-
-* Created `markets`.
-* Created `product_market_prices`.
-* Kept Country separate from Market.
-* Kept Market activation independent from Country activation.
-* Added ISO currency code per Market.
-* Added Market-specific Product prices with no automatic FX conversion.
-* Kept legacy `products.price` temporarily without guessing its market/currency.
-* Reused `moderation_requests` for Artisan market-price proposals.
-* Added one-pending-request-per-Product+Market protection.
-* Added atomic Super Admin approval/rejection RPC.
-* Preserved the previous live price while a new price is pending review.
-* Allowed Artisans to prepare pricing for inactive markets while keeping those markets hidden from public users.
-* Added and reviewed RLS/grants for Markets, prices, and moderation workflow.
-* Tested active-market price review flow in controlled transactions.
-* Tested inactive-market price preparation and anonymous visibility isolation.
-* Reconciled Git and Supabase migration history after implementation.
-
-No first Launch Market was selected or assumed.
-
-Result:
-
-```text
-Market
-  ↓
-Trusted Market Price
-  ↓
-Ready for Market Selection
-  ↓
-Secure Cart later
-```
-
----
-
-# 53. Proposed Shopping Sequence
-
-Current implementation sequence:
+# 26. Shopping Implementation Sequence
 
 ```text
 S15.0
@@ -1667,13 +1067,14 @@ S15.1
 Market & Pricing Foundation ✅
         ↓
 S15.2
-Market Selection
+Market Selection ✅
         ↓
 S15.3
-Secure Cart / Server Quote
+Secure Cart / Server Quote ✅
         ↓
 S15.4
 Promotion Calculation + Coupon Foundation
+        ← NEXT TASK
         ↓
 S15.5
 Checkout Foundation
@@ -1681,270 +1082,66 @@ Checkout Foundation
 Shopping Integration Test
 ```
 
-This sequence does not replace the Specification.
-
-It is an implementation plan derived from the approved architecture.
+This sequence is an implementation plan derived from the approved architecture and does not replace the Specification.
 
 ---
 
-# 54. Future Major Phases — Proposed
-
-After Shopping:
+# 27. CURRENT STATUS
 
 ```text
-Orders Foundation
-      ↓
-Shipping + Tracking
-      ↓
-Payments / Money
-      ↓
-Returns / Refunds
-      ↓
-Reviews
-      ↓
-Notifications
-      ↓
-Final Product Design
-      ↓
-Full MVP Testing & Polish
-```
-
-Exact milestone numbering should be approved as the project progresses.
-
----
-
-# 55. Final Design Strategy
-
-IRTH's current UI is NOT considered final.
-
-Design should evolve with the real Business Rules.
-
-For each new module:
-
-```text
-Understand Business Rule
-        ↓
-Define UX
-        ↓
-Implement
-        ↓
-Test
-```
-
-After the complete MVP transaction journey works, run a dedicated:
-
-```text
-Final Product Design & UX Consolidation
-```
-
-covering:
-
-## Customer
-
-* Homepage
-* Navigation
-* Search
-* Explore
-* Product
-* Artisan
-* Craft
-* Country
-* Saved
-* Recently Viewed
-* Cart
-* Checkout
-* Account
-* Orders
-* Tracking
-* Returns
-* Reviews
-* Notifications
-
-## Artisan
-
-* Dashboard
-* Products
-* Product editor
-* Inventory
-* Media
-* Orders
-* Promotions
-* Reviews
-* Payouts
-* Settings
-
-## Super Admin
-
-* Dashboard
-* Product moderation
-* Artisans
-* Countries
-* Crafts
-* Promotions
-* Orders
-* Returns
-* Reviews
-* Commissions
-* Payouts
-* Settings
-
----
-
-# 56. Final Design System — Later
-
-Final design phase should consolidate reusable components such as:
-
-```text
-Typography
-Colors
-Spacing
-Radius
-Shadows
-
-Buttons
-Inputs
-Selects
-Checkboxes
-Radio controls
-
-Cards
-Product Cards
-
-Tabs
-Badges
-Status Chips
-
-Tables
-
-Dialogs
-Drawers
-Modals
-
-Toast Messages
-
-Loading States
-Skeletons
-Empty States
-Error States
-```
-
----
-
-# 57. Arabic / English Final QA
-
-Final bilingual review must include:
-
-* Arabic typography
-* English typography
-* RTL alignment
-* LTR alignment
-* Icon direction
-* Back arrows
-* Breadcrumb direction
-* Currency formatting
-* Number formatting
-* Date formatting
-* Mixed Arabic / English strings
-* Mobile behavior
-
----
-
-# 58. Mobile Final QA
-
-IRTH is Mobile-First.
-
-Final UX review should validate:
-
-* Navigation
-* Search
-* Filters
-* Product page
-* Sticky actions if approved
-* Cart
-* Checkout
-* Order tracking
-* Artisan dashboard
-* Admin dashboard
-* Tables on small screens
-* Forms
-* Modals / drawers
-
-Any new product decision discovered during this stage must still follow:
-
-```text
-Question
-↓
-Discussion
-↓
-Options
-↓
-Owner Decision
-↓
-Approval
-↓
-Implementation
-```
-
----
-
-# 59. CURRENT STATUS
-
-```text
-LAST CLOSED MAJOR MILESTONE:
-S15.1 — Market & Pricing Foundation ✅
+LAST CLOSED TASK:
+S15.3 — Secure Cart / Server Quote ✅
 
 CURRENT MAJOR POSITION:
 Shopping Foundation
 
 NEXT TASK:
-S15.2 — Market Selection
+S15.4 — Promotion Calculation + Coupon Foundation
 ```
 
 ---
 
-# 60. CURRENT TASK
+# 28. NEXT TASK — S15.4
+
+## S15.4 — Promotion Calculation + Coupon Foundation
+
+**Status: READY FOR DISCUSSION / DECISIONS**
+
+Primary goal:
+
+Connect the existing Promotion foundation to trusted Market-aware Shopping calculation and establish the minimum Coupon foundation required before Checkout.
+
+Before implementation, resolve the minimum business decisions that directly affect calculation, especially:
 
 ```text
-S15.2 — Market Selection
+Promotion overlap behavior
++
+Fixed-value Promotion behavior across Markets/currencies
 ```
 
-Status:
+Do NOT silently invent these rules.
 
-```text
-READY FOR DISCUSSION / DECISIONS
-```
-
-Approved behavior already includes:
-
-```text
-System suggests market
-        ↓
-Customer confirms / changes market
-        ↓
-Selected market is stored
-```
-
-Before implementation, identify the minimum Market Selection decisions still required.
-
-Do NOT assume a first launch market without explicit approval.
+Do NOT rebuild Checkout during S15.4.
 
 ---
 
-# 61. NEXT TASK
+# 29. S15.5 Boundary
 
-```text
-S15.2 — Market Selection
-```
+The following belongs to **S15.5 — Checkout Foundation**, not S15.4:
 
-Goal:
+* Rebuilding `Complete your order`
+* Trusted Checkout summary
+* Customer shipping/contact input handling
+* Guest Checkout implementation
+* Secure transition from Cart Quote to Order creation
+* Checkout-side server validation
+* Removing localStorage Order creation
 
-Connect the Market foundation to customer context so later Secure Cart can resolve the correct trusted market price.
-
-Do NOT build Secure Cart before Current Market can be resolved reliably.
+The current `/checkout` prototype may remain broken/inconsistent until S15.5 because S15.3 intentionally stopped trusting its old client-side price model.
 
 ---
 
-# 62. DO NOT REOPEN
+# 30. DO NOT REOPEN
 
 Unless there is a genuine technical/business conflict, do not reopen:
 
@@ -1955,15 +1152,15 @@ S13 Product Approval Workflow
 S14 Public Marketplace DB Integration
 S15.0 Database Migration Reconciliation
 S15.1 Market & Pricing Foundation
+S15.2 Market Selection
+S15.3 Secure Cart / Server Quote
 ```
 
-Do not replace existing architecture simply because a new implementation problem appears.
-
-First determine whether the problem can be solved within the approved architecture.
+First determine whether any new problem can be solved within the approved architecture.
 
 ---
 
-# 63. Definition of "Closed"
+# 31. Definition of "Closed"
 
 A task is only CLOSED when:
 
@@ -1972,15 +1169,15 @@ A task is only CLOSED when:
 3. Implementation exists.
 4. Security implications are reviewed.
 5. Expected flow is tested.
-6. Edge cases are reviewed where relevant.
+6. Relevant edge cases are reviewed.
 7. No known blocker remains.
-8. IRTH_PROJECT_STATUS.md is updated.
+8. `IRTH_PROJECT_STATUS.md` is updated.
 
 A page existing in the repository does NOT mean the feature is closed.
 
 ---
 
-# 64. Project Working Method
+# 32. Project Working Method
 
 For every task:
 
@@ -2000,7 +1197,7 @@ Close
 Update Project Status
 ```
 
-Each Task must have:
+Each task should have:
 
 * Goal
 * Expected result
@@ -2011,43 +1208,58 @@ Each Task must have:
 
 ---
 
-# 65. Status Document Update Rule
+# 33. Change Log
 
-After every closed Task update:
+## 30 August 2026 — S15.3 Closure
 
-```text
-Last Updated
-Closed Milestones
-Current Task
-Next Task
-Known Gaps
-Design Status
-Technical Debt
-Decisions Needed
-```
+* Closed S15.3 — Secure Cart / Server Quote.
+* Added server-authoritative Cart Quote API.
+* Removed trust in browser-provided Product prices and totals.
+* Added Product/public visibility validation to Server Quote.
+* Added fixed-stock inventory validation and secure quantity update boundary.
+* Tested price tampering protection.
+* Tested duplicate slug aggregation.
+* Tested missing Product protection.
+* Tested invalid quantity rejection.
+* Tested out-of-stock / insufficient-stock handling.
+* Approved Egypt test Market price of 350 EGP for `clay-vessel` through the real price moderation workflow.
+* Set controlled fixed inventory quantity to 5 through the ownership-checked inventory RPC.
+* Integrated server-quoted Market price into Product Page and ProductCard.
+* New Add-to-Cart behavior stores slug identity rather than browser price/name/artisan data.
+* Verified Cart quantity 2 → unit price 350 EGP → subtotal 700 EGP.
+* Added `get_product_market_prices_text(...)` so PostgreSQL `numeric` reaches Server Quote as exact text.
+* Verified exact-money transport: `"350"` → `"700"` without JS floating-point price transport.
+* Verified focused ESLint with zero errors.
+* Verified final production Build and TypeScript compilation.
+* Documented absence of a suitable published Made-to-Order Live test fixture instead of mutating production Business Data.
+* Confirmed `Complete your order` is a legacy Checkout prototype and will be rebuilt in S15.5 instead of patched during S15.3.
+* Confirmed S15.4 — Promotion Calculation + Coupon Foundation as next task.
 
-Add important milestones to the Change Log.
+## 30 August 2026 — S15.2 Closure
 
----
+* Closed S15.2 — Market Selection.
+* Added active Market API and session Market selection.
+* Added Header Market Selector.
+* Added ISO country codes.
+* Added geo suggestion without automatic selection.
+* Prevented guessing when a Country maps to multiple active Markets.
+* Approved Egypt as Launch Market.
+* Approved EGP as Egypt Launch Market currency.
+* Confirmed legacy `products.price` is not automatically Egypt/EGP.
+* Tested valid selection, invalid selection protection, stale Market clearing, geo suggestion, and multiple-Market ambiguity.
 
-# 66. Change Log
-
-## 30 August 2026
+## 30 August 2026 — S15.1 Closure
 
 * Closed S15.1 — Market & Pricing Foundation.
-* Created `markets` and `product_market_prices` as the Market-aware pricing foundation.
-* Confirmed Country ≠ Market and independent Market activation.
+* Created `markets` and `product_market_prices`.
+* Confirmed Country ≠ Market.
+* Confirmed independent Market activation.
 * Confirmed one local ISO currency per Market for MVP and no automatic FX conversion.
-* Kept legacy `products.price` temporarily without guessing its currency or Market.
-* Implemented Artisan market-price proposals through `moderation_requests`.
-* Implemented atomic Super Admin price approval/rejection.
-* Confirmed pending price requests do not overwrite the current approved live price.
-* Blocked duplicate pending Product + Market price requests.
-* Allowed Artisans to prepare prices for inactive Markets while keeping those Markets hidden from anonymous users.
-* Passed controlled active-market and inactive-market pricing workflow tests with rollback.
-* Verified final Git migration history and Live Supabase migration history are synchronized.
-* Confirmed S15.2 — Market Selection as the next task.
-* No first Launch Market was selected or assumed.
+* Kept legacy `products.price` temporarily without guessed currency/Market mapping.
+* Implemented Artisan Market-price proposal and Super Admin review workflow.
+* Confirmed pending price changes do not overwrite current approved live price.
+* Allowed Artisan pricing preparation for inactive Markets without public exposure.
+* Passed controlled pricing workflow tests.
 
 ## 29 August 2026
 
@@ -2056,19 +1268,9 @@ Add important milestones to the Change Log.
 * Confirmed S13 closed.
 * Confirmed S14 closed.
 * Confirmed Public Marketplace security chain.
-* Verified inactive Craft edge case.
-* Identified Admin prototype pages.
-* Identified Cart / Checkout / Orders localStorage prototypes.
-* Identified missing Market Pricing foundation.
-* Identified Supabase ↔ Git migration drift.
-* Confirmed current design is Functional Design Foundation, not Final Product Design.
-* Recommended Shopping Foundation as next major implementation phase.
-* Recommended Database Migration Reconciliation as first next task.
+* Identified prototype Admin / Cart / Checkout / Orders areas.
 * Completed S15.0 — Database Migration Reconciliation.
 * Recovered missing Live migration history into Git.
-* Reconstructed missing Inventory, Media, RLS helper, and ACL foundations.
-* Verified full fresh Local database replay.
+* Verified fresh local migration replay.
 * Reconciled Local and Remote migration history.
 * Hardened public Product Storage visibility.
-* Applied and verified the Storage security hardening on Live Supabase.
-* Confirmed S15.1 — Market & Pricing Foundation as the next task.
