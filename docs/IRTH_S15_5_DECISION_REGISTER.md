@@ -37,7 +37,7 @@ This register records owner-approved S15.5 Checkout Foundation decisions. It sup
 ## S15.5.3 — Shipping / Final Total decisions
 
 **Decision date:** 31 August 2026  
-**Implementation state:** IN PROGRESS — Egypt values approved and configured; final customer-surface verification remains.
+**Implementation state:** IMPLEMENTATION COMPLETE — final local Production Build / TypeScript and browser functional verification remain before formal closure.
 
 Approved:
 
@@ -53,7 +53,7 @@ Approved:
 10. **Money handling:** Shipping and Final Total use the same exact currency-aware decimal/minor-unit approach and Round Half-Up boundary already used by the trusted commerce pipeline.
 11. **Scope boundary:** Courier integration, Payment integration, real Order creation, taxes/withholdings and any additional delivery surcharges are not part of S15.5.3 unless separately approved.
 
-Implemented foundation so far:
+Implemented:
 
 - Live migration `20260830213531_create_market_shipping_settings_foundation`.
 - Live configuration migration `20260830214043_configure_egypt_shipping`.
@@ -64,6 +64,23 @@ Implemented foundation so far:
 - Cart quote pipeline extended through Shipping / Final Total.
 - Checkout server validation extended through Shipping / Final Total.
 - Missing configuration blocks trusted Checkout instead of assuming free shipping.
+- Cart UI displays trusted Merchandise subtotal, Shipping, Free Shipping state/threshold and Final Total.
+- Checkout UI displays the same trusted Shipping and Final Total values.
+- Browser does not submit trusted Shipping or Final Total values.
+- Order creation and Payment remain inactive.
+
+Boundary verification completed against the approved Egypt configuration:
+
+```text
+1999.99 EGP merchandise → 150 EGP shipping → 2149.99 EGP final total
+2000.00 EGP merchandise → Free Shipping    → 2000.00 EGP final total
+2000.01 EGP merchandise → Free Shipping    → 2000.01 EGP final total
+```
+
+Still required before formal S15.5.3 closure:
+
+- Local `npm run build` / TypeScript verification.
+- Browser verification of Cart and Checkout for paid-shipping and free-shipping cases.
 
 ## S15.5 implementation sequence
 
@@ -72,7 +89,7 @@ S15.5.1 Trusted Checkout Summary ✅
         ↓
 S15.5.2 Customer Details + Guest Checkout Foundation ✅
         ↓
-S15.5.3 Shipping / Final Total Boundary ← IN PROGRESS
+S15.5.3 Shipping / Final Total Boundary ← VERIFYING
         ↓
 S15.5.4 Order Creation Transactional Design
         ↓
