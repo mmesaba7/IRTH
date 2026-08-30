@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Header from "../components/Header";
 
@@ -47,12 +47,66 @@ type CartQuote = {
   canCheckout: boolean;
 };
 
+type QuoteState = {
+  requestKey: string;
+  quote: CartQuote | null;
+  error: string;
+};
+
+const EMPTY_CART_SNAPSHOT = "[]";
+
+function subscribeToCart(onStoreChange: () => void) {
+  const handleCartUpdated = () => onStoreChange();
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === "irth-cart") {
+      onStoreChange();
+    }
+  };
+
+  window.addEventListener("irth-cart-updated", handleCartUpdated);
+  window.addEventListener("storage", handleStorage);
+
+  return () => {
+    window.removeEventListener("irth-cart-updated", handleCartUpdated);
+    window.removeEventListener("storage", handleStorage);
+  };
+}
+
+function getCartSnapshot() {
+  return localStorage.getItem("irth-cart") ?? EMPTY_CART_SNAPSHOT;
+}
+
+function getServerCartSnapshot() {
+  return EMPTY_CART_SNAPSHOT;
+}
+
+function parseCartSnapshot(snapshot: string): LegacyCartItem[] {
+  try {
+    const parsed = JSON.parse(snapshot) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(
+      (item): item is LegacyCartItem =>
+        typeof item === "object" &&
+        item !== null &&
+        "slug" in item &&
+        typeof (item as { slug?: unknown }).slug === "string" &&
+        (item as { slug: string }).slug.trim().length > 0
+    );
+  } catch {
+    return [];
+  }
+}
+
 function groupCart(cart: LegacyCartItem[]) {
   const grouped: Record<string, number> = {};
 
   for (const item of cart) {
-    if (!item?.slug) continue;
-    grouped[item.slug] = (grouped[item.slug] ?? 0) + 1;
+    const slug = item.slug.trim();
+    grouped[slug] = (grouped[slug] ?? 0) + 1;
   }
 
   return grouped;
@@ -74,96 +128,106 @@ function availabilityMessage(item: QuoteItem) {
 }
 
 export default function CartPage() {
-  const [cartItems, setCartItems] = useState<LegacyCartItem[]>([]);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [quote, setQuote] = useState<CartQuote | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(true);
-  const [quoteError, setQuoteError] = useState("");
+  const cartSnapshot = useSyncExternalStore(
+    subscribeToCart,
+    getCartSnapshot,
+    getServerCartSnapshot
+  );
+  const cartItems = useMemo(
+    () => parseCartSnapshot(cartSnapshot),
+    [cartSnapshot]
+  );
+  const quantities = useMemo(() => groupCart(cartItems), [cartItems]);
+  const quoteItems = useMemo(
+    () =>
+      Object.entries(quantities).map(([slug, quantity]) => ({
+        slug,
+        quantity,
+      })),
+    [quantities]
+  );
+  const quoteRequestBody = useMemo(
+    () => JSON.stringify({ items: quoteItems }),
+    [quoteItems]
+  );
+  const [quoteState, setQuoteState] = useState<QuoteState>({
+    requestKey: "",
+    quote: null,
+    error: "",
+  });
 
-  const loadQuote = async (grouped: Record<string, number>) => {
-    const items = Object.entries(grouped).map(([slug, quantity]) => ({
-      slug,
-      quantity,
-    }));
-
-    if (items.length === 0) {
-      setQuote(null);
-      setQuoteError("");
-      setQuoteLoading(false);
+  useEffect(() => {
+    if (quoteItems.length === 0) {
       return;
     }
 
-    setQuoteLoading(true);
-    setQuoteError("");
+    const controller = new AbortController();
 
-    try {
-      const response = await fetch("/api/cart/quote", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        cache: "no-store",
-        body: JSON.stringify({ items }),
+    fetch("/api/cart/quote", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      body: quoteRequestBody,
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as {
+          quote?: CartQuote;
+          error?: string;
+        };
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        if (!response.ok || !payload.quote) {
+          setQuoteState({
+            requestKey: quoteRequestBody,
+            quote: null,
+            error:
+              response.status === 409
+                ? "Select a market before pricing your cart."
+                : payload.error ?? "Unable to verify your cart right now.",
+          });
+          return;
+        }
+
+        setQuoteState({
+          requestKey: quoteRequestBody,
+          quote: payload.quote,
+          error: "",
+        });
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        console.error("Could not load secure cart quote:", error);
+        setQuoteState({
+          requestKey: quoteRequestBody,
+          quote: null,
+          error: "Unable to verify your cart right now.",
+        });
       });
 
-      const payload = (await response.json()) as {
-        quote?: CartQuote;
-        error?: string;
-      };
-
-      if (!response.ok || !payload.quote) {
-        setQuote(null);
-        setQuoteError(
-          response.status === 409
-            ? "Select a market before pricing your cart."
-            : payload.error ?? "Unable to verify your cart right now."
-        );
-        return;
-      }
-
-      setQuote(payload.quote);
-    } catch (error) {
-      console.error("Could not load secure cart quote:", error);
-      setQuote(null);
-      setQuoteError("Unable to verify your cart right now.");
-    } finally {
-      setQuoteLoading(false);
-    }
-  };
-
-  const loadCart = async () => {
-    const cart = JSON.parse(
-      localStorage.getItem("irth-cart") || "[]"
-    ) as LegacyCartItem[];
-    const grouped = groupCart(cart);
-
-    setCartItems(cart);
-    setQuantities(grouped);
-    await loadQuote(grouped);
-  };
-
-  useEffect(() => {
-    void loadCart();
-
-    const handleCartUpdated = () => {
-      void loadCart();
-    };
-
-    window.addEventListener("irth-cart-updated", handleCartUpdated);
-
     return () => {
-      window.removeEventListener("irth-cart-updated", handleCartUpdated);
+      controller.abort();
     };
-  }, []);
+  }, [quoteItems.length, quoteRequestBody]);
 
-  const saveCart = async (updatedCart: LegacyCartItem[]) => {
-    const grouped = groupCart(updatedCart);
+  const quoteLoading =
+    quoteItems.length > 0 && quoteState.requestKey !== quoteRequestBody;
+  const quote =
+    quoteState.requestKey === quoteRequestBody ? quoteState.quote : null;
+  const quoteError =
+    quoteState.requestKey === quoteRequestBody ? quoteState.error : "";
 
+  const saveCart = (updatedCart: LegacyCartItem[]) => {
     localStorage.setItem("irth-cart", JSON.stringify(updatedCart));
-    setCartItems(updatedCart);
-    setQuantities(grouped);
     window.dispatchEvent(new Event("irth-cart-updated"));
-    await loadQuote(grouped);
   };
 
   const quoteBySlug = new Map(
@@ -257,7 +321,7 @@ export default function CartPage() {
                                 if (index === -1) return;
                                 const newCart = [...cartItems];
                                 newCart.splice(index, 1);
-                                void saveCart(newCart);
+                                saveCart(newCart);
                               }}
                               disabled={quantity <= 1 || quoteLoading}
                               className="flex h-9 w-9 items-center justify-center text-lg hover:text-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-40"
@@ -273,7 +337,7 @@ export default function CartPage() {
                               type="button"
                               onClick={() => {
                                 const newCart = [...cartItems, storedItem];
-                                void saveCart(newCart);
+                                saveCart(newCart);
                               }}
                               disabled={quoteLoading || !canIncrease}
                               className="flex h-9 w-9 items-center justify-center text-lg hover:text-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-40"
@@ -296,7 +360,7 @@ export default function CartPage() {
                               const newCart = cartItems.filter(
                                 (item) => item.slug !== slug
                               );
-                              void saveCart(newCart);
+                              saveCart(newCart);
                             }}
                             className="text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--color-copper)]"
                           >
