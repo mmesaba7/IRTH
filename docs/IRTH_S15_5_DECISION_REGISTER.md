@@ -34,6 +34,38 @@ This register records owner-approved S15.5 Checkout Foundation decisions. It sup
 25. **Payment method:** do not choose or hard-code the first Payment Gateway during S15.5.2. Payment Layer remains separate; COD/online availability should ultimately be Market-configured.
 26. **Exact Order schema:** do not silently choose final Order/Order Item/Internal Group/Shipment table naming during S15.5.2. Approve the transactional Order model before creating real Order tables.
 
+## S15.5.3 — Shipping / Final Total decisions
+
+**Decision date:** 31 August 2026  
+**Implementation state:** IN PROGRESS — one required Egypt value remains unapproved.
+
+Approved:
+
+1. **Egypt flat shipping fee:** `2000 EGP` as explicitly approved by the owner. This value is recorded as the flat-rate decision but is not inserted into Live shipping configuration until the free-shipping threshold is also approved, so the Market cannot become partially configured.
+2. **Free Shipping basis:** evaluate the threshold against the trusted Merchandise subtotal **after all Product Promotions and Coupon effects**.
+3. **Shipping charge scope:** charge Shipping once on the unified customer Order, not once per Artisan/internal Shipment.
+4. **Threshold boundary:** `merchandise_subtotal >= free_shipping_threshold` qualifies for Free Shipping.
+5. **Data model:** use a separate one-to-one `market_shipping_settings` table rather than adding Shipping fields directly to `markets`.
+6. **Missing configuration behavior:** fail closed. Missing Market shipping configuration must not silently mean zero-cost Shipping and must prevent final Checkout confirmation.
+7. **Customer surfaces:** expose the same trusted Shipping calculation in Cart and Checkout; the browser must not calculate or supply trusted Shipping or Final Total values.
+8. **Final total formula:** `final_total = discounted_merchandise_subtotal + shipping_fee`.
+9. **Money handling:** Shipping and Final Total use the same exact currency-aware decimal/minor-unit approach and Round Half-Up boundary already used by the trusted commerce pipeline.
+10. **Scope boundary:** Courier integration, Payment integration, real Order creation, taxes/withholdings and any additional delivery surcharges are not part of S15.5.3 unless separately approved.
+
+Still unresolved and required before S15.5.3 can close:
+
+- **Egypt Free Shipping Threshold:** no numeric value has been approved yet. No value may be inferred or invented.
+
+Implemented foundation so far:
+
+- Live migration `20260830213531_create_market_shipping_settings_foundation`.
+- `public.market_shipping_settings` with RLS and Super Admin write boundary.
+- Exact-text `SECURITY INVOKER` RPC `public.get_market_shipping_settings_text(uuid)`.
+- Server-only `src/lib/shippingQuote.ts`.
+- Cart quote pipeline extended through Shipping / Final Total.
+- Checkout server validation extended through Shipping / Final Total.
+- Missing configuration blocks trusted Checkout instead of assuming free shipping.
+
 ## S15.5 implementation sequence
 
 ```text
@@ -41,7 +73,7 @@ S15.5.1 Trusted Checkout Summary ✅
         ↓
 S15.5.2 Customer Details + Guest Checkout Foundation ✅
         ↓
-S15.5.3 Shipping / Final Total Boundary ← NEXT
+S15.5.3 Shipping / Final Total Boundary ← IN PROGRESS
         ↓
 S15.5.4 Order Creation Transactional Design
         ↓
