@@ -85,7 +85,7 @@ type HomeArtisan = {
   profileImage: string | null;
 };
 
-type HomeOffer = {
+type HomeOfferRow = {
   promotion_id: string;
   source_type: "irth" | "artisan";
   discount_type: "percentage" | "fixed";
@@ -105,6 +105,36 @@ type HomeOffer = {
   country_name_ar: string | null;
   country_name_en: string;
 };
+
+type HomeOffer = HomeOfferRow & {
+  currency_code: string;
+  original_line_total: string;
+  promotion_discount: string;
+  final_line_total: string;
+};
+
+type SecureOfferQuote = {
+  market: {
+    currency_code: string;
+  };
+  items: Array<{
+    slug: string;
+    status: string;
+    originalLineTotal: string | null;
+    lineTotal: string | null;
+    promotionDiscount: string | null;
+    promotion: null | {
+      id: string;
+    };
+  }>;
+};
+
+function formatMoney(value: number | string, currencyCode: string) {
+  return new Intl.NumberFormat("ar-EG", {
+    style: "currency",
+    currency: currencyCode,
+  }).format(Number(value));
+}
 
 export default function HomePage() {
   const supabase = useMemo(() => createClient(), []);
@@ -207,6 +237,81 @@ export default function HomePage() {
       const craftRows = (craftsResult.data ?? []) as DbCraft[];
       const artisanRows = (artisansResult.data ?? []) as DbArtisan[];
       const productRows = (productsResult.data ?? []) as DbProduct[];
+      const rawOffers = offersResult.error
+        ? []
+        : ((offersResult.data ?? []) as HomeOfferRow[]);
+
+      let winningOffers: HomeOffer[] = [];
+
+      if (rawOffers.length > 0) {
+        const offerSlugs = [...new Set(rawOffers.map((offer) => offer.product_slug))];
+
+        try {
+          const quoteResponse = await fetch("/api/cart/quote", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            cache: "no-store",
+            body: JSON.stringify({
+              items: offerSlugs.map((slug) => ({ slug, quantity: 1 })),
+            }),
+          });
+
+          if (quoteResponse.ok) {
+            const quotePayload = (await quoteResponse.json()) as {
+              quote?: SecureOfferQuote;
+            };
+            const secureQuote = quotePayload.quote;
+
+            if (secureQuote) {
+              const rawOfferByWinnerKey = new Map(
+                rawOffers.map((offer) => [
+                  `${offer.promotion_id}:${offer.product_slug}`,
+                  offer,
+                ])
+              );
+
+              winningOffers = secureQuote.items.flatMap((item) => {
+                if (
+                  item.status !== "available" ||
+                  !item.promotion ||
+                  !item.originalLineTotal ||
+                  !item.lineTotal ||
+                  !item.promotionDiscount
+                ) {
+                  return [];
+                }
+
+                const rawOffer = rawOfferByWinnerKey.get(
+                  `${item.promotion.id}:${item.slug}`
+                );
+
+                if (!rawOffer) {
+                  return [];
+                }
+
+                return [
+                  {
+                    ...rawOffer,
+                    currency_code: secureQuote.market.currency_code,
+                    original_line_total: item.originalLineTotal,
+                    promotion_discount: item.promotionDiscount,
+                    final_line_total: item.lineTotal,
+                  },
+                ];
+              });
+            }
+          } else {
+            console.error(
+              "Could not resolve winning homepage promotions:",
+              quoteResponse.status
+            );
+          }
+        } catch (quoteError) {
+          console.error("Could not resolve winning homepage promotions:", quoteError);
+        }
+      }
 
       const countryMap = new Map(countryRows.map((country) => [country.id, country]));
       const craftMap = new Map(craftRows.map((craft) => [craft.id, craft]));
@@ -312,7 +417,7 @@ export default function HomePage() {
       setArtisans(mappedArtisans);
       setProducts(mappedProducts);
       setRecentlyViewed(recentProducts);
-      setOffers(((offersResult.data ?? []) as HomeOffer[]).slice(0, 6));
+      setOffers(winningOffers.slice(0, 6));
       setLoading(false);
     }
 
@@ -468,7 +573,7 @@ export default function HomePage() {
             <div>
               <p className="section-eyebrow">Current offers</p>
               <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">عروض معتمدة وفعالة.</h2>
-              <p className="mt-3 text-sm text-[var(--text-secondary)]">تظهر هنا فقط العروض المعتمدة والمفعلة والواقعة داخل مدتها.</p>
+              <p className="mt-3 text-sm text-[var(--text-secondary)]">يظهر هنا العرض الفائز فقط لكل منتج حسب السوق المختار.</p>
             </div>
           </div>
 
@@ -486,7 +591,7 @@ export default function HomePage() {
                   <span className="text-lg font-semibold text-[var(--color-copper)]">
                     {offer.discount_type === "percentage"
                       ? `${Number(offer.discount_value)}% OFF`
-                      : `$${Number(offer.discount_value).toFixed(2)} OFF`}
+                      : `${formatMoney(offer.promotion_discount, offer.currency_code)} OFF`}
                   </span>
                 </div>
 
@@ -497,7 +602,10 @@ export default function HomePage() {
                   {offer.artisan_name_ar || offer.artisan_name_en} · {offer.country_name_ar || offer.country_name_en}
                 </p>
                 <p className="mt-3 text-sm text-[var(--text-muted)]">
-                  السعر الأصلي: ${Number(offer.product_price).toFixed(2)}
+                  السعر الأصلي: {formatMoney(offer.original_line_total, offer.currency_code)}
+                </p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-copper)]">
+                  بعد العرض: {formatMoney(offer.final_line_total, offer.currency_code)}
                 </p>
                 <p className="mt-4 text-xs text-[var(--text-muted)]">
                   حتى {new Date(offer.end_at).toLocaleString("ar-EG")}
