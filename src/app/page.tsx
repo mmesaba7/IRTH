@@ -124,6 +124,33 @@ export default function HomePage() {
       setLoading(true);
       setError("");
 
+      let selectedMarketId: string | null = null;
+
+      try {
+        const marketResponse = await fetch("/api/market-selection", {
+          cache: "no-store",
+        });
+
+        if (marketResponse.ok) {
+          const marketPayload = (await marketResponse.json()) as {
+            market?: { id?: unknown } | null;
+          };
+
+          selectedMarketId =
+            typeof marketPayload.market?.id === "string"
+              ? marketPayload.market.id
+              : null;
+        }
+      } catch {
+        selectedMarketId = null;
+      }
+
+      const offersPromise = selectedMarketId
+        ? supabase.rpc("get_active_promotions", {
+            p_market_id: selectedMarketId,
+          })
+        : Promise.resolve({ data: [], error: null });
+
       const [countriesResult, craftsResult, artisansResult, productsResult, offersResult] =
         await Promise.all([
           supabase
@@ -150,7 +177,7 @@ export default function HomePage() {
             )
             .eq("lifecycle_status", "published")
             .order("created_at", { ascending: false }),
-          supabase.rpc("get_active_promotions"),
+          offersPromise,
         ]);
 
       if (cancelled) return;
