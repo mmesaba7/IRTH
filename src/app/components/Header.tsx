@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import MarketSelector from "./MarketSelector";
+
 
 // تعريف شكل الإشعار (نفس اللي في checkout)
 type Notification = {
@@ -296,7 +298,7 @@ export default function Header() {
                 </span>
               )}
             </Link>
-
+          <MarketSelector />
             {/* زر اللغة */}
             {isMounted && (
               <button
