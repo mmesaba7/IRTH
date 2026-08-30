@@ -60,15 +60,28 @@ async function ensureCustomerAccount(
   }
 }
 
+function safeCustomerReturnTo(value: FormDataEntryValue | null) {
+  return value === "/checkout" ? "/checkout" : "/account/orders";
+}
+
+function loginErrorUrl(error: "invalid" | "account", returnTo: string) {
+  const params = new URLSearchParams({ error });
+  if (returnTo === "/checkout") {
+    params.set("returnTo", returnTo);
+  }
+  return `/account/login?${params.toString()}`;
+}
+
 export async function customerLogin(formData: FormData) {
   const email = formData.get("email");
   const password = formData.get("password");
+  const returnTo = safeCustomerReturnTo(formData.get("returnTo"));
 
   if (
     typeof email !== "string" ||
     typeof password !== "string"
   ) {
-    redirect("/account/login?error=invalid");
+    redirect(loginErrorUrl("invalid", returnTo));
   }
 
   const supabase = await createClient();
@@ -80,16 +93,16 @@ export async function customerLogin(formData: FormData) {
     });
 
   if (error || !data.user) {
-    redirect("/account/login?error=invalid");
+    redirect(loginErrorUrl("invalid", returnTo));
   }
 
   try {
     await ensureCustomerAccount(data.user.id);
   } catch {
-    redirect("/account/login?error=account");
+    redirect(loginErrorUrl("account", returnTo));
   }
 
-  redirect("/account/orders");
+  redirect(returnTo);
 }
 
 export async function customerSignup(formData: FormData) {
