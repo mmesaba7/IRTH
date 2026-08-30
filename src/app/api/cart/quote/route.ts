@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { quoteCart, type CartQuoteInputItem } from "@/lib/cartQuote";
+import { applyPromotionsToQuote } from "@/lib/promotionQuote";
 
 function parseItems(body: unknown): CartQuoteInputItem[] | null {
   if (typeof body !== "object" || body === null || !("items" in body)) {
@@ -58,14 +59,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const quote = await quoteCart(items);
+    const baseQuote = await quoteCart(items);
 
-    if (!quote) {
+    if (!baseQuote) {
       return NextResponse.json(
         { error: "A market must be selected before quoting the cart" },
         { status: 409 }
       );
     }
+
+    const quote = await applyPromotionsToQuote(baseQuote);
 
     return NextResponse.json({ quote });
   } catch (error) {
