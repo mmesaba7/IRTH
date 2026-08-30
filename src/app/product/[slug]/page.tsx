@@ -8,6 +8,7 @@ import {
   loadPublicMarketplaceCatalog,
   type PublicCatalogProduct,
 } from "@/lib/publicMarketplace";
+import { useProductQuote } from "@/lib/useProductQuote";
 
 type ProductMedia = {
   id: string;
@@ -27,6 +28,13 @@ export default function ProductPage() {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const {
+    quote,
+    item: quoteItem,
+    loading: quoteLoading,
+    marketRequired,
+    error: quoteError,
+  } = useProductQuote(slug, quantity);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,37 +122,55 @@ export default function ProductPage() {
       : [...new Set([...savedProducts, product.slug])];
 
     localStorage.setItem("irth-saved-products", JSON.stringify(updated));
+    window.dispatchEvent(new Event("irth-saved-updated"));
     setSaved(!saved);
   };
 
-  const isOutOfStock = Boolean(
-    product && !product.madeToOrder && (product.quantity ?? 0) <= 0
-  );
-
-  const maxQuantity = product?.madeToOrder
+  const canAddToCart = quoteItem?.status === "available";
+  const maxQuantity = quoteItem?.product?.made_to_order
     ? 99
-    : Math.max(1, product?.quantity ?? 1);
+    : Math.max(1, quoteItem?.product?.available_quantity ?? 1);
+
+  const priceLabel = quoteLoading
+    ? "Checking price…"
+    : marketRequired
+      ? "Select a market to see the price"
+      : quoteError
+        ? "Price unavailable"
+        : quoteItem?.status === "available" && quoteItem.unitPrice && quote
+          ? `${quoteItem.unitPrice} ${quote.market.currency_code}`
+          : quoteItem?.status === "not_priced_for_market"
+            ? "Not priced for this market"
+            : quoteItem?.status === "out_of_stock"
+              ? "Out of stock"
+              : quoteItem?.status === "insufficient_stock"
+                ? "Requested quantity is not available"
+                : "Unavailable";
+
+  const availabilityMessage = marketRequired
+    ? "اختار السوق الأول علشان نعرض السعر والتوفر الصحيحين."
+    : quoteError
+      ? "تعذر التحقق من السعر والتوفر حاليًا."
+      : quoteItem?.status === "not_priced_for_market"
+        ? "المنتج ليس له سعر معتمد في السوق المختار حاليًا."
+        : quoteItem?.status === "out_of_stock"
+          ? "هذا المنتج غير متاح في المخزون حاليًا."
+          : quoteItem?.status === "insufficient_stock"
+            ? `المتاح حاليًا ${quoteItem.product?.available_quantity ?? 0} فقط.`
+            : quoteItem?.status === "product_unavailable"
+              ? "هذا المنتج غير متاح للشراء حاليًا."
+              : null;
 
   const handleAddToCart = () => {
-    if (!product || isOutOfStock) return;
+    if (!product || !canAddToCart) return;
 
-    const cart = JSON.parse(localStorage.getItem("irth-cart") || "[]") as Array<{
-      slug: string;
-      artisan: string;
-      name: string;
-      price: number;
-    }>;
+    const storedCart = JSON.parse(localStorage.getItem("irth-cart") || "[]") as unknown;
+    const cart = Array.isArray(storedCart) ? storedCart : [];
+    const additions = Array.from({ length: quantity }, () => ({
+      slug: product.slug,
+    }));
 
-    for (let index = 0; index < quantity; index += 1) {
-      cart.push({
-        slug: product.slug,
-        artisan: product.artisan,
-        name: product.name,
-        price: product.price,
-      });
-    }
-
-    localStorage.setItem("irth-cart", JSON.stringify(cart));
+    localStorage.setItem("irth-cart", JSON.stringify([...cart, ...additions]));
     window.dispatchEvent(new Event("irth-cart-updated"));
     router.push("/cart");
   };
@@ -242,7 +268,7 @@ export default function ProductPage() {
             <p className="mt-6 text-base leading-8 text-[var(--text-secondary)]">{product.description}</p>
 
             <div className="mt-8 flex items-center justify-between border-y border-[var(--border-soft)] py-6">
-              <p className="text-3xl font-semibold text-[var(--color-copper)]">${product.price.toFixed(2)}</p>
+              <p className="text-3xl font-semibold text-[var(--color-copper)]">{priceLabel}</p>
               <button
                 type="button"
                 onClick={toggleSaved}
@@ -259,29 +285,42 @@ export default function ProductPage() {
               {product.customization && <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1.5">Customization</span>}
             </div>
 
-            {isOutOfStock ? (
+            {availabilityMessage && (
               <div className="mt-7 rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-secondary)]">
-                هذا المنتج غير متاح في المخزون حاليًا.
+                {availabilityMessage}
               </div>
-            ) : (
-              <>
-                <div className="mt-7 flex items-center gap-4">
-                  <span className="text-sm text-[var(--text-secondary)]">Quantity</span>
-                  <div className="flex items-center rounded-[var(--radius-md)] border border-[var(--border-soft)]">
-                    <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="h-10 w-10">−</button>
-                    <span className="w-12 text-center text-sm">{quantity}</span>
-                    <button type="button" onClick={() => setQuantity(Math.min(maxQuantity, quantity + 1))} className="h-10 w-10">+</button>
-                  </div>
-                </div>
+            )}
+
+            <div className="mt-7 flex items-center gap-4">
+              <span className="text-sm text-[var(--text-secondary)]">Quantity</span>
+              <div className="flex items-center rounded-[var(--radius-md)] border border-[var(--border-soft)]">
                 <button
                   type="button"
-                  onClick={handleAddToCart}
-                  className="mt-7 rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-semibold text-[var(--color-ivory)] hover:bg-[var(--color-copper)]"
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  className="h-10 w-10"
                 >
-                  Add to cart
+                  −
                 </button>
-              </>
-            )}
+                <span className="w-12 text-center text-sm">{quantity}</span>
+                <button
+                  type="button"
+                  disabled={!quoteItem || (!quoteItem.product?.made_to_order && quantity >= maxQuantity)}
+                  onClick={() => setQuantity(Math.min(maxQuantity, quantity + 1))}
+                  className="h-10 w-10 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              disabled={!canAddToCart || quoteLoading}
+              className="mt-7 rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-semibold text-[var(--color-ivory)] hover:bg-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Add to cart
+            </button>
           </div>
         </div>
       </section>
