@@ -229,7 +229,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const market = await getSelectedMarket();
+    const [market, supabase] = await Promise.all([getSelectedMarket(), createClient()]);
     if (!market) {
       return jsonNoStore({ error: "A market must be selected before checkout" }, 409);
     }
@@ -263,16 +263,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { data: authData } = await supabase.auth.getUser();
+
     return jsonNoStore({
       valid: true,
-      authenticated: Boolean((await (await createClient()).auth.getUser()).data.user),
+      authenticated: Boolean(authData.user),
       market: {
         id: market.id,
         slug: market.slug,
         currencyCode: market.currency_code,
         countryCode: marketCountryCode,
       },
-      customer: customerValidation.customer,
       quote: {
         subtotalBeforePromotions: quote.subtotalBeforePromotions,
         promotionDiscountTotal: quote.promotionDiscountTotal,
