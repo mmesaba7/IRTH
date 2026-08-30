@@ -27,6 +27,11 @@ type CouponQuoteStatus =
   | "promotion_preferred"
   | "no_discount";
 
+type ShippingQuoteStatus =
+  | "flat_rate"
+  | "free_shipping"
+  | "configuration_missing";
+
 type QuoteItem = {
   slug: string;
   requestedQuantity: number;
@@ -62,6 +67,11 @@ type CartQuote = {
   couponCode: string | null;
   couponStatus: CouponQuoteStatus;
   subtotal: string;
+  merchandiseSubtotal: string;
+  shippingFee: string | null;
+  freeShippingThreshold: string | null;
+  shippingStatus: ShippingQuoteStatus;
+  finalTotal: string | null;
   canCheckout: boolean;
 };
 
@@ -395,7 +405,7 @@ export default function CartPage() {
             <div className="h-fit rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-7">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">Secure summary</p>
               <p className="mt-3 text-xs leading-5 text-[var(--text-muted)]">
-                Prices, availability and discounts are verified by the server for your selected market.
+                Prices, availability, discounts and shipping are verified by the server for your selected market.
               </p>
 
               <div className="mt-6 flex items-center justify-between border-b border-[var(--border-soft)] pb-5">
@@ -420,6 +430,22 @@ export default function CartPage() {
                     <span>− {currency} {quote.couponDiscountTotal}</span>
                   </div>
                 )}
+                <div className="flex items-center justify-between">
+                  <span className="text-[var(--text-secondary)]">Merchandise subtotal</span>
+                  <span>{quote ? `${currency} ${quote.merchandiseSubtotal}` : "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[var(--text-secondary)]">Shipping</span>
+                  <span className={quote?.shippingStatus === "free_shipping" ? "text-[var(--color-olive)]" : undefined}>
+                    {quote?.shippingStatus === "configuration_missing"
+                      ? "Unavailable"
+                      : quote?.shippingStatus === "free_shipping"
+                        ? "Free"
+                        : quote?.shippingFee
+                          ? `${currency} ${quote.shippingFee}`
+                          : "—"}
+                  </span>
+                </div>
               </div>
 
               <div className="mt-5">
@@ -468,10 +494,32 @@ export default function CartPage() {
                 )}
               </div>
 
+              {quote?.shippingStatus === "flat_rate" && quote.freeShippingThreshold && (
+                <p className="mt-4 text-xs leading-5 text-[var(--text-muted)]">
+                  Free shipping starts at {currency} {quote.freeShippingThreshold} after promotions and coupons.
+                </p>
+              )}
+
+              {quote?.shippingStatus === "free_shipping" && quote.freeShippingThreshold && (
+                <p className="mt-4 text-xs leading-5 text-[var(--color-olive)]">
+                  Free shipping applied. Your merchandise subtotal reached {currency} {quote.freeShippingThreshold}.
+                </p>
+              )}
+
+              {quote?.shippingStatus === "configuration_missing" && (
+                <p className="mt-4 text-xs leading-5 text-[var(--color-terracotta)]">
+                  Shipping is not configured for the selected market yet.
+                </p>
+              )}
+
               <div className="mt-6 flex items-center justify-between">
-                <span className="font-medium text-[var(--color-espresso)]">Subtotal</span>
+                <span className="font-medium text-[var(--color-espresso)]">Total</span>
                 <span className="text-xl font-medium text-[var(--color-copper)]">
-                  {quoteLoading ? "Checking…" : quote ? `${currency} ${quote.subtotal}` : "—"}
+                  {quoteLoading
+                    ? "Checking…"
+                    : quote?.finalTotal
+                      ? `${currency} ${quote.finalTotal}`
+                      : "—"}
                 </span>
               </div>
 
@@ -479,7 +527,7 @@ export default function CartPage() {
                 <p className="mt-5 text-sm leading-6 text-[var(--color-terracotta)]">{quoteError}</p>
               )}
 
-              {quote?.canCheckout ? (
+              {quote?.canCheckout && quote.finalTotal ? (
                 <Link
                   href="/checkout"
                   onClick={prepareCheckout}
