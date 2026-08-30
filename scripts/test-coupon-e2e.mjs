@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 
 const isWindows = process.platform === "win32";
-const npxCommand = isWindows ? "npx.cmd" : "npx";
-const npmCommand = isWindows ? "npm.cmd" : "npm";
 const port = process.env.IRTH_TEST_PORT ?? "3101";
 const appUrl = `http://127.0.0.1:${port}`;
 
@@ -36,16 +34,51 @@ function parseEnvOutput(output) {
   return values;
 }
 
-function getLocalSupabaseEnv() {
-  const result = spawnSync(
-    npxCommand,
-    ["supabase", "status", "-o", "env"],
-    {
+function runCommandSync(command, args) {
+  if (isWindows) {
+    const quoted = [command, ...args]
+      .map((part) => (/\s/.test(part) ? `"${part.replaceAll('"', '\\"')}"` : part))
+      .join(" ");
+
+    return spawnSync("cmd.exe", ["/d", "/s", "/c", quoted], {
       cwd: process.cwd(),
       encoding: "utf8",
       shell: false,
-    }
-  );
+    });
+  }
+
+  return spawnSync(command, args, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    shell: false,
+  });
+}
+
+function spawnCommand(command, args, options) {
+  if (isWindows) {
+    const quoted = [command, ...args]
+      .map((part) => (/\s/.test(part) ? `"${part.replaceAll('"', '\\"')}"` : part))
+      .join(" ");
+
+    return spawn("cmd.exe", ["/d", "/s", "/c", quoted], {
+      ...options,
+      shell: false,
+    });
+  }
+
+  return spawn(command, args, {
+    ...options,
+    shell: false,
+  });
+}
+
+function getLocalSupabaseEnv() {
+  const result = runCommandSync("npx.cmd", [
+    "supabase",
+    "status",
+    "-o",
+    "env",
+  ]);
 
   if (result.error) {
     fail(`Unable to read local Supabase status: ${result.error.message}`);
@@ -164,8 +197,8 @@ async function main() {
   );
 
   const logs = [];
-  const server = spawn(
-    npmCommand,
+  const server = spawnCommand(
+    isWindows ? "npm.cmd" : "npm",
     ["run", "dev", "--", "-p", port],
     {
       cwd: process.cwd(),
@@ -175,7 +208,6 @@ async function main() {
         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: anonKey,
       },
       stdio: ["ignore", "pipe", "pipe"],
-      shell: false,
     }
   );
 
