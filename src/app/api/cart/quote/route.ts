@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { quoteCart, type CartQuoteInputItem } from "@/lib/cartQuote";
 import { applyPromotionsToQuote } from "@/lib/promotionQuote";
+import { applyCouponToQuote } from "@/lib/couponQuote";
 
 function parseItems(body: unknown): CartQuoteInputItem[] | null {
   if (typeof body !== "object" || body === null || !("items" in body)) {
@@ -40,6 +41,29 @@ function parseItems(body: unknown): CartQuoteInputItem[] | null {
   return items;
 }
 
+function parseCouponCode(body: unknown) {
+  if (typeof body !== "object" || body === null || !("couponCode" in body)) {
+    return { valid: true, value: null } as const;
+  }
+
+  const rawCouponCode = (body as { couponCode?: unknown }).couponCode;
+
+  if (rawCouponCode === null || rawCouponCode === undefined) {
+    return { valid: true, value: null } as const;
+  }
+
+  if (typeof rawCouponCode !== "string") {
+    return { valid: false, value: null } as const;
+  }
+
+  const normalized = rawCouponCode.trim();
+
+  return {
+    valid: true,
+    value: normalized.length > 0 ? normalized : null,
+  } as const;
+}
+
 export async function POST(request: NextRequest) {
   let body: unknown;
 
@@ -50,10 +74,18 @@ export async function POST(request: NextRequest) {
   }
 
   const items = parseItems(body);
+  const couponCode = parseCouponCode(body);
 
   if (!items) {
     return NextResponse.json(
       { error: "items must contain valid slug and quantity values" },
+      { status: 400 }
+    );
+  }
+
+  if (!couponCode.valid) {
+    return NextResponse.json(
+      { error: "couponCode must be a string when provided" },
       { status: 400 }
     );
   }
@@ -68,7 +100,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const quote = await applyPromotionsToQuote(baseQuote);
+    const promotionQuote = await applyPromotionsToQuote(baseQuote);
+    const quote = await applyCouponToQuote(
+      promotionQuote,
+      couponCode.value
+    );
 
     return NextResponse.json({ quote });
   } catch (error) {
