@@ -255,20 +255,23 @@ export async function quoteCart(inputItems: CartQuoteInputItem[]) {
 
   let marketPrices: Array<{
     product_id: string;
-    price: number;
-    is_active: boolean;
+    price: string;
   }> = [];
 
   if (productIds.length > 0) {
-    const { data, error } = await supabase
-      .from("product_market_prices")
-      .select("product_id, price, is_active")
-      .eq("market_id", selectedMarket.id)
-      .eq("is_active", true)
-      .in("product_id", productIds);
+    const { data, error } = await supabase.rpc(
+      "get_product_market_prices_text",
+      {
+        target_market_id: selectedMarket.id,
+        target_product_ids: productIds,
+      }
+    );
 
     if (error) throw error;
-    marketPrices = data ?? [];
+    marketPrices = (data ?? []) as Array<{
+      product_id: string;
+      price: string;
+    }>;
   }
 
   const countryIds = [...new Set(artisans.map((artisan) => artisan.country_id))];
@@ -290,7 +293,7 @@ export async function quoteCart(inputItems: CartQuoteInputItem[]) {
   const activeCraftIds = new Set(activeCrafts.map((craft) => craft.id));
   const activeCountryIds = new Set(activeCountries.map((country) => country.id));
   const priceByProductId = new Map(
-    marketPrices.map((price) => [price.product_id, String(price.price)])
+    marketPrices.map((price) => [price.product_id, price.price])
   );
 
   const quoteItems: CartQuoteItem[] = items.map(({ slug, quantity }) => {
