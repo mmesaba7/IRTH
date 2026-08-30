@@ -5,7 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 
 export const MARKET_COOKIE = "irth-market";
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function getActiveMarketById(marketId: string) {
+  if (!UUID_PATTERN.test(marketId)) {
+    return null;
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
