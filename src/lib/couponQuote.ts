@@ -284,7 +284,12 @@ function getCurrencyMinorUnitScale(currencyCode: string) {
   }).resolvedOptions();
   const scale = options.maximumFractionDigits;
 
-  if (!Number.isSafeInteger(scale) || scale < 0 || scale > 6) {
+  if (
+    typeof scale !== "number" ||
+    !Number.isSafeInteger(scale) ||
+    scale < 0 ||
+    scale > 6
+  ) {
     throw new Error(`Unsupported currency minor-unit scale: ${currencyCode}`);
   }
 
