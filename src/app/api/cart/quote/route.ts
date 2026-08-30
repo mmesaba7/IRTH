@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { quoteCart, type CartQuoteInputItem } from "@/lib/cartQuote";
 import { applyPromotionsToQuote } from "@/lib/promotionQuote";
-import { applyCouponToQuote } from "@/lib/couponQuote";
+import {
+  applyCouponToQuote,
+  type CouponCartQuote,
+} from "@/lib/couponQuote";
 
 function parseItems(body: unknown): CartQuoteInputItem[] | null {
   if (typeof body !== "object" || body === null || !("items" in body)) {
@@ -64,29 +67,63 @@ function parseCouponCode(body: unknown) {
   } as const;
 }
 
+function publicQuoteResponse(quote: CouponCartQuote) {
+  return {
+    market: quote.market,
+    items: quote.items.map((item) => ({
+      slug: item.slug,
+      requestedQuantity: item.requestedQuantity,
+      status: item.status,
+      product: item.product,
+      unitPrice: item.unitPrice,
+      originalLineTotal: item.originalLineTotal,
+      promotionDiscount: item.promotionDiscount,
+      couponDiscount: item.couponDiscount,
+      lineTotal: item.lineTotal,
+    })),
+    subtotalBeforePromotions: quote.subtotalBeforePromotions,
+    promotionDiscountTotal: quote.promotionDiscountTotal,
+    subtotalBeforeCoupon: quote.subtotalBeforeCoupon,
+    couponDiscountTotal: quote.couponDiscountTotal,
+    couponCode: quote.couponCode,
+    couponStatus: quote.couponStatus,
+    subtotal: quote.subtotal,
+    canCheckout: quote.canCheckout,
+  };
+}
+
+function jsonNoStore(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 export async function POST(request: NextRequest) {
   let body: unknown;
 
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return jsonNoStore({ error: "Invalid request body" }, 400);
   }
 
   const items = parseItems(body);
   const couponCode = parseCouponCode(body);
 
   if (!items) {
-    return NextResponse.json(
+    return jsonNoStore(
       { error: "items must contain valid slug and quantity values" },
-      { status: 400 }
+      400
     );
   }
 
   if (!couponCode.valid) {
-    return NextResponse.json(
+    return jsonNoStore(
       { error: "couponCode must be a string when provided" },
-      { status: 400 }
+      400
     );
   }
 
@@ -94,9 +131,9 @@ export async function POST(request: NextRequest) {
     const baseQuote = await quoteCart(items);
 
     if (!baseQuote) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "A market must be selected before quoting the cart" },
-        { status: 409 }
+        409
       );
     }
 
@@ -106,13 +143,10 @@ export async function POST(request: NextRequest) {
       couponCode.value
     );
 
-    return NextResponse.json({ quote });
+    return jsonNoStore({ quote: publicQuoteResponse(quote) });
   } catch (error) {
     console.error("Unable to quote cart:", error);
 
-    return NextResponse.json(
-      { error: "Unable to quote cart" },
-      { status: 500 }
-    );
+    return jsonNoStore({ error: "Unable to quote cart" }, 500);
   }
 }
