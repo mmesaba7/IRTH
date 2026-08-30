@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { quoteCart, type CartQuoteInputItem } from "@/lib/cartQuote";
 import { applyPromotionsToQuote } from "@/lib/promotionQuote";
 import { applyCouponToQuote } from "@/lib/couponQuote";
+import { applyShippingToQuote } from "@/lib/shippingQuote";
 import { getSelectedMarket } from "@/lib/marketSelection";
 import { createClient } from "@/lib/supabase/server";
 
@@ -254,9 +255,20 @@ export async function POST(request: NextRequest) {
     }
 
     const promotionQuote = await applyPromotionsToQuote(baseQuote);
-    const quote = await applyCouponToQuote(promotionQuote, couponCode);
+    const couponQuote = await applyCouponToQuote(promotionQuote, couponCode);
+    const quote = await applyShippingToQuote(couponQuote);
 
-    if (!quote.canCheckout) {
+    if (quote.shippingStatus === "configuration_missing") {
+      return jsonNoStore(
+        {
+          valid: false,
+          error: "Shipping is not configured for the selected market yet.",
+        },
+        409
+      );
+    }
+
+    if (!quote.canCheckout || quote.finalTotal === null) {
       return jsonNoStore(
         { valid: false, error: "Cart changed and must be reviewed before checkout." },
         409
@@ -280,6 +292,11 @@ export async function POST(request: NextRequest) {
         couponDiscountTotal: quote.couponDiscountTotal,
         couponCode: quote.couponCode,
         subtotal: quote.subtotal,
+        merchandiseSubtotal: quote.merchandiseSubtotal,
+        shippingFee: quote.shippingFee,
+        freeShippingThreshold: quote.freeShippingThreshold,
+        shippingStatus: quote.shippingStatus,
+        finalTotal: quote.finalTotal,
         canCheckout: quote.canCheckout,
       },
       nextStepReady: true,
