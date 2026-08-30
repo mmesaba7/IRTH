@@ -250,56 +250,77 @@ Verification:
 
 ## S15.4.4 — Coupon Calculation
 
-**Status: CURRENT 🟨 — IMPLEMENTATION IN GIT, VERIFICATION PENDING**
+**Status: CLOSED ✅**
 
-Approved:
-
-- 21A Percentage Coupon calculation.
-- 22A proportional allocation and deterministic remainder.
-- 23A Promotion-only wins an exact non-stackable tie.
-- 24A non-stackable comparison affects Coupon-eligible lines only.
-- SEC-B1 secure Coupon lookup RPC boundary.
-
-Implemented in Git so far:
+Implemented:
 
 - `supabase/migrations/20260830163234_add_secure_coupon_lookup.sql`.
 - Private `SECURITY DEFINER` Coupon lookup with pinned empty `search_path`.
 - Public `SECURITY INVOKER` wrapper.
-- Narrow return surface: one matching Coupon plus server-resolved eligible Product IDs.
-- Product eligibility boundary re-checks published Product, active Artisan/Craft/Country and active Market price.
-- Coupon money values return as text for exact JavaScript-side arithmetic.
-- Total usage limit is checked without consuming usage.
+- Narrow lookup return surface: one matching Coupon plus server-resolved eligible Product IDs.
+- Lookup validates active Market, normalized code, active time window, enabled state and total usage limit.
+- Product eligibility re-checks published Product, active Artisan/Craft/Country and active Market price.
+- Artisan-funded Coupon scope is enforced at the trusted lookup boundary.
 - `src/lib/couponQuote.ts` server-only calculation layer.
-- Percentage Coupon calculation on total eligible subtotal once.
-- Fixed Coupon cap at eligible subtotal.
+- Percentage Coupon calculated once on total eligible subtotal.
+- Fixed Coupon applied cart-level once and capped at eligible subtotal.
 - Percentage `max_discount_amount` cap.
-- Minimum-order check on the approved stackable/non-stackable basis.
-- Proportional line allocation using largest fractional remainder and deterministic `product_id` ties.
-- Stackable Coupon after Promotion.
-- Non-stackable eligible-line Promotion-only vs Coupon-only comparison.
-- 23A exact tie → Promotion preferred.
-- 24A non-eligible lines retain their Promotions.
-- Coupon funding split: IRTH vs Artisan.
-- Optional `couponCode` parsing in `/api/cart/quote`; no client price/discount/total is trusted.
-- Quote does not create `coupon_redemptions` rows.
+- Minimum-order semantics use the approved stackable/non-stackable basis.
+- Exact currency-aware string/integer arithmetic with Round Half-Up.
+- Proportional line allocation uses largest fractional remainder; exact ties use `product_id`.
+- Stackable Coupon applies after Product Promotion.
+- Non-stackable comparison is limited to Coupon-eligible lines.
+- 23A exact tie keeps Promotion-only.
+- 24A preserves unrelated Promotions outside Coupon scope.
+- Coupon funding split is tracked separately for IRTH vs Artisan.
+- `/api/cart/quote` accepts optional `couponCode`; client prices/discounts/subtotals/totals are never trusted.
+- Quote does not consume Coupon usage or create Redemption rows.
 
-Verification completed before local migration application:
+Primary files:
 
-- Secure Coupon lookup DDL dry-run passed inside a transaction.
-- Invalid Coupon lookup returned zero rows.
-- Dry-run rollback confirmed no Coupon lookup functions remained on Remote.
-- Exact integer division/proportional-allocation helper checks passed for representative allocations.
+```text
+supabase/migrations/20260830163234_add_secure_coupon_lookup.sql
+src/lib/couponQuote.ts
+src/app/api/cart/quote/route.ts
+supabase/seed.sql
+scripts/test-coupon-e2e.mjs
+package.json
+```
 
-Still required before S15.4.4 can close:
+Verification completed:
 
-- Pull latest Git changes locally.
-- Full local `supabase db reset` including the secure Coupon lookup migration.
-- Focused ESLint / TypeScript production build.
-- Remote `db push` after local migration replay passes.
-- Remote function privileges/security verification and Advisors.
-- Controlled calculation edge tests for stackable, non-stackable, minimum, max cap, restrictions, funding, tie and rounding.
+- Full local migration replay/reset passed, including Coupon lookup migration and local-only test seed.
+- Production Build / TypeScript passed.
+- Secure Coupon lookup migration pushed to Remote successfully.
+- Remote function modes verified: private lookup `SECURITY DEFINER`, public wrapper `SECURITY INVOKER`.
+- Remote function privileges / narrow access boundary verified.
+- Plain authenticated user cannot read Coupon rows through RLS.
+- Security Advisor showed no new S15.4.4-specific warning.
+- Code normalization test passed.
+- Wrong-Market and invalid Coupon tests passed.
+- Expired Coupon and exhausted total-usage tests passed.
+- Product restriction and Artisan-funded scope tests passed.
+- Quote lookup produced no Redemption consumption at the DB boundary.
+- Local E2E test passed through the real `/api/cart/quote` path.
+- Stackable Percentage and Fixed Coupons passed.
+- Proportional allocation and deterministic remainder tie-break passed.
+- Non-stackable Coupon-win, Promotion-win, and exact-tie paths passed.
+- Decision 24A passed: Promotions on Coupon-ineligible lines remain active.
+- Minimum order, Percentage max cap, Round Half-Up, Product/Craft restriction union, and Artisan funding attribution passed.
 
-Usage must still **not** be consumed during Quote.
+Final E2E command:
+
+```text
+npm.cmd run test:coupon-e2e
+```
+
+Final result:
+
+```text
+PASS S15.4.4 coupon quote E2E
+```
+
+Usage remains intentionally **not consumed during Quote**. Real Coupon consumption belongs to the future Order creation transaction after server-side revalidation.
 
 ---
 
@@ -319,7 +340,21 @@ Those remain in their approved later modules.
 
 ---
 
-# 6. Documentation Rule Going Forward
+# 6. Next S15.4 Task
+
+## S15.4.5 — Cart UI
+
+**Status: NEXT**
+
+Goal:
+
+Expose the already trusted Promotion/Coupon quote outputs in the Cart UX without duplicating commerce calculation on the client.
+
+The UI must consume server-authoritative values from `/api/cart/quote` and must not calculate trusted discounts locally.
+
+---
+
+# 7. Documentation Rule Going Forward
 
 When a new approved decision affects any of the following, record it before closing the task:
 
