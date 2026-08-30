@@ -39,9 +39,9 @@ This register records owner-approved S15.5 Checkout Foundation decisions. It sup
 ```text
 S15.5.1 Trusted Checkout Summary ✅
         ↓
-S15.5.2 Customer Details + Guest Checkout Foundation ← CURRENT
+S15.5.2 Customer Details + Guest Checkout Foundation ✅
         ↓
-S15.5.3 Shipping / Final Total Boundary
+S15.5.3 Shipping / Final Total Boundary ← NEXT
         ↓
 S15.5.4 Order Creation Transactional Design
         ↓
