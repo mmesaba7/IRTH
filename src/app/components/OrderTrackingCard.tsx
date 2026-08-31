@@ -36,8 +36,8 @@ function reviewStatusLabel(value: string | null) {
 
 function reviewHref(slug: string, orderItemId: string, guestToken?: string) {
   const query = new URLSearchParams({ orderItemId });
-  if (guestToken) query.set("guestToken", guestToken);
-  return `/product/${slug}/review?${query.toString()}`;
+  const base = `/product/${slug}/review?${query.toString()}`;
+  return guestToken ? `${base}#access=${encodeURIComponent(guestToken)}` : base;
 }
 
 export default function OrderTrackingCard({
