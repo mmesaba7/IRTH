@@ -63,6 +63,7 @@ export default function DashboardAdminPage() {
   const nav = [
     ["📦 Orders", "Manage all orders", "/dashboard-admin/orders"],
     ["↩ Returns", `${data.counts.openReturns} open`, "/dashboard-admin/returns"],
+    ["👥 Customers", "Accounts, suspension & support notes", "/dashboard-admin/customers"],
     ["👤 Artisans", "Manage artisans", "/dashboard-admin/artisans"],
     ["🛍️ Products", "Manage products", "/dashboard-admin/products"],
     ["💰 Commission", "Craft defaults & overrides", "/dashboard-admin/commission"],
