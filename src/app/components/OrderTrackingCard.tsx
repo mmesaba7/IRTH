@@ -111,6 +111,12 @@ export default function OrderTrackingCard({
                   <div>
                     <p className="font-medium text-[var(--color-espresso)]">{item.nameEn}</p>
                     <p className="mt-1 text-xs text-[var(--text-muted)]">Quantity: {item.quantity}</p>
+                    {item.customizationText && (
+                      <div className="mt-3 rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-3">
+                        <p className="text-xs font-medium text-[var(--text-muted)]">Customization request</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--color-espresso)]">{item.customizationText}</p>
+                      </div>
+                    )}
                   </div>
                   <p className="shrink-0 text-[var(--color-copper)]">{order.currencyCode} {item.lineTotal}</p>
                 </div>
