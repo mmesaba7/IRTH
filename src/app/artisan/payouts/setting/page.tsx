@@ -1,198 +1,297 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import Header from "../../../components/Header";
+import Link from "next/link";
 
-type PayoutSettings = {
-  bankName: string;
-  accountNumber: string;
-  accountHolder: string;
-  iban: string;
-  swift: string;
-  verified: boolean;
+type PayoutAccountStatus = {
+  payout_account_id: string;
+  method: string;
+  status: "pending_verification" | "active" | "rejected" | "superseded";
+  requested_at: string;
+  reviewed_at: string | null;
+  activated_at: string | null;
+  review_note: string | null;
 };
 
+type FormState = {
+  bankName: string;
+  accountHolder: string;
+  accountNumber: string;
+  iban: string;
+  swift: string;
+};
+
+const EMPTY_FORM: FormState = {
+  bankName: "",
+  accountHolder: "",
+  accountNumber: "",
+  iban: "",
+  swift: "",
+};
+
+function formatDate(value: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("ar-EG");
+}
+
 export default function PayoutSettingsPage() {
-  const router = useRouter();
-  const [settings, setSettings] = useState<PayoutSettings>({
-    bankName: "",
-    accountNumber: "",
-    accountHolder: "",
-    iban: "",
-    swift: "",
-    verified: false,
-  });
+  const [accounts, setAccounts] = useState<PayoutAccountStatus[]>([]);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-
-    const saved = localStorage.getItem("irth-artisan-payout-settings");
-    if (saved) {
-      setSettings(JSON.parse(saved));
+  const loadStatus = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/artisan/payout-account", {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body?.error || "تعذر تحميل حالة بيانات الصرف");
+      }
+      setAccounts(Array.isArray(body?.payoutAccounts) ? body.payoutAccounts : []);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "تعذر تحميل حالة بيانات الصرف"
+      );
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [router]);
+  }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setSettings((prev) => ({ ...prev, [name]: value }));
-  };
+  useEffect(() => {
+    void loadStatus();
+  }, [loadStatus]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const pending = accounts.find(
+    (account) => account.status === "pending_verification"
+  );
+  const active = accounts.find((account) => account.status === "active");
+  const latestRejected = accounts.find((account) => account.status === "rejected");
+
+  function updateField(name: keyof FormState, value: string) {
+    setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending || saving) return;
+
     setSaving(true);
+    setError("");
     setMessage("");
 
-    // نضيف حالة "قيد المراجعة"
-    const updatedSettings = { ...settings, verified: false };
-    localStorage.setItem(
-      "irth-artisan-payout-settings",
-      JSON.stringify(updatedSettings)
-    );
+    try {
+      const response = await fetch("/api/artisan/payout-account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body?.error || "تعذر إرسال بيانات الصرف");
+      }
 
-    setSaving(false);
-    setMessage("✅ تم حفظ البيانات، في انتظار مراجعة إرث");
-  };
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-[var(--background)]">
-        <Header />
-        <div className="flex h-96 items-center justify-center">
-          <p>جاري التحميل...</p>
-        </div>
-      </main>
-    );
+      // Sensitive values are intentionally removed from browser memory after submit.
+      setForm(EMPTY_FORM);
+      setMessage(
+        body?.payoutAccount?.changed
+          ? "تم إرسال بيانات الصرف بشكل مشفّر وهي الآن في انتظار مراجعة IRTH."
+          : "هذه البيانات مسجلة بالفعل ولا تحتاج طلبًا جديدًا."
+      );
+      await loadStatus();
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "تعذر إرسال بيانات الصرف"
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
       <Header />
-
       <section className="mx-auto max-w-3xl px-6 py-10 md:py-16">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
               Artisan Panel
             </p>
             <h1 className="mt-1 font-[var(--font-display)] text-4xl font-normal text-[var(--color-espresso)]">
-              ⚙️ إعدادات الصرف
+              إعدادات الصرف
             </h1>
-            <p className="text-[var(--text-secondary)]">
-              بيانات حسابك البنكي لاستلام المستحقات
+            <p className="mt-2 text-[var(--text-secondary)]">
+              بيانات البنك تُشفّر على السيرفر قبل تخزينها، ولا يتم حفظها في Local Storage.
             </p>
           </div>
+          <Link
+            href="/artisan/payouts"
+            className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
+          >
+            رجوع للمستحقات
+          </Link>
         </div>
 
-        {message && (
-          <div className="mt-6 rounded-[var(--radius-md)] bg-green-50 p-4 text-sm text-green-700">
-            {message}
-          </div>
-        )}
+        <div className="mt-8 space-y-3">
+          {loading ? (
+            <div className="rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-secondary)]">
+              جاري تحميل الحالة...
+            </div>
+          ) : pending ? (
+            <div className="rounded-[var(--radius-md)] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              <strong>قيد المراجعة.</strong> تم إرسال آخر تغيير في {formatDate(pending.requested_at)}. لن نسمح بإرسال تغيير آخر قبل انتهاء المراجعة الحالية.
+            </div>
+          ) : active ? (
+            <div className="rounded-[var(--radius-md)] border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+              <strong>بيانات الصرف معتمدة.</strong> تم التفعيل في {formatDate(active.activated_at)}. لو أرسلت بيانات جديدة ستظل البيانات الحالية نشطة حتى تعتمد IRTH التغيير الجديد.
+            </div>
+          ) : (
+            <div className="rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-secondary)]">
+              لا توجد بيانات صرف معتمدة حتى الآن.
+            </div>
+          )}
 
-        {settings.verified && (
-          <div className="mt-6 rounded-[var(--radius-md)] bg-green-50 p-4 text-sm text-green-700">
-            ✅ تم التحقق من بيانات الصرف الخاصة بك.
-          </div>
-        )}
+          {!pending && latestRejected?.review_note && (
+            <div className="rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              ملاحظة آخر مراجعة: {latestRejected.review_note}
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-              اسم البنك
-            </label>
-            <input
-              type="text"
-              name="bankName"
-              value={settings.bankName}
-              onChange={handleChange}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-              placeholder="مثال: البنك الأهلي المصري"
-              required
+          {message && (
+            <div className="rounded-[var(--radius-md)] border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+              {message}
+            </div>
+          )}
+          {error && (
+            <div className="rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
+          <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
+            {active ? "طلب تغيير بيانات البنك" : "إضافة بيانات البنك"}
+          </h2>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            لأسباب أمنية لا نعرض أو نملأ بيانات البنك القديمة تلقائيًا. عند التغيير اكتب البيانات الجديدة كاملة.
+          </p>
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-5" autoComplete="off">
+            <Field
+              label="اسم البنك"
+              value={form.bankName}
+              onChange={(value) => updateField("bankName", value)}
+              placeholder="اسم البنك"
+              disabled={Boolean(pending) || saving}
             />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-              رقم الحساب
-            </label>
-            <input
-              type="text"
-              name="accountNumber"
-              value={settings.accountNumber}
-              onChange={handleChange}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-              placeholder="مثال: 1234567890"
-              required
+            <Field
+              label="اسم صاحب الحساب"
+              value={form.accountHolder}
+              onChange={(value) => updateField("accountHolder", value)}
+              placeholder="الاسم كما هو مسجل في البنك"
+              disabled={Boolean(pending) || saving}
             />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-              اسم صاحب الحساب
-            </label>
-            <input
-              type="text"
-              name="accountHolder"
-              value={settings.accountHolder}
-              onChange={handleChange}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-              placeholder="مثال: أحمد حسن"
-              required
+            <Field
+              label="رقم الحساب"
+              value={form.accountNumber}
+              onChange={(value) => updateField("accountNumber", value)}
+              placeholder="رقم الحساب البنكي"
+              disabled={Boolean(pending) || saving}
+              sensitive
             />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-              IBAN (اختياري)
-            </label>
-            <input
-              type="text"
-              name="iban"
-              value={settings.iban}
-              onChange={handleChange}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-              placeholder="مثال: EG1234567890"
+            <Field
+              label="IBAN — اختياري"
+              value={form.iban}
+              onChange={(value) => updateField("iban", value)}
+              placeholder="IBAN عند توفره"
+              disabled={Boolean(pending) || saving}
+              sensitive
+              required={false}
             />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
-              SWIFT Code (اختياري)
-            </label>
-            <input
-              type="text"
-              name="swift"
-              value={settings.swift}
-              onChange={handleChange}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-              placeholder="مثال: NBEGEGCX"
+            <Field
+              label="SWIFT / BIC — اختياري"
+              value={form.swift}
+              onChange={(value) => updateField("swift", value)}
+              placeholder="SWIFT أو BIC عند توفره"
+              disabled={Boolean(pending) || saving}
+              sensitive
+              required={false}
             />
-          </div>
 
-          <div className="flex gap-4 pt-4">
+            <div className="rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4 text-xs leading-6 text-[var(--text-secondary)]">
+              لن يتم تفعيل أي بيانات جديدة فور الإرسال. كل إضافة أو تغيير يظل <strong>Pending Verification</strong> حتى مراجعة IRTH واعتمادها.
+            </div>
+
             <button
               type="submit"
-              disabled={saving}
-              className="flex-1 rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:opacity-50"
+              disabled={Boolean(pending) || saving}
+              className="w-full rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {saving ? "جاري الحفظ..." : "💾 حفظ البيانات"}
+              {saving
+                ? "جاري التشفير والإرسال..."
+                : pending
+                ? "يوجد طلب تغيير قيد المراجعة"
+                : active
+                ? "إرسال طلب التغيير للمراجعة"
+                : "إرسال البيانات للمراجعة"}
             </button>
-
-            <button
-              type="button"
-              onClick={() => router.push("/artisan/payouts")}
-              className="flex-1 rounded-[var(--radius-md)] border border-[var(--border-soft)] px-6 py-4 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-muted)]"
-            >
-              إلغاء
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </section>
     </main>
   );
 }
 
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  sensitive = false,
+  required = true,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  disabled: boolean;
+  sensitive?: boolean;
+  required?: boolean;
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-medium text-[var(--color-espresso)]">
+        {label}
+      </label>
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        required={required}
+        autoComplete="off"
+        autoCapitalize={sensitive ? "none" : undefined}
+        spellCheck={false}
+        className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)] disabled:bg-[var(--surface-muted)] disabled:opacity-70"
+      />
+    </div>
+  );
+}
