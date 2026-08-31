@@ -33,6 +33,7 @@ export type CustomerShipmentTracking = {
 };
 
 export type CustomerOrderTracking = {
+  orderId: string;
   orderNumber: string;
   status: string;
   paymentStatus: string;
