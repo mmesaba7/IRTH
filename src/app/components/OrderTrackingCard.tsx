@@ -34,7 +34,21 @@ function reviewStatusLabel(value: string | null) {
   }[value] ?? value.replaceAll("_", " ");
 }
 
-export default function OrderTrackingCard({ order, defaultOpen = false }: { order: CustomerOrderTracking; defaultOpen?: boolean }) {
+function reviewHref(slug: string, orderItemId: string, guestToken?: string) {
+  const query = new URLSearchParams({ orderItemId });
+  if (guestToken) query.set("guestToken", guestToken);
+  return `/product/${slug}/review?${query.toString()}`;
+}
+
+export default function OrderTrackingCard({
+  order,
+  defaultOpen = false,
+  guestToken,
+}: {
+  order: CustomerOrderTracking;
+  defaultOpen?: boolean;
+  guestToken?: string;
+}) {
   const reachedStageIndex = highestReachedStageIndex(order);
   const exceptionalStatus = ["cancelled", "returned", "delivery_failed"].includes(order.status);
 
@@ -97,14 +111,14 @@ export default function OrderTrackingCard({ order, defaultOpen = false }: { orde
                   {!item.deliveredAt ? (
                     <p className="text-xs text-[var(--text-muted)]">Review becomes available after this Artisan shipment is delivered.</p>
                   ) : !item.reviewId ? (
-                    <Link href={`/product/${item.slug}/review?orderItemId=${encodeURIComponent(item.orderItemId)}`} className="text-sm font-medium text-[var(--color-copper)] hover:underline">
+                    <Link href={reviewHref(item.slug, item.orderItemId, guestToken)} referrerPolicy="no-referrer" className="text-sm font-medium text-[var(--color-copper)] hover:underline">
                       Review verified purchase →
                     </Link>
                   ) : (
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-xs text-[var(--text-secondary)]">Review: {reviewStatusLabel(item.reviewStatus)}</p>
                       {item.reviewEditCount === 0 && (
-                        <Link href={`/product/${item.slug}/review?orderItemId=${encodeURIComponent(item.orderItemId)}`} className="text-sm font-medium text-[var(--color-copper)] hover:underline">
+                        <Link href={reviewHref(item.slug, item.orderItemId, guestToken)} referrerPolicy="no-referrer" className="text-sm font-medium text-[var(--color-copper)] hover:underline">
                           Edit review once →
                         </Link>
                       )}
