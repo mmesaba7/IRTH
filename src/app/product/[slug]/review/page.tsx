@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import Header from "../../../components/Header";
+import ReviewImagesEditor from "../../../components/ReviewImagesEditor";
 
 type ReviewContext = {
   orderItemId: string;
@@ -121,7 +122,7 @@ export default function ProductReviewPage() {
       if (!response.ok) throw new Error(body?.error || "تعذر حفظ التقييم.");
       setMessage(editing
         ? "تم إرسال التعديل إلى IRTH للمراجعة. هذا هو التعديل الوحيد المسموح لهذا الشراء."
-        : "تم إرسال التقييم إلى IRTH للمراجعة. سيظهر للعامة بعد الموافقة.");
+        : "تم إرسال التقييم إلى IRTH للمراجعة. يمكنك الآن إضافة الصور بأمان قبل مراجعة IRTH.");
       setContext((current) => current ? {
         ...current,
         review: {
@@ -166,7 +167,13 @@ export default function ProductReviewPage() {
 
         {context?.review && (
           <div className="mt-6 rounded-[var(--radius-md)] border border-[var(--border-soft)] p-4 text-sm text-[var(--text-secondary)]">
-            الحالة الحالية: <strong>{context.review.status.replaceAll("_", " ")}</strong>. {context.review.editCount === 0 ? "يمكنك تعديل هذا التقييم مرة واحدة فقط." : "تم استخدام التعديل الوحيد المسموح."}
+            الحالة الحالية: <strong>{context.review.status.replaceAll("_", " ")}</strong>. {context.review.editCount === 0 ? "يمكنك تعديل نص وتقييم هذا الـReview مرة واحدة فقط." : "تم استخدام التعديل الوحيد المسموح."}
+          </div>
+        )}
+
+        {context?.review?.status === "pending_review" && (
+          <div className="mt-6">
+            <ReviewImagesEditor reviewId={context.review.id} guestToken={guestToken} />
           </div>
         )}
 
@@ -179,10 +186,10 @@ export default function ProductReviewPage() {
               <textarea value={reviewText} onChange={(event) => setReviewText(event.target.value)} maxLength={4000} required rows={6} className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]" placeholder="احكي تجربتك الحقيقية مع المنتج والحرفي..." />
             </div>
             <div className="rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4 text-xs leading-6 text-[var(--text-secondary)]">
-              التقييم لا يُنشر فورًا؛ يمر بمراجعة IRTH أولًا. رفع الصور سيتم تفعيله وفق الحدود المعتمدة: حتى 4 صور، 5 MB للصورة، JPEG/PNG/WebP فقط، في Private Storage، ولا تظهر للعامة قبل موافقة IRTH.
+              التقييم لا يُنشر فورًا؛ يمر بمراجعة IRTH أولًا. بعد حفظ التقييم يمكنك إضافة حتى 4 صور، 5 MB للصورة، JPEG/PNG/WebP فقط، في Private Storage. الصور لا تظهر للعامة قبل موافقة IRTH.
             </div>
             <button disabled={saving} className="w-full rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] hover:bg-[var(--color-copper)] disabled:opacity-50">
-              {saving ? "جاري الإرسال..." : context.review ? "إرسال التعديل للمراجعة" : "إرسال التقييم للمراجعة"}
+              {saving ? "جاري الإرسال..." : context.review ? "إرسال التعديل للمراجعة" : "حفظ التقييم ثم إضافة الصور"}
             </button>
           </form>
         )}
