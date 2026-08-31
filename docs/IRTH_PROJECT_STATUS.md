@@ -3,7 +3,7 @@
 **Project:** IRTH  
 **Document Purpose:** Current implementation status of the IRTH MVP  
 **Last Updated:** 31 August 2026  
-**Current Position:** Phase 6 — M2 Payment Core review after M1.1 Settlement Ledger closure
+**Current Position:** Phase 6 — M3 First Online Payment Provider selection after M2 Payment Core closure
 
 ---
 
@@ -63,7 +63,7 @@ Orders                      ✅ Core + Fulfillment + Shipping + Tracking + Notif
 Shipping                    🟨 Manual Shipment lifecycle + Tracking real; Courier API later
 Tracking                    ✅ Customer + Guest + Admin Tracking CLOSED
 Notifications               ✅ Notification Foundation v0.1 CLOSED
-Money                       🟨 M1.1 Settlement Ledger CLOSED; Payment Core is next
+Money                       🟨 M1.1 Settlement Ledger CLOSED; M2 Payment Core CLOSED; M3 Gateway selection is next
 Returns / Refunds           🟨 Required by MVP; detailed workflow still unresolved
 Reviews                     🟨 Existing UI/foundation; verified-purchase integration still required
 Testing & Final Polish      ⬜ Later
@@ -81,7 +81,8 @@ Shipping Status                 ✅ manual MVP foundation
 Tracking Metadata               ✅ CLOSED
 Customer / Guest Tracking       ✅ CLOSED
 Notification Foundation         ✅ CLOSED
-Money / Payment Core            ← NEXT REVIEW
+Money / Payment Core            ✅ CLOSED
+M3 Online Payment Provider      ← NEXT
 ```
 
 ---
@@ -558,24 +559,36 @@ Rules:
 
 ---
 
-# 6. NEXT — M2 Provider-Independent Payment Core Review
+# 6. NEXT — M3 First Online Payment Provider
 
-The approved Phase 6 sequence now advances from M1.1 into **M2 Payment Core**.
+M2 Provider-Independent Payment Core is CLOSED ✅
 
-M1.1 is closed and must be reused, not rebuilt.
+Implemented:
+- Dedicated Payment Domain.
+- Payment methods: COD / Online.
+- Payment attempts + append-only events foundation.
+- Trusted payment transitions.
+- COD confirmation / collection boundaries.
+- Online fulfillment gating.
+- Online expiry cancellation foundation.
+- Atomic finite-stock restoration for unpaid expired Online Orders.
+- Payment Status remains separate from Order Status.
 
-Before Payment DDL or application code is written, M2 review must define the smallest safe provider-independent Payment model for:
+Closure record:
 
-- Payment method / attempt / transaction-event history.
-- Trusted Payment status transitions.
-- COD collection lifecycle.
-- Online Payment attempt lifecycle.
-- Provider callback signature verification and idempotency boundary.
-- Failed / expired pending Online Payment handling.
-- Atomic finite-stock restoration when an unpaid Order is cancelled/expired where applicable.
-- Synchronization between the dedicated Payment Domain and `orders.payment_status` summary.
+docs/IRTH_M2_PAYMENT_CORE_CLOSURE.md
 
-The first Online Payment Gateway remains intentionally unselected until M3.
+NEXT:
+
+M3 — First Online Payment Provider
+
+Before implementation:
+1. Compare current Egypt-compatible payment gateways using official sources.
+2. Review pricing, settlement, cards/wallets, refunds, webhook support and developer integration.
+3. Owner selects the first MVP Gateway.
+4. Implement one provider adapter on top of the existing Payment Core.
+
+No Payment Gateway has been selected yet.
 
 ---
 
@@ -612,11 +625,12 @@ Do not rebuild S15.4.
 
 ## Payment
 
-**Status: NOT IMPLEMENTED ⬜ — M2 REVIEW NEXT**
+**Status: M2 PAYMENT CORE CLOSED ✅ — M3 GATEWAY NEXT**
 
-Payment Layer remains separate from Checkout / Order.
-A dedicated provider-independent Payment Domain is approved.
-First Online Payment Gateway remains intentionally unresolved until M3.
+Provider-independent Payment Core is implemented.
+COD is wired to Checkout.
+Online Payment architecture is ready but the first real Gateway is not selected yet.
+M3 will select and integrate one Online Payment Provider.
 
 ## Payout
 
