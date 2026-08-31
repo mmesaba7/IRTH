@@ -3,7 +3,7 @@
 **Project:** IRTH  
 **Document Purpose:** Current implementation status of the IRTH MVP  
 **Last Updated:** 31 August 2026  
-**Current Position:** Phase 6 — M4 Returns / Refunds; M4.1 Return Foundation CLOSED, M4.2 Refund Money Logic next. Real Online Gateway selection/integration is intentionally deferred.
+**Current Position:** Phase 6 — M4 Returns / Refunds backend foundation CLOSED; M5 Payout Eligibility Foundation is next. Real Online Gateway selection/integration remains intentionally deferred.
 
 ---
 
@@ -82,8 +82,8 @@ Orders                      ✅ Core + Fulfillment + Shipping + Tracking + Notif
 Shipping                    🟨 Manual Shipment lifecycle + Tracking real; Courier API later
 Tracking                    ✅ Customer + Guest + Admin Tracking CLOSED
 Notifications               ✅ Notification Foundation v0.1 CLOSED
-Money                       🟨 M1.1 Ledger + M2 Payment Core + M3.0 Gateway Compatibility CLOSED; real gateway deferred; M4 active
-Returns / Refunds           🟨 M4.1 secure Return Foundation CLOSED; M4.2 Refund Money Logic next
+Money                       🟨 M1.1 Ledger + M2 Payment Core + M3.0 Gateway Compatibility + M4 Returns/Refunds backend CLOSED; M5 next
+Returns / Refunds           ✅ Backend foundation CLOSED; UI/notifications remain for later Money UI stage
 Reviews                     🟨 Existing UI/foundation; verified-purchase integration still required
 Testing & Final Polish      ⬜ Later
 ```
@@ -104,7 +104,8 @@ Money / Payment Core            ✅ CLOSED
 M3.0 Gateway Compatibility      ✅ CLOSED
 M3 Real Gateway Integration     ⏸️ DEFERRED by owner
 M4.1 Return Foundation          ✅ CLOSED
-M4.2 Refund Money Logic         ← NEXT
+M4.2 Refund Money Logic         ✅ CLOSED
+M5 Payout Eligibility           ← NEXT
 ```
 
 ---
@@ -159,7 +160,7 @@ Checkpoint record:
 docs/IRTH_M3_0_PAYMENT_GATEWAY_COMPATIBILITY_CHECKPOINT.md
 ```
 
-## M4.1 — Return / Refund Foundation — CLOSED ✅
+## M4.1 — Return Workflow Foundation — CLOSED ✅
 
 Implemented:
 
@@ -170,12 +171,11 @@ Implemented:
 - Super Admin approve/reject, receive, and inspect transitions.
 - Restockable quantity captured at inspection.
 - Append-only Return audit events.
-- Controlled request → approve → receive → inspect rollback test passed.
 
 Still intentionally unresolved and not invented:
 
 - Return window duration.
-- Return shipping-cost responsibility.
+- Return shipping-cost responsibility policy beyond explicit per-refund IRTH exception.
 - Excluded return cases.
 - Custom / Made-to-Order return policy.
 
@@ -185,23 +185,53 @@ Closure record:
 docs/IRTH_M4_1_RETURN_REFUND_FOUNDATION_CLOSURE.md
 ```
 
-## M4.2 — Refund Money Logic — NEXT
+## M4.2 — Refund Money Logic — CLOSED ✅
 
-Owner-approved MVP recommendation for implementation:
+Implemented:
 
-- Refund merchandise value for the approved returned quantity using trusted historical Order Item money snapshots and the actual customer merchandise amount after discounts.
-- Shipping fee is **not automatically refunded**. Any shipping refund is an explicit IRTH-controlled exception until a broader policy is approved.
-- Refund accounting must create append-only settlement reversals rather than rewriting historical sale entries.
-- Commission and Artisan entitlement reversal must be proportional to the approved refunded quantity and preserve the distinction between IRTH-funded and Artisan-funded discounts.
-- Refund execution remains provider-independent and the browser cannot declare refund success.
+- Private `refunds` + `refund_items` financial snapshots.
+- `partially_refunded` / `refunded` Payment summary states.
+- Currency-aware cumulative proportional allocation for split partial refunds.
+- Customer merchandise refund from historical trusted sale amounts.
+- Shipping refund defaults to zero and is explicit IRTH-controlled only.
+- Cumulative shipping refund cannot exceed historical Order shipping.
+- Append-only settlement reversals for merchandise, IRTH subsidy, and Commission.
+- Provider-independent trusted Refund success boundary.
+- Browser cannot declare Refund success.
+- Restockable finite inventory restored exactly once after inspected trusted Refund success.
+- Payment and Return audit events.
+- Idempotent repeated success handling.
+
+Controlled rollback-safe tests passed for:
+
+- Split quantity refund reconciliation.
+- Full Payment refund including explicit shipping exception.
+- Partial Payment status when shipping is retained.
+- IRTH-funded subsidy reversal.
+- Commission reversal.
+- Inventory restoration.
+- Over-refund prevention.
+- Callback/idempotency replay.
+- Customer ownership/Admin authorization abuse cases.
+- Zero test leakage after rollback.
+
+Migration:
+
+```text
+supabase/migrations/20260831172254_create_refund_money_logic_foundation.sql
+```
+
+Closure record:
+
+```text
+docs/IRTH_M4_2_REFUND_MONEY_LOGIC_CLOSURE.md
+```
 
 ---
 
-# 6. Payout
+# 6. M5 — Payout Eligibility Foundation — NEXT
 
-**Status: NOT IMPLEMENTED ⬜**
-
-Approved sequence remains:
+Approved rule already exists:
 
 ```text
 Payment collected
@@ -213,21 +243,37 @@ Configured Return hold ends
 No unresolved Return / Refund condition
 ↓
 Eligible
-↓
-Manual Super Admin Payout Batch
-↓
-Bank Transfer
 ```
+
+Important unresolved Product/Legal value:
+
+```text
+Exact Return Hold duration = NOT YET APPROVED
+```
+
+M5 must therefore:
+
+- Store/configure the Return Hold duration without inventing a number.
+- Fail closed while the required configuration is missing.
+- Require collected Payment.
+- Require Delivery.
+- Block eligibility while Return/Refund is unresolved.
+- Derive eligible Artisan amount from append-only settlement history rather than client-side calculations.
+- Keep payout execution separate from eligibility.
+
+---
+
+# 7. Payout
+
+**Status: NOT IMPLEMENTED ⬜**
 
 Approved MVP payout method: **Bank Transfer**.
 Approved MVP payout execution model: **Manual Super Admin-controlled Payout Batches**.
 Automated payout scheduling is deferred.
 
-Return-hold duration is not yet approved and must not be invented.
-
 ---
 
-# 7. Taxes / Withholdings
+# 8. Taxes / Withholdings
 
 No automatic tax or withholding rule/rate is invented.
 
@@ -237,22 +283,28 @@ Before real production payouts, any legally required withholding/tax handling mu
 
 ---
 
-# 8. Known Security Debt
+# 9. Security Review Notes
 
-Known pre-existing items remain tracked separately from current Money work:
+Known pre-existing items remain tracked:
 
 - Legacy authenticated-executable SECURITY DEFINER function `public.review_product_market_price_request(...)`.
 - Supabase Auth Leaked Password Protection disabled.
-- Security Advisor INFO for RLS-enabled tables with no policies where access is intentionally controlled through narrow RPC boundaries must still be reviewed before production.
+- Security Advisor INFO for selected RLS-enabled/no-policy tables using narrow RPC boundaries.
 
-These are not to be silently ignored before production launch.
+M4 additionally uses intentional guarded authenticated `SECURITY DEFINER` Return/Admin RPCs with fixed empty `search_path` and in-function ownership/Super-Admin authorization. Explicit abuse tests passed. Reassess whether to move more of these boundaries behind Next.js server-only routes when Return UI/API is implemented.
+
+Security Advisor references:
+
+- https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable
+- https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
+- https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
 
 ---
 
-# 9. Immediate Next Task
+# 10. Immediate Next Task
 
 ```text
-M4.2 — Refund Calculation + Payment/Ledger Settlement Reversal
+M5 — Payout Eligibility Foundation
 ```
 
-After M4 Refund execution is correctly closed, continue the approved Money sequence toward Payout Eligibility and Payouts. Real Payment Gateway selection/integration remains deferred until the owner reopens it.
+Real Payment Gateway selection/integration remains deferred until the owner reopens it.
