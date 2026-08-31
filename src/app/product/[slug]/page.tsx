@@ -26,6 +26,11 @@ type ProductMedia = {
   signedUrl: string;
 };
 
+type StoredCartEntry = {
+  slug: string;
+  customizationText?: string | null;
+};
+
 export default function ProductPage() {
   const params = useParams();
   const router = useRouter();
@@ -35,6 +40,8 @@ export default function ProductPage() {
   const [media, setMedia] = useState<ProductMedia[]>([]);
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [customizationText, setCustomizationText] = useState("");
+  const [cartError, setCartError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const savedSnapshot = useSyncExternalStore(
@@ -73,6 +80,8 @@ export default function ProductPage() {
         }
 
         setProduct(publicProduct);
+        setCustomizationText("");
+        setCartError("");
         recordRecentlyViewed(publicProduct.slug);
 
         try {
@@ -144,9 +153,47 @@ export default function ProductPage() {
 
   const handleAddToCart = () => {
     if (!product || !canAddToCart) return;
+    setCartError("");
+
+    const normalizedCustomization = product.customization
+      ? customizationText.trim()
+      : "";
+
+    if (normalizedCustomization.length > 500) {
+      setCartError("Customization request cannot exceed 500 characters.");
+      return;
+    }
+
     const storedCart = JSON.parse(localStorage.getItem("irth-cart") || "[]") as unknown;
-    const cart = Array.isArray(storedCart) ? storedCart : [];
-    const additions = Array.from({ length: quantity }, () => ({ slug: product.slug }));
+    const cart: StoredCartEntry[] = Array.isArray(storedCart)
+      ? storedCart.filter(
+          (item): item is StoredCartEntry =>
+            typeof item === "object" &&
+            item !== null &&
+            "slug" in item &&
+            typeof (item as { slug?: unknown }).slug === "string"
+        )
+      : [];
+
+    const existingEntries = cart.filter((item) => item.slug === product.slug);
+    const existingCustomization = existingEntries.length > 0
+      ? (existingEntries[0].customizationText ?? "").trim()
+      : null;
+
+    if (
+      existingCustomization !== null &&
+      existingCustomization !== normalizedCustomization
+    ) {
+      setCartError(
+        "This product is already in your cart with a different customization. Remove it from the cart first, then add the new request."
+      );
+      return;
+    }
+
+    const additions = Array.from({ length: quantity }, () => ({
+      slug: product.slug,
+      customizationText: normalizedCustomization || null,
+    }));
     localStorage.setItem("irth-cart", JSON.stringify([...cart, ...additions]));
     window.dispatchEvent(new Event("irth-cart-updated"));
     router.push("/cart");
@@ -219,7 +266,28 @@ export default function ProductPage() {
               {product.customization && <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1.5">Customization</span>}
             </div>
 
+            {product.customization && (
+              <label className="mt-7 block text-sm text-[var(--text-secondary)]">
+                Customization request <span className="text-[var(--text-muted)]">(optional)</span>
+                <textarea
+                  value={customizationText}
+                  onChange={(event) => {
+                    setCustomizationText(event.target.value.slice(0, 500));
+                    setCartError("");
+                  }}
+                  maxLength={500}
+                  rows={4}
+                  placeholder="Example: engrave the name Ahmed, use a specific color, or add a short artisan instruction."
+                  className="mt-2 w-full resize-y rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--color-espresso)] outline-none transition focus:border-[var(--color-copper)]"
+                />
+                <span className="mt-1 block text-right text-xs text-[var(--text-muted)]">
+                  {customizationText.length}/500
+                </span>
+              </label>
+            )}
+
             {availabilityMessage && <div className="mt-7 rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-secondary)]">{availabilityMessage}</div>}
+            {cartError && <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--color-terracotta)] p-4 text-sm text-[var(--color-terracotta)]">{cartError}</div>}
 
             <div className="mt-7 flex items-center gap-4">
               <span className="text-sm text-[var(--text-secondary)]">Quantity</span>
