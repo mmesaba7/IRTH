@@ -1,51 +1,21 @@
 "use client";
 
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { Product } from "../data/products";
 import Link from "next/link";
 import { useProductQuote } from "@/lib/useProductQuote";
+import {
+  ensureSavedProductsLoaded,
+  getSavedSnapshot,
+  getServerSavedSnapshot,
+  parseSavedSnapshot,
+  subscribeToSaved,
+  toggleSavedProduct,
+} from "@/lib/savedProductsClient";
 
 type ProductCardProps = {
   product: Product;
 };
-
-const EMPTY_SAVED_SNAPSHOT = "[]";
-
-function subscribeToSaved(onStoreChange: () => void) {
-  const handleSavedUpdated = () => onStoreChange();
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key === "irth-saved-products") {
-      onStoreChange();
-    }
-  };
-
-  window.addEventListener("irth-saved-updated", handleSavedUpdated);
-  window.addEventListener("storage", handleStorage);
-
-  return () => {
-    window.removeEventListener("irth-saved-updated", handleSavedUpdated);
-    window.removeEventListener("storage", handleStorage);
-  };
-}
-
-function getSavedSnapshot() {
-  return localStorage.getItem("irth-saved-products") ?? EMPTY_SAVED_SNAPSHOT;
-}
-
-function getServerSavedSnapshot() {
-  return EMPTY_SAVED_SNAPSHOT;
-}
-
-function parseSavedSnapshot(snapshot: string) {
-  try {
-    const parsed = JSON.parse(snapshot) as unknown;
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
 
 export default function ProductCard({ product }: ProductCardProps) {
   const { slug } = product;
@@ -62,16 +32,14 @@ export default function ProductCard({ product }: ProductCardProps) {
   const { quote, item, loading, marketRequired, error } = useProductQuote(slug, 1);
   const canAddToCart = item?.status === "available";
 
+  useEffect(() => {
+    void ensureSavedProductsLoaded();
+  }, []);
+
   const toggleSaved = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    const updated = saved
-      ? savedProducts.filter((item) => item !== slug)
-      : [...new Set([...savedProducts, slug])];
-
-    localStorage.setItem("irth-saved-products", JSON.stringify(updated));
-    window.dispatchEvent(new Event("irth-saved-updated"));
+    toggleSavedProduct(slug);
   };
 
   const accentColors = {
@@ -129,6 +97,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
           <button
             onClick={toggleSaved}
+            aria-label={saved ? "Remove from saved" : "Save product"}
             className={`absolute top-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--surface)]/90 text-lg backdrop-blur-sm transition-colors ${
               saved ? "text-[var(--color-copper)]" : "text-[var(--text-muted)] hover:text-[var(--color-espresso)]"
             }`}
