@@ -22,13 +22,10 @@ export default function Header() {
   useEffect(() => {
     const savedLocale = localStorage.getItem("irth-locale") as "ar" | "en" | null;
     if (savedLocale) setLocale(savedLocale);
-
     setIsMounted(true);
     updateCounts();
-
     window.addEventListener("irth-cart-updated", updateCounts);
     window.addEventListener("irth-saved-updated", updateCounts);
-
     return () => {
       window.removeEventListener("irth-cart-updated", updateCounts);
       window.removeEventListener("irth-saved-updated", updateCounts);
@@ -46,79 +43,32 @@ export default function Header() {
     <header className="border-b border-[var(--border-soft)] bg-[var(--background)]">
       <div className="mx-auto max-w-[var(--container-max)] px-6 py-5">
         <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="font-[var(--font-display)] text-2xl tracking-[0.08em] text-[var(--color-espresso)]"
-          >
-            IRTH
-          </Link>
+          <Link href="/" className="font-[var(--font-display)] text-2xl tracking-[0.08em] text-[var(--color-espresso)]">IRTH</Link>
 
-          <nav className="hidden items-center gap-9 text-sm md:flex">
+          <nav className="hidden items-center gap-8 text-sm md:flex">
             <Link href="/crafts" className="transition-colors hover:text-[var(--color-copper)]">Discover</Link>
             <Link href="/crafts" className="transition-colors hover:text-[var(--color-copper)]">Crafts</Link>
             <Link href="/artisans" className="transition-colors hover:text-[var(--color-copper)]">Artisans</Link>
             <Link href="/countries" className="transition-colors hover:text-[var(--color-copper)]">Countries</Link>
+            <Link href="/wholesale" className="transition-colors hover:text-[var(--color-copper)]">Wholesale</Link>
             <Link href="/recently-viewed" className="transition-colors hover:text-[var(--color-copper)]">Recently Viewed</Link>
             <Link href="/account/orders" className="transition-colors hover:text-[var(--color-copper)]">My Orders</Link>
           </nav>
 
           <div className="flex items-center gap-5">
-            <button
-              type="button"
-              aria-label={menuOpen ? "Close menu" : "Open menu"}
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="text-lg text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)] md:hidden"
-            >
-              {menuOpen ? "✕" : "☰"}
-            </button>
-
-            <Link
-              href="/search"
-              aria-label="Search"
-              className="text-lg text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]"
-            >
-              ⌕
-            </Link>
-
+            <button type="button" aria-label={menuOpen ? "Close menu" : "Open menu"} onClick={() => setMenuOpen(!menuOpen)} className="text-lg text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)] md:hidden">{menuOpen ? "✕" : "☰"}</button>
+            <Link href="/search" aria-label="Search" className="text-lg text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]">⌕</Link>
             <NotificationBell />
-
-            <Link
-              href="/saved"
-              aria-label="Saved items"
-              className="relative text-lg text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]"
-            >
+            <Link href="/saved" aria-label="Saved items" className="relative text-lg text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]">
               ♡
-              {savedCount > 0 && (
-                <span className="absolute -right-3 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-copper)] px-1 text-[10px] text-[var(--color-ivory)]">
-                  {savedCount}
-                </span>
-              )}
+              {savedCount > 0 && <span className="absolute -right-3 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-copper)] px-1 text-[10px] text-[var(--color-ivory)]">{savedCount}</span>}
             </Link>
-
-            <Link
-              href="/cart"
-              aria-label="Shopping cart"
-              className="relative text-lg text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]"
-            >
+            <Link href="/cart" aria-label="Shopping cart" className="relative text-lg text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]">
               🛒
-              {cartCount > 0 && (
-                <span className="absolute -right-3 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-copper)] px-1 text-[10px] text-[var(--color-ivory)]">
-                  {cartCount}
-                </span>
-              )}
+              {cartCount > 0 && <span className="absolute -right-3 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-copper)] px-1 text-[10px] text-[var(--color-ivory)]">{cartCount}</span>}
             </Link>
-
             <MarketSelector />
-
-            {isMounted && (
-              <button
-                type="button"
-                onClick={toggleLocale}
-                className="text-sm font-medium text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]"
-              >
-                {locale === "ar" ? "🇬🇧 EN" : "🇪🇬 عربي"}
-              </button>
-            )}
+            {isMounted && <button type="button" onClick={toggleLocale} className="text-sm font-medium text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]">{locale === "ar" ? "🇬🇧 EN" : "🇪🇬 عربي"}</button>}
           </div>
         </div>
       </div>
@@ -131,6 +81,8 @@ export default function Header() {
               <Link href="/crafts" onClick={() => setMenuOpen(false)} className="transition-colors hover:text-[var(--color-copper)]">Crafts</Link>
               <Link href="/artisans" onClick={() => setMenuOpen(false)} className="transition-colors hover:text-[var(--color-copper)]">Artisans</Link>
               <Link href="/countries" onClick={() => setMenuOpen(false)} className="transition-colors hover:text-[var(--color-copper)]">Countries</Link>
+              <Link href="/wholesale" onClick={() => setMenuOpen(false)} className="transition-colors hover:text-[var(--color-copper)]">Wholesale</Link>
+              <Link href="/account/orders" onClick={() => setMenuOpen(false)} className="transition-colors hover:text-[var(--color-copper)]">My Orders</Link>
             </div>
           </nav>
         </div>
