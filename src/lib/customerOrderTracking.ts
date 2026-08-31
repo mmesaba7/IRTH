@@ -1,4 +1,5 @@
 export type CustomerOrderItem = {
+  orderItemId: string;
   slug: string;
   nameAr: string | null;
   nameEn: string;
@@ -8,6 +9,10 @@ export type CustomerOrderItem = {
   promotionDiscount: string;
   couponDiscount: string;
   lineTotal: string;
+  deliveredAt: string | null;
+  reviewId: string | null;
+  reviewStatus: string | null;
+  reviewEditCount: number;
 };
 
 export type CustomerOrderTimelineEvent = {
@@ -22,6 +27,8 @@ export type CustomerShipmentTracking = {
   trackingUrl: string | null;
   shippedAt: string | null;
   deliveredAt: string | null;
+  returnWindowDays: number | null;
+  returnWindowEndsAt: string | null;
   createdAt: string;
 };
 
@@ -64,6 +71,10 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
   returned: "Returned",
   delivery_failed: "Delivery failed",
+  pending: "Pending",
+  paid: "Paid",
+  partially_refunded: "Partially refunded",
+  refunded: "Refunded",
 };
 
 export function orderStatusLabel(status: string) {
@@ -72,7 +83,9 @@ export function orderStatusLabel(status: string) {
 
 export function highestReachedStageIndex(order: CustomerOrderTracking) {
   const indexes = [order.status, ...order.timeline.map((event) => event.status)]
-    .map((status) => ORDER_STAGE_SEQUENCE.indexOf(status as (typeof ORDER_STAGE_SEQUENCE)[number]))
+    .map((status) =>
+      ORDER_STAGE_SEQUENCE.indexOf(status as (typeof ORDER_STAGE_SEQUENCE)[number])
+    )
     .filter((index) => index >= 0);
 
   return indexes.length > 0 ? Math.max(...indexes) : -1;
