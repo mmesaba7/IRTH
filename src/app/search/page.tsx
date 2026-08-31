@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Header from "../components/Header";
 import ProductCard from "../components/ProductCard";
+import { createClient } from "@/lib/supabase/client";
 import {
   loadPublicMarketplaceCatalog,
   type PublicCatalogArtisan,
@@ -13,6 +14,13 @@ import {
 } from "@/lib/publicMarketplace";
 
 type Ranked<T> = { item: T; score: number };
+type RatingRow = { artisan_id: string; average_rating: number | string; review_count: number | string };
+type QuoteResponse = {
+  quote?: {
+    market?: { currency_code?: string };
+    items?: Array<{ slug?: string; unitPrice?: string | null }>;
+  };
+};
 
 function normalize(value: string) {
   return value.trim().toLowerCase();
@@ -39,8 +47,18 @@ export default function SearchPage() {
   const [artisans, setArtisans] = useState<PublicCatalogArtisan[]>([]);
   const [countries, setCountries] = useState<PublicCatalogCountry[]>([]);
   const [crafts, setCrafts] = useState<PublicCatalogCraft[]>([]);
+  const [artisanRatings, setArtisanRatings] = useState<Record<string, number>>({});
+  const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
+  const [priceCurrency, setPriceCurrency] = useState("");
+  const [priceMarketRequired, setPriceMarketRequired] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [selectedMaterial, setSelectedMaterial] = useState("");
+  const [selectedArtisan, setSelectedArtisan] = useState("");
+  const [minArtisanRating, setMinArtisanRating] = useState("0");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +71,51 @@ export default function SearchPage() {
         setArtisans(catalog.artisans);
         setCountries(catalog.countries);
         setCrafts(catalog.crafts);
+
+        const supabase = createClient();
+        const { data: ratingData } = await supabase.rpc("get_public_artisan_rating_summary");
+        if (!cancelled && Array.isArray(ratingData)) {
+          const ratingById = new Map(
+            (ratingData as RatingRow[]).map((row) => [row.artisan_id, Number(row.average_rating)])
+          );
+          const ratingBySlug: Record<string, number> = {};
+          for (const artisan of catalog.artisans) {
+            const value = ratingById.get(artisan.id);
+            if (Number.isFinite(value)) ratingBySlug[artisan.slug] = value as number;
+          }
+          setArtisanRatings(ratingBySlug);
+        }
+
+        if (catalog.products.length > 0) {
+          try {
+            const response = await fetch("/api/cart/quote", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              cache: "no-store",
+              body: JSON.stringify({
+                items: catalog.products.map((product) => ({ slug: product.slug, quantity: 1 })),
+              }),
+            });
+            if (response.status === 409) {
+              if (!cancelled) setPriceMarketRequired(true);
+            } else if (response.ok) {
+              const body = await response.json() as QuoteResponse;
+              const prices: Record<string, number> = {};
+              for (const item of body.quote?.items ?? []) {
+                if (!item.slug || item.unitPrice === null || item.unitPrice === undefined) continue;
+                const price = Number(item.unitPrice);
+                if (Number.isFinite(price)) prices[item.slug] = price;
+              }
+              if (!cancelled) {
+                setMarketPrices(prices);
+                setPriceCurrency(body.quote?.market?.currency_code ?? "");
+                setPriceMarketRequired(false);
+              }
+            }
+          } catch {
+            // Search remains usable; only trusted price filtering is unavailable.
+          }
+        }
       } catch (loadError) {
         console.error("Could not load public search catalog:", loadError);
         if (!cancelled) setError("تعذر تحميل البحث حاليًا.");
@@ -67,13 +130,61 @@ export default function SearchPage() {
     };
   }, []);
 
+  const materials = useMemo(
+    () => [...new Set(products.map((product) => product.material.trim()).filter(Boolean))].sort(),
+    [products]
+  );
+
+  const productArtisans = useMemo(() => {
+    const bySlug = new Map<string, string>();
+    for (const product of products) bySlug.set(product.artisanSlug, product.artisan);
+    return [...bySlug.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [products]);
+
+  const hasActiveProductFilters = Boolean(
+    selectedMaterial || selectedArtisan || Number(minArtisanRating) > 0 || minPrice || maxPrice
+  );
+
   const productResults = useMemo<Ranked<PublicCatalogProduct>[]>(() => {
-    if (!query.trim()) return [];
+    const hasQuery = Boolean(query.trim());
+    if (!hasQuery && !hasActiveProductFilters) return [];
+
+    const minimumPrice = minPrice === "" ? null : Number(minPrice);
+    const maximumPrice = maxPrice === "" ? null : Number(maxPrice);
+    const minimumRating = Number(minArtisanRating) || 0;
+
     return products
-      .map((item) => ({ item, score: getMatchScore(query, item.searchTerms) }))
-      .filter((result) => result.score > 0)
+      .map((item) => ({
+        item,
+        score: hasQuery ? getMatchScore(query, item.searchTerms) : 1,
+      }))
+      .filter((result) => !hasQuery || result.score > 0)
+      .filter(({ item }) => {
+        if (selectedMaterial && normalize(item.material) !== normalize(selectedMaterial)) return false;
+        if (selectedArtisan && item.artisanSlug !== selectedArtisan) return false;
+        if ((artisanRatings[item.artisanSlug] ?? 0) < minimumRating) return false;
+
+        if (minimumPrice !== null || maximumPrice !== null) {
+          const trustedPrice = marketPrices[item.slug];
+          if (!Number.isFinite(trustedPrice)) return false;
+          if (minimumPrice !== null && Number.isFinite(minimumPrice) && trustedPrice < minimumPrice) return false;
+          if (maximumPrice !== null && Number.isFinite(maximumPrice) && trustedPrice > maximumPrice) return false;
+        }
+        return true;
+      })
       .sort((a, b) => b.score - a.score);
-  }, [products, query]);
+  }, [
+    artisanRatings,
+    hasActiveProductFilters,
+    marketPrices,
+    maxPrice,
+    minArtisanRating,
+    minPrice,
+    products,
+    query,
+    selectedArtisan,
+    selectedMaterial,
+  ]);
 
   const artisanResults = useMemo<Ranked<PublicCatalogArtisan>[]>(() => {
     if (!query.trim()) return [];
@@ -101,7 +212,15 @@ export default function SearchPage() {
 
   const totalResults =
     productResults.length + artisanResults.length + countryResults.length + craftResults.length;
-  const hasQuery = query.trim().length > 0;
+  const hasSearchIntent = query.trim().length > 0 || hasActiveProductFilters;
+
+  const resetFilters = () => {
+    setSelectedMaterial("");
+    setSelectedArtisan("");
+    setMinArtisanRating("0");
+    setMinPrice("");
+    setMaxPrice("");
+  };
 
   if (loading) {
     return (
@@ -160,11 +279,46 @@ export default function SearchPage() {
               </button>
             )}
           </div>
+
+          <div className="mt-5 border-t border-[var(--border-soft)] pt-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-[var(--color-espresso)]">Product filters</p>
+              {hasActiveProductFilters && (
+                <button type="button" onClick={resetFilters} className="text-xs font-medium text-[var(--color-copper)] hover:underline">
+                  Reset filters
+                </button>
+              )}
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <select value={selectedMaterial} onChange={(event) => setSelectedMaterial(event.target.value)} className="rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-3 py-3 text-sm">
+                <option value="">All materials</option>
+                {materials.map((material) => <option key={material} value={material}>{material}</option>)}
+              </select>
+
+              <select value={selectedArtisan} onChange={(event) => setSelectedArtisan(event.target.value)} className="rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-3 py-3 text-sm">
+                <option value="">All artisans</option>
+                {productArtisans.map(([artisanSlug, artisanName]) => <option key={artisanSlug} value={artisanSlug}>{artisanName}</option>)}
+              </select>
+
+              <select value={minArtisanRating} onChange={(event) => setMinArtisanRating(event.target.value)} className="rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-3 py-3 text-sm">
+                <option value="0">Any artisan rating</option>
+                <option value="3">3.0+ ★</option>
+                <option value="4">4.0+ ★</option>
+                <option value="4.5">4.5+ ★</option>
+              </select>
+
+              <input type="number" min="0" step="0.01" value={minPrice} disabled={priceMarketRequired} onChange={(event) => setMinPrice(event.target.value)} placeholder={priceMarketRequired ? "Select market first" : `Min price${priceCurrency ? ` (${priceCurrency})` : ""}`} className="rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-3 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" />
+              <input type="number" min="0" step="0.01" value={maxPrice} disabled={priceMarketRequired} onChange={(event) => setMaxPrice(event.target.value)} placeholder={priceMarketRequired ? "Select market first" : `Max price${priceCurrency ? ` (${priceCurrency})` : ""}`} className="rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-3 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" />
+            </div>
+            {priceMarketRequired && (
+              <p className="mt-3 text-xs text-[var(--text-muted)]">Price filtering stays disabled until a market is selected, so IRTH never filters using an untrusted or wrong-market price.</p>
+            )}
+          </div>
         </div>
 
-        {!hasQuery ? (
+        {!hasSearchIntent ? (
           <div className="mt-12 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-10 text-center text-[var(--text-secondary)]">
-            Start exploring IRTH.
+            Start exploring IRTH or use the product filters.
           </div>
         ) : totalResults === 0 ? (
           <div className="mt-12 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-10 text-center">
@@ -177,7 +331,7 @@ export default function SearchPage() {
           <>
             <div className="mt-10 flex items-end justify-between gap-4">
               <h2 className="font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-4xl">
-                Results for “{query.trim()}”
+                {query.trim() ? `Results for “${query.trim()}”` : "Filtered products"}
               </h2>
               <p className="text-sm text-[var(--text-muted)]">{totalResults} results</p>
             </div>
@@ -202,6 +356,7 @@ export default function SearchPage() {
                       <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">{item.country} · {item.region}</p>
                       <h4 className="mt-2 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{item.name}</h4>
                       <p className="mt-1 text-sm font-medium text-[var(--color-copper)]">{item.mainCraft}</p>
+                      {artisanRatings[item.slug] && <p className="mt-2 text-xs text-[var(--text-muted)]">{artisanRatings[item.slug].toFixed(1)} ★ verified artisan rating</p>}
                       <p className="mt-3 line-clamp-3 text-sm leading-6 text-[var(--text-secondary)]">{item.bio}</p>
                     </Link>
                   ))}
