@@ -41,6 +41,12 @@ function isOutboxRow(value: unknown): value is OutboxRow {
   );
 }
 
+function resolveEmailLocale(locale: OutboxRow["locale"]): "ar" | "en" {
+  // MVP launch market is Egypt. `auto` therefore resolves to Arabic.
+  // When IRTH adds a non-Arab market, this boundary can resolve from market configuration.
+  return locale === "auto" ? "ar" : locale;
+}
+
 function getAppBaseUrl() {
   const configured = process.env.IRTH_APP_URL?.trim();
   if (!configured) {
@@ -160,7 +166,7 @@ export async function processNotificationEmailOutbox(limit = 10) {
       const link = await resolveEmailLink(row, baseUrl);
       const content = renderNotificationEmail({
         eventKey: row.template_key || row.event_key,
-        locale: row.locale,
+        locale: resolveEmailLocale(row.locale),
         payload: row.payload,
         link,
       });
