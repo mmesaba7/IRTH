@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import Header from "../../components/Header";
+import ProductReviews from "../../components/ProductReviews";
 import {
   loadPublicMarketplaceCatalog,
   type PublicCatalogProduct,
@@ -42,57 +43,39 @@ export default function ProductPage() {
     const load = async () => {
       setLoading(true);
       setError("");
-
       try {
         const catalog = await loadPublicMarketplaceCatalog();
         if (cancelled) return;
-
         const publicProduct = catalog.products.find((item) => item.slug === slug) ?? null;
-
         if (!publicProduct) {
           setProduct(null);
           setMedia([]);
-          setLoading(false);
           return;
         }
 
         setProduct(publicProduct);
 
-        const savedProducts = JSON.parse(
-          localStorage.getItem("irth-saved-products") || "[]"
-        ) as string[];
+        const savedProducts = JSON.parse(localStorage.getItem("irth-saved-products") || "[]") as string[];
         setSaved(savedProducts.includes(publicProduct.slug));
 
-        const recentlyViewed = JSON.parse(
-          localStorage.getItem("irth-recently-viewed") || "[]"
-        ) as string[];
+        const recentlyViewed = JSON.parse(localStorage.getItem("irth-recently-viewed") || "[]") as string[];
         localStorage.setItem(
           "irth-recently-viewed",
-          JSON.stringify(
-            [publicProduct.slug, ...recentlyViewed.filter((item) => item !== publicProduct.slug)].slice(0, 20)
-          )
+          JSON.stringify([publicProduct.slug, ...recentlyViewed.filter((item) => item !== publicProduct.slug)].slice(0, 20))
         );
 
         try {
-          const response = await fetch(`/api/products/${publicProduct.id}/media`, {
-            cache: "no-store",
-          });
-
+          const response = await fetch(`/api/products/${publicProduct.id}/media`, { cache: "no-store" });
           if (response.ok && !cancelled) {
-            const payload = (await response.json()) as {
-              media?: ProductMedia[];
-              coverMediaId?: string | null;
-            };
+            const payload = (await response.json()) as { media?: ProductMedia[]; coverMediaId?: string | null };
             const mediaItems = payload.media ?? [];
             setMedia(mediaItems);
             setActiveMediaId(payload.coverMediaId ?? mediaItems[0]?.id ?? null);
           }
-        } catch (mediaError) {
-          console.error("Could not load product media:", mediaError);
+        } catch {
           if (!cancelled) setMedia([]);
         }
-      } catch (loadError) {
-        console.error("Could not load public product:", loadError);
+      } catch {
         if (!cancelled) setError("تعذر تحميل المنتج حاليًا.");
       } finally {
         if (!cancelled) setLoading(false);
@@ -100,9 +83,7 @@ export default function ProductPage() {
     };
 
     void load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [slug]);
 
   const activeMedia = useMemo(
@@ -112,15 +93,10 @@ export default function ProductPage() {
 
   const toggleSaved = () => {
     if (!product) return;
-
-    const savedProducts = JSON.parse(
-      localStorage.getItem("irth-saved-products") || "[]"
-    ) as string[];
-
+    const savedProducts = JSON.parse(localStorage.getItem("irth-saved-products") || "[]") as string[];
     const updated = saved
       ? savedProducts.filter((item) => item !== product.slug)
       : [...new Set([...savedProducts, product.slug])];
-
     localStorage.setItem("irth-saved-products", JSON.stringify(updated));
     window.dispatchEvent(new Event("irth-saved-updated"));
     setSaved(!saved);
@@ -163,47 +139,24 @@ export default function ProductPage() {
 
   const handleAddToCart = () => {
     if (!product || !canAddToCart) return;
-
     const storedCart = JSON.parse(localStorage.getItem("irth-cart") || "[]") as unknown;
     const cart = Array.isArray(storedCart) ? storedCart : [];
-    const additions = Array.from({ length: quantity }, () => ({
-      slug: product.slug,
-    }));
-
+    const additions = Array.from({ length: quantity }, () => ({ slug: product.slug }));
     localStorage.setItem("irth-cart", JSON.stringify([...cart, ...additions]));
     window.dispatchEvent(new Event("irth-cart-updated"));
     router.push("/cart");
   };
 
   if (loading) {
-    return (
-      <main className="min-h-screen bg-[var(--background)]">
-        <Header />
-        <div className="flex h-96 items-center justify-center text-[var(--text-secondary)]">
-          جاري تحميل المنتج...
-        </div>
-      </main>
-    );
+    return <main className="min-h-screen bg-[var(--background)]"><Header /><div className="flex h-96 items-center justify-center text-[var(--text-secondary)]">جاري تحميل المنتج...</div></main>;
   }
 
-  if (error) {
+  if (error || !product) {
     return (
       <main className="min-h-screen bg-[var(--background)]">
         <Header />
         <div className="flex h-96 flex-col items-center justify-center gap-4 px-6 text-center">
-          <p className="text-xl text-[var(--text-secondary)]">{error}</p>
-          <Link href="/crafts" className="text-[var(--color-copper)] hover:underline">العودة للمنتجات</Link>
-        </div>
-      </main>
-    );
-  }
-
-  if (!product) {
-    return (
-      <main className="min-h-screen bg-[var(--background)]">
-        <Header />
-        <div className="flex h-96 flex-col items-center justify-center gap-4 px-6 text-center">
-          <p className="text-xl text-[var(--text-secondary)]">المنتج غير موجود أو غير منشور.</p>
+          <p className="text-xl text-[var(--text-secondary)]">{error || "المنتج غير موجود أو غير منشور."}</p>
           <Link href="/crafts" className="text-[var(--color-copper)] hover:underline">العودة للحرف والمنتجات</Link>
         </div>
       </main>
@@ -236,19 +189,8 @@ export default function ProductPage() {
             {media.length > 1 && (
               <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-5">
                 {media.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActiveMediaId(item.id)}
-                    className={`aspect-square overflow-hidden rounded-[var(--radius-md)] border ${
-                      item.id === activeMedia?.id ? "border-[var(--color-copper)]" : "border-[var(--border-soft)]"
-                    }`}
-                  >
-                    {item.media_type === "image" ? (
-                      <img src={item.signedUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="flex h-full items-center justify-center">▶</span>
-                    )}
+                  <button key={item.id} type="button" onClick={() => setActiveMediaId(item.id)} className={`aspect-square overflow-hidden rounded-[var(--radius-md)] border ${item.id === activeMedia?.id ? "border-[var(--color-copper)]" : "border-[var(--border-soft)]"}`}>
+                    {item.media_type === "image" ? <img src={item.signedUrl} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full items-center justify-center">▶</span>}
                   </button>
                 ))}
               </div>
@@ -256,27 +198,14 @@ export default function ProductPage() {
           </div>
 
           <div className="flex flex-col justify-center">
-            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--color-copper)]">
-              {product.category} · {product.country}
-            </p>
-            <h1 className="mt-3 font-[var(--font-display)] text-4xl text-[var(--color-espresso)] md:text-6xl">
-              {product.name}
-            </h1>
-            <p className="mt-3 text-sm text-[var(--text-secondary)]">
-              By <Link href={`/artisan/${product.artisanSlug}`} className="text-[var(--color-copper)] hover:underline">{product.artisan}</Link>
-            </p>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--color-copper)]">{product.category} · {product.country}</p>
+            <h1 className="mt-3 font-[var(--font-display)] text-4xl text-[var(--color-espresso)] md:text-6xl">{product.name}</h1>
+            <p className="mt-3 text-sm text-[var(--text-secondary)]">By <Link href={`/artisan/${product.artisanSlug}`} className="text-[var(--color-copper)] hover:underline">{product.artisan}</Link></p>
             <p className="mt-6 text-base leading-8 text-[var(--text-secondary)]">{product.description}</p>
 
             <div className="mt-8 flex items-center justify-between border-y border-[var(--border-soft)] py-6">
               <p className="text-3xl font-semibold text-[var(--color-copper)]">{priceLabel}</p>
-              <button
-                type="button"
-                onClick={toggleSaved}
-                aria-label="Save product"
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border-soft)] text-xl hover:border-[var(--color-copper)]"
-              >
-                {saved ? "♥" : "♡"}
-              </button>
+              <button type="button" onClick={toggleSaved} aria-label="Save product" className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border-soft)] text-xl hover:border-[var(--color-copper)]">{saved ? "♥" : "♡"}</button>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2 text-sm">
@@ -285,42 +214,21 @@ export default function ProductPage() {
               {product.customization && <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1.5">Customization</span>}
             </div>
 
-            {availabilityMessage && (
-              <div className="mt-7 rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-secondary)]">
-                {availabilityMessage}
-              </div>
-            )}
+            {availabilityMessage && <div className="mt-7 rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-secondary)]">{availabilityMessage}</div>}
 
             <div className="mt-7 flex items-center gap-4">
               <span className="text-sm text-[var(--text-secondary)]">Quantity</span>
               <div className="flex items-center rounded-[var(--radius-md)] border border-[var(--border-soft)]">
-                <button
-                  type="button"
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="h-10 w-10"
-                >
-                  −
-                </button>
+                <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="h-10 w-10">−</button>
                 <span className="w-12 text-center text-sm">{quantity}</span>
-                <button
-                  type="button"
-                  disabled={!quoteItem || (!quoteItem.product?.made_to_order && quantity >= maxQuantity)}
-                  onClick={() => setQuantity(Math.min(maxQuantity, quantity + 1))}
-                  className="h-10 w-10 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  +
-                </button>
+                <button type="button" disabled={!quoteItem || (!quoteItem.product?.made_to_order && quantity >= maxQuantity)} onClick={() => setQuantity(Math.min(maxQuantity, quantity + 1))} className="h-10 w-10 disabled:opacity-40">+</button>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleAddToCart}
-              disabled={!canAddToCart || quoteLoading}
-              className="mt-7 rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-semibold text-[var(--color-ivory)] hover:bg-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Add to cart
-            </button>
+            <button type="button" onClick={handleAddToCart} disabled={!canAddToCart || quoteLoading} className="mt-7 rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-semibold text-[var(--color-ivory)] hover:bg-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-50">Add to cart</button>
+            <Link href={`/product/${product.slug}/wholesale`} className="mt-3 rounded-[var(--radius-md)] border border-[var(--color-copper)] px-6 py-4 text-center text-sm font-semibold text-[var(--color-copper)] hover:bg-[var(--surface-muted)]">
+              طلب كمية / Wholesale
+            </Link>
           </div>
         </div>
       </section>
@@ -332,6 +240,8 @@ export default function ProductPage() {
           <div><p className="section-eyebrow">Story</p><p className="mt-3 leading-7 text-[var(--text-secondary)]">{product.story || "—"}</p></div>
         </div>
       </section>
+
+      <ProductReviews slug={product.slug} />
     </main>
   );
 }
