@@ -306,39 +306,54 @@ These are not introduced by Customer/Guest Tracking and remain separate technica
 
 ---
 
-## 9. Production Build
+## 9. Final Production Build + Local Sync
 
-After the Customer/Guest Tracking implementation and before the final URL-fragment cleanup hardening, the local Production Build passed:
+Final local Production Build after the URL-fragment cleanup hardening passed on 31 August 2026:
 
 ```text
 Next.js 16.3.1 (Turbopack)
-Compiled successfully
+Compiled successfully in 4.3s
 TypeScript passed
 Static pages generated: 52/52
 ```
 
-A final Production Build is required after pulling the final fragment-cleanup commits before Local/GitHub closure is declared complete.
+Final local Git verification at closure:
+
+```text
+git status -sb
+## main...origin/main
+
+git rev-parse HEAD
+93bfbe862125bd26fc1bcd363799d031915851c1
+
+git rev-parse origin/main
+93bfbe862125bd26fc1bcd363799d031915851c1
+```
+
+The build was executed after pulling the final application hardening and closure documentation. The working tree was clean and Local `HEAD` matched `origin/main` at the application closure gate.
 
 ---
 
-## 10. Closure Gate
+## 10. Closure Result
 
-Customer Tracking View + Secure Guest Tracking Link may be considered CLOSED only after the final local sync confirms:
+Customer Tracking View + Secure Guest Tracking Link is CLOSED ✅.
 
-```text
-git pull --ff-only
-npm.cmd run build
-git status -sb
-git rev-parse HEAD
-```
+Closure criteria satisfied:
 
-Expected result:
+1. Approved business/security rules are implemented.
+2. Authenticated customer ownership is enforced.
+3. Guest access requires a high-entropy credential and does not rely on Order Number alone.
+4. Direct browser access to sensitive Order tables is removed.
+5. Customer payloads are narrow and exclude internal marketplace/accounting data.
+6. Negative and positive Guest E2E cases passed.
+7. Authenticated Customer E2E passed.
+8. Live database state and inventory effect were verified.
+9. Security Advisor was reviewed after DDL.
+10. Final Production Build and TypeScript validation passed.
+11. Local Git state matched GitHub `main` and was clean at the application closure gate.
+12. Closure and project-status documentation were updated.
 
-- Build passes.
-- Working tree is clean.
-- Local `HEAD` equals GitHub `main`.
-
-Once that final local gate passes, the next Specification task is:
+Next Specification task:
 
 ```text
 Notifications
