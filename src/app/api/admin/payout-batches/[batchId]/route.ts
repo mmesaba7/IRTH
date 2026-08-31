@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { decryptPayoutDetails } from "@/lib/payouts/crypto";
 import {
@@ -29,7 +30,7 @@ function rows(value: unknown): Record<string, unknown>[] {
 async function loadBatchDetail(
   batchId: string,
   adminUserId: string,
-  admin: Awaited<NonNullable<ReturnType<typeof getPayoutServerContext>>>["admin"]
+  admin: SupabaseClient
 ) {
   const [batchResult, itemsResult] = await Promise.all([
     admin.rpc("get_payout_batches_for_admin", {
