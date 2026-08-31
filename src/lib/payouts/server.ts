@@ -32,15 +32,28 @@ export async function getArtisanIdForUser(
   return data?.id ?? null;
 }
 
-export function isSameOriginMutation(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-
+function sameOrigin(value: string, request: NextRequest) {
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    return new URL(value).origin === new URL(request.url).origin;
   } catch {
     return false;
   }
+}
+
+export function isSameOriginMutation(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  return origin ? sameOrigin(origin, request) : false;
+}
+
+export function isSameOriginSensitiveRead(request: NextRequest) {
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite) return fetchSite === "same-origin";
+
+  const origin = request.headers.get("origin");
+  if (origin) return sameOrigin(origin, request);
+
+  const referer = request.headers.get("referer");
+  return referer ? sameOrigin(referer, request) : false;
 }
 
 export function isUuid(value: unknown): value is string {
