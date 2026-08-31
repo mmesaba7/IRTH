@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import OrderTrackingCard from "@/app/components/OrderTrackingCard";
+import ReturnRequestPanel from "@/app/components/ReturnRequestPanel";
 import type { CustomerOrderTracking } from "@/lib/customerOrderTracking";
 
 type GuestTrackingResponse = {
@@ -19,8 +20,6 @@ export default function GuestTrackingClient({ orderNumber }: { orderNumber: stri
     const fragment = new URLSearchParams(window.location.hash.slice(1));
     const token = fragment.get("access")?.trim() ?? "";
 
-    // Remove the credential from the address bar immediately. It remains only in
-    // this in-memory React state for the current page session.
     if (window.location.hash) {
       window.history.replaceState(null, "", window.location.pathname);
     }
@@ -73,5 +72,12 @@ export default function GuestTrackingClient({ orderNumber }: { orderNumber: stri
     );
   }
 
-  return <OrderTrackingCard order={order} defaultOpen guestToken={accessToken} />;
+  const hasDeliveredItem = order.items.some((item) => Boolean(item.deliveredAt));
+
+  return (
+    <div className="space-y-6">
+      <OrderTrackingCard order={order} defaultOpen guestToken={accessToken} />
+      {hasDeliveredItem && <ReturnRequestPanel orderId={order.orderId} guestToken={accessToken} />}
+    </div>
+  );
 }
