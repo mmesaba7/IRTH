@@ -7,6 +7,7 @@ import Header from "../components/Header";
 type StoredCartItem = { slug: string };
 type QuoteItemStatus = "available" | "product_unavailable" | "not_priced_for_market" | "out_of_stock" | "insufficient_stock";
 type ShippingQuoteStatus = "flat_rate" | "free_shipping" | "configuration_missing";
+type PaymentMethod = "cod" | "online";
 type QuoteItem = {
   slug: string;
   requestedQuantity: number;
@@ -56,6 +57,7 @@ type OrderResponse = {
     orderNumber: string;
     status: string;
     paymentStatus: string;
+    paymentMethod: PaymentMethod;
     reused: boolean;
     guestTrackingToken: string | null;
   };
@@ -108,6 +110,7 @@ export default function CheckoutPage() {
   const [contextLoading, setContextLoading] = useState(true);
   const [contextError, setContextError] = useState("");
   const [customer, setCustomer] = useState<CheckoutCustomer>(EMPTY_CUSTOMER);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [orderError, setOrderError] = useState("");
   const [placingOrder, setPlacingOrder] = useState(false);
@@ -158,7 +161,7 @@ export default function CheckoutPage() {
   const quoteError = quoteState.requestKey === requestBody ? quoteState.error : "";
   const currency = quote?.market.currency_code ?? "";
   const marketCountry = checkoutContext?.market?.country ?? null;
-  const orderIntentKey = useMemo(() => JSON.stringify({ requestBody, customer }), [requestBody, customer]);
+  const orderIntentKey = useMemo(() => JSON.stringify({ requestBody, customer, paymentMethod }), [requestBody, customer, paymentMethod]);
 
   useEffect(() => { idempotencyKeyRef.current = null; }, [orderIntentKey]);
 
@@ -191,7 +194,7 @@ export default function CheckoutPage() {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKeyRef.current },
         cache: "no-store",
-        body: JSON.stringify({ items: quoteItems, couponCode, customer: { ...customer, countryCode: marketCountry.iso_code } }),
+        body: JSON.stringify({ items: quoteItems, couponCode, paymentMethod, customer: { ...customer, countryCode: marketCountry.iso_code } }),
       });
       const payload = (await response.json()) as OrderResponse;
 
@@ -215,7 +218,7 @@ export default function CheckoutPage() {
       localStorage.removeItem("irth-cart");
       sessionStorage.removeItem(CHECKOUT_COUPON_KEY);
       window.dispatchEvent(new Event("irth-cart-updated"));
-      const params = new URLSearchParams({ order: payload.order.orderNumber, status: payload.order.status, payment: payload.order.paymentStatus });
+      const params = new URLSearchParams({ order: payload.order.orderNumber, status: payload.order.status, payment: payload.order.paymentStatus, method: payload.order.paymentMethod });
       const guestFragment = payload.order.guestTrackingToken
         ? `#access=${encodeURIComponent(payload.order.guestTrackingToken)}`
         : "";
@@ -239,7 +242,7 @@ export default function CheckoutPage() {
       <section className="mx-auto max-w-[var(--container-max)] px-6 py-16 md:py-24">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">Secure checkout</p>
         <h1 className="mt-3 font-[var(--font-display)] text-5xl font-normal text-[var(--color-espresso)]">Complete your order</h1>
-        <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">Your cart, discounts, shipping and final total are revalidated by the server before the order is created. Payment is not collected in this step yet.</p>
+        <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">Your cart, discounts, shipping, final total and payment method are revalidated by the server before the order is created.</p>
 
         <div className="mt-12 grid gap-10 lg:grid-cols-[1fr_380px]">
           <div className="space-y-7">
@@ -261,6 +264,21 @@ export default function CheckoutPage() {
                 <label className="text-sm text-[var(--text-secondary)] sm:col-span-2">Detailed address *<input type="text" autoComplete="street-address" value={customer.addressLine1} onChange={(e) => updateCustomer("addressLine1", e.target.value)} className={inputClass(Boolean(fieldErrors.addressLine1))} />{fieldErrors.addressLine1 && <span className="mt-1 block text-xs text-[var(--color-terracotta)]">{fieldErrors.addressLine1}</span>}</label>
                 <label className="text-sm text-[var(--text-secondary)] sm:col-span-2">Delivery notes (optional)<textarea value={customer.deliveryNotes} onChange={(e) => updateCustomer("deliveryNotes", e.target.value)} rows={3} maxLength={500} className={inputClass(Boolean(fieldErrors.deliveryNotes))} /><span className="mt-1 block text-xs text-[var(--text-muted)]">Delivery notes remain private to IRTH/shipping operations.</span>{fieldErrors.deliveryNotes && <span className="mt-1 block text-xs text-[var(--color-terracotta)]">{fieldErrors.deliveryNotes}</span>}</label>
               </div>
+
+              <div className="mt-7 border-t border-[var(--border-soft)] pt-6">
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">Payment method</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <button type="button" onClick={() => { setPaymentMethod("cod"); setOrderError(""); }} className={`rounded-[var(--radius-md)] border px-4 py-4 text-left transition ${paymentMethod === "cod" ? "border-[var(--color-copper)] bg-[var(--surface-muted)]" : "border-[var(--border-soft)]"}`}>
+                    <span className="block font-medium text-[var(--color-espresso)]">Cash on delivery</span>
+                    <span className="mt-1 block text-xs text-[var(--text-muted)]">Pay when the order is delivered.</span>
+                  </button>
+                  <button type="button" disabled className="cursor-not-allowed rounded-[var(--radius-md)] border border-[var(--border-soft)] px-4 py-4 text-left opacity-50">
+                    <span className="block font-medium text-[var(--color-espresso)]">Online payment</span>
+                    <span className="mt-1 block text-xs text-[var(--text-muted)]">Coming with the first gateway in M3.</span>
+                  </button>
+                </div>
+              </div>
+
               {orderError && <p className="mt-5 text-sm text-[var(--color-terracotta)]">{orderError}</p>}
             </form>
 
@@ -275,13 +293,14 @@ export default function CheckoutPage() {
               {quote && hasPositiveMoney(quote.couponDiscountTotal) && <div className="flex items-center justify-between text-[var(--color-olive)]"><span>Coupon{quote.couponCode ? ` (${quote.couponCode})` : ""}</span><span>− {currency} {quote.couponDiscountTotal}</span></div>}
               <div className="flex items-center justify-between"><span className="text-[var(--text-secondary)]">Merchandise subtotal</span><span>{quote ? `${currency} ${quote.merchandiseSubtotal}` : "—"}</span></div>
               <div className="flex items-center justify-between"><span className="text-[var(--text-secondary)]">Shipping</span><span>{quote?.shippingStatus === "configuration_missing" ? "Unavailable" : quote?.shippingStatus === "free_shipping" ? "Free" : quote?.shippingFee ? `${currency} ${quote.shippingFee}` : "—"}</span></div>
+              <div className="flex items-center justify-between"><span className="text-[var(--text-secondary)]">Payment</span><span>Cash on delivery</span></div>
             </div>
             {quote?.shippingStatus === "flat_rate" && quote.freeShippingThreshold && <p className="mt-4 text-xs text-[var(--text-muted)]">Free shipping starts at {currency} {quote.freeShippingThreshold} after discounts.</p>}
             <div className="mt-5 flex items-center justify-between"><span className="font-medium text-[var(--color-espresso)]">Final total</span><span className="text-2xl font-medium text-[var(--color-copper)]">{quote?.finalTotal ? `${currency} ${quote.finalTotal}` : "—"}</span></div>
             {quoteError && <p className="mt-4 text-xs text-[var(--color-terracotta)]">{quoteError}</p>}
             <Link href="/cart" className="mt-7 block w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] px-6 py-3 text-center text-sm font-medium text-[var(--color-espresso)]">Back to cart</Link>
             <button type="submit" form="checkout-customer-form" disabled={disabled} className="mt-3 w-full rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-40">{placingOrder ? "Creating order securely…" : "Place Order"}</button>
-            <p className="mt-3 text-center text-xs text-[var(--text-muted)]">This creates the order securely. Payment remains pending until the Payment Layer is integrated.</p>
+            <p className="mt-3 text-center text-xs text-[var(--text-muted)]">The order and COD payment record are created atomically. Collection remains pending until trusted delivery confirmation.</p>
           </aside>
         </div>
       </section>
