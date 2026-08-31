@@ -170,7 +170,7 @@ export default function ProductReviewPage() {
           </div>
         )}
 
-        {canSubmit && (
+        {canSubmit && context && (
           <form onSubmit={submit} className="mt-8 space-y-6">
             <RatingField label="تقييم المنتج" value={productRating} onChange={setProductRating} />
             <RatingField label="تقييم الحرفي" value={artisanRating} onChange={setArtisanRating} />
@@ -179,7 +179,7 @@ export default function ProductReviewPage() {
               <textarea value={reviewText} onChange={(event) => setReviewText(event.target.value)} maxLength={4000} required rows={6} className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]" placeholder="احكي تجربتك الحقيقية مع المنتج والحرفي..." />
             </div>
             <div className="rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4 text-xs leading-6 text-[var(--text-secondary)]">
-              التقييم لا يُنشر فورًا؛ يمر بمراجعة IRTH أولًا. رفع الصور سيتم تفعيله بعد اعتماد حدود الملفات والصور الآمنة، لذلك لا نخزن أسماء ملفات وهمية أو صورًا غير محمية في هذه المرحلة.
+              التقييم لا يُنشر فورًا؛ يمر بمراجعة IRTH أولًا. رفع الصور سيتم تفعيله وفق الحدود المعتمدة: حتى 4 صور، 5 MB للصورة، JPEG/PNG/WebP فقط، في Private Storage، ولا تظهر للعامة قبل موافقة IRTH.
             </div>
             <button disabled={saving} className="w-full rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-6 py-4 text-sm font-medium text-[var(--color-ivory)] hover:bg-[var(--color-copper)] disabled:opacity-50">
               {saving ? "جاري الإرسال..." : context.review ? "إرسال التعديل للمراجعة" : "إرسال التقييم للمراجعة"}
