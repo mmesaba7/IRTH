@@ -6,20 +6,18 @@
 
 ---
 
-# 1. Purpose
+# 1. Source of Truth
 
 This document answers:
 
 > **Where are we in the IRTH MVP right now?**
 
-It is NOT the product specification.
+Priority remains:
 
-Primary references:
-
-1. **IRTH MVP Specification v0.1** — source of truth for approved Product and Architecture decisions.
-2. **IRTH_PROJECT_STATUS.md** — source of truth for what has actually been implemented, tested, closed, deferred, or remains incomplete.
-3. **Git Repository** — source of truth for application code and migration files.
-4. **Live Supabase** — source of truth for the currently running database state.
+1. **IRTH MVP Specification v0.1** — source of truth for approved Product / Architecture decisions.
+2. **IRTH_PROJECT_STATUS.md** — source of truth for actual implementation / test status.
+3. **Git repository** — source of truth for application code and migration files.
+4. **Live Supabase** — source of truth for currently running database state.
 
 If this Status document conflicts with the Specification on a Product decision, the Specification wins unless the owner explicitly approves a change.
 
@@ -39,13 +37,13 @@ Supabase / PostgreSQL
 Modular Monolith
 ```
 
-MVP does NOT use Microservices.
+MVP does not use Microservices.
 
-Core principle:
+Core rule:
 
 > Build simple, but build it correctly.
 
-Architecture remains intentionally extensible for later support of Multiple Payment Gateways, Multiple Couriers, Multi-Country, Multi-Currency, Multiple Roles, Notification Channels, Advanced Search, Analytics, and Integrations without building those systems prematurely.
+Payment, Shipping and Notification remain separate layers.
 
 ---
 
@@ -55,404 +53,134 @@ Architecture remains intentionally extensible for later support of Multiple Paym
 Foundation                  ✅ Core implemented
 Identity & Structure        🟨 Mostly implemented
 Marketplace                 ✅ Core implemented
-Shopping                    🟨 Secure commerce foundation in progress
-Orders                      🟧 Prototype only
-Money                       🟨 Pricing + Promotions + Coupons foundation real; payments later
+Shopping                    ✅ Trusted Checkout + real Order creation foundation
+Orders                      🟨 Real Order / Artisan / Admin / status foundation implemented
+Shipping                    🟨 Real manual Shipment lifecycle implemented; Courier integration later
+Tracking                    🟨 Admin metadata implemented + verified; final Production Build pending
+Money                       🟨 Pricing + Promotions + Coupons + Commission snapshot real; Payment/Payout later
 Testing & Final Polish      ⬜ Later
 ```
 
 Current major position:
 
 ```text
-Discovery / Marketplace
-        ✅
-        ↓
-Secure Shopping
-        ← CURRENT MAJOR PHASE
-        ↓
-Orders
-        ↓
-Shipping
-        ↓
-Payments
-        ↓
-Delivery
-        ↓
-Reviews
-        ↓
-Payouts
+Marketplace / Discovery         ✅
+Secure Shopping                 ✅ core
+Transactional Orders            ✅ core
+Artisan Fulfillment             ✅ core
+Admin Order Management          ✅ read + confirmation
+Shipping Status                 ✅ manual MVP foundation
+Tracking Metadata               ← CURRENT CLOSURE GATE
+Customer / Guest Tracking       NEXT
+Notifications                   LATER
+Payments                        SEPARATE LAYER
 ```
 
 ---
 
-# 4. Status Legend
-
-| Status | Meaning |
-| --- | --- |
-| ✅ | Real implementation exists and has been tested |
-| 🟨 | Real foundation exists but feature is incomplete |
-| 🟧 | UI / prototype exists but does not count as completed business system |
-| ⬜ | Not built yet |
-| ⚠️ | Technical debt, gap, or issue requiring attention |
-
----
-
-# 5. Closed Milestones
+# 4. Closed Milestones
 
 ## S12 — Product Foundations
 
-### S12.1 Inventory Foundation
+### S12.1 Inventory Foundation — CLOSED ✅
 
-**Status: CLOSED ✅**
+- Finite stock foundation.
+- Made-to-Order / one-of-a-kind modes.
+- Secure inventory update boundary.
 
-Implemented and tested:
+### S12.2 Media Foundation — CLOSED ✅
 
-* Product quantity and fixed-stock foundation.
-* Made-to-order and one-of-a-kind inventory modes.
-* Product ownership rules.
-* Product lifecycle integration.
-* Secure ownership-checked published-product quantity update RPC.
-
-### S12.2 Media Foundation
-
-**Status: CLOSED ✅**
-
-Implemented and tested:
-
-* Image and Video upload.
-* Private Supabase Storage.
-* Signed URLs.
-* Upload limits and video duration validation.
-* Delete, reorder and cover image behavior.
-* TUS resumable upload.
-* Draft privacy and media ownership protection.
-* Final RLS / Security review.
+- Image / Video upload.
+- Private Storage + Signed URLs.
+- Delete / reorder / cover.
+- TUS resumable upload.
+- Final media RLS / Security review.
 
 ---
 
-## S13 — Product Approval Workflow
-
-**Status: CLOSED ✅**
-
-Real workflow:
+## S13 — Product Approval Workflow — CLOSED ✅
 
 ```text
 Artisan Draft
-      ↓
-Submit for Review
-      ↓
-Moderation Request
-      ↓
+↓
+Submit
+↓
 Super Admin Review
-   ┌────────────┐
-Approve       Reject
-   ↓             ↓
-Published     Draft + rejection reason
+↓
+Approve / Reject
 ```
 
-Public users cannot see non-published Products.
+Non-published Products remain unavailable publicly.
 
 ---
 
-## S14 — Public Marketplace DB Integration
+## S14 — Public Marketplace DB Integration — CLOSED ✅
 
-**Status: CLOSED ✅**
-
-Completed:
-
-* Artisan public page integration.
-* Craft/Public Products integration.
-* Country page integration.
-* Homepage + Promotion integration.
-* Integration & Security test.
-
-Public visibility chain:
+Public visibility chain is real:
 
 ```text
 Country Active
-      ↓
+↓
 Craft Active
-      ↓
+↓
 Artisan Active
-      ↓
+↓
 Product Published
-      ↓
+↓
 Public Marketplace
 ```
 
-Shared public catalog layer:
+---
 
-```text
-src/lib/publicMarketplace.ts
-```
+## S15.0 — Database Migration Reconciliation — CLOSED ✅
+
+Live / Git migration state was reconciled and required security state reconstructed.
 
 ---
 
-## S15.0 — Database Migration Reconciliation
+## S15.1 — Market & Pricing Foundation — CLOSED ✅
 
-**Status: CLOSED ✅**
-
-Completed:
-
-* Recovered/reconstructed missing Live migrations into Git.
-* Verified fresh local database replay.
-* Reconciled Local and Remote migration history.
-* Reconstructed required Live table/function/default privilege state.
-* Restored safe anonymous Artisan Profile column-level grants.
-* Reconciled Promotion RPC privileges.
-* Hardened public Product Storage visibility.
+- Country != Market.
+- Product prices are Market-specific.
+- No automatic FX conversion.
+- Artisan price proposals use moderation.
+- Egypt Launch Market is active using EGP.
 
 ---
 
-## S15.1 — Market & Pricing Foundation
+## S15.2 — Market Selection — CLOSED ✅
 
-**Status: CLOSED ✅**
-
-Implemented:
-
-* `markets`.
-* `product_market_prices`.
-* Country ≠ Market.
-* Independent Market activation.
-* One local ISO currency per Market for MVP.
-* No automatic FX conversion.
-* Product → Market → Price.
-* Active/inactive Market-price availability.
-* Artisan Market-price proposals through moderation.
-* One pending price request per Product + Market.
-* Existing approved price remains live while replacement is pending.
-* Atomic Super Admin approval/rejection.
-* Artisans may prepare prices for inactive Markets.
-
-Important transition rule:
-
-> Legacy `products.price` must NOT be treated as a trusted market-aware commerce price.
+- Active Market API.
+- Cookie-backed Market selection.
+- Geo is suggestion-only.
+- Customer manually confirms / changes Market.
 
 ---
 
-## S15.2 — Market Selection
+## S15.3 — Secure Cart / Server Quote — CLOSED ✅
 
-**Status: CLOSED ✅**
+Browser stores intent only. Server remains authoritative for:
 
-Implemented:
-
-* Active Market API.
-* Market selection API + server helper.
-* Header Market Selector.
-* Session cookie `irth-market`.
-* Active-market validation.
-* Geo-based suggestion only; Geo is never authoritative.
-* Manual customer confirmation/change.
-* ISO country codes.
-* No guessing when one Country maps to multiple active Markets.
-
-Approved Launch Market:
-
-```text
-Market: Egypt
-Currency: EGP
-Status: Active
-```
+- Product availability.
+- Market Price.
+- Inventory.
+- Trusted line totals.
 
 ---
 
-## S15.3 — Secure Cart / Server Quote
+## S15.4 — Promotions + Coupons — CLOSED ✅
 
-**Status: CLOSED ✅**
+Includes:
 
-Goal achieved:
+- Market-scoped Promotions.
+- Best Promotion calculation.
+- Coupon DB foundation.
+- Stackable / non-stackable Coupon logic.
+- Exact money arithmetic + Round Half-Up.
+- Cart Coupon UX.
+- Security / edge integration review.
 
-> Browser state may identify Products and quantity, but client-provided prices and totals are never trusted.
-
-Current secure base flow:
-
-```text
-Browser Cart
-(slug + quantity intent)
-        ↓
-POST /api/cart/quote
-        ↓
-Selected active Market
-        ↓
-Published Product validation
-        ↓
-Active Artisan / Country / Craft validation
-        ↓
-Approved active Market Price
-        ↓
-Inventory validation
-        ↓
-Server-authoritative Quote
-```
-
-Implemented:
-
-* `src/lib/cartQuote.ts`.
-* Secure `/api/cart/quote` route.
-* Market-aware Product Page / ProductCard / Cart price integration.
-* Duplicate slug quantity aggregation.
-* Fixed-stock validation.
-* Out-of-stock and insufficient-stock protection.
-* Missing/unpublished Product protection.
-* Not-priced-for-Market protection.
-* Exact Market-price transport via `public.get_product_market_prices_text(...)` returning PostgreSQL `numeric` as text.
-* Decimal-string commerce arithmetic.
-* New cart entries store Product identity rather than trusted browser price/name/artisan data.
-
-Focused ESLint and Production Build / TypeScript passed.
-
----
-
-## S15.4.1 — Promotion Market Scope + Money Storage
-
-**Status: CLOSED ✅**
-
-Implemented:
-
-* Promotions are Market-scoped.
-* Fixed Promotion money is not globally constrained to 2 decimals at storage level.
-* Promotion create/read RPCs are Market-aware.
-* Commerce eligibility requires matching active Market price.
-* Legacy `products.price` is not trusted for Promotion commerce calculation.
-
-Migration:
-
-```text
-supabase/migrations/20260830140249_scope_promotions_to_markets.sql
-```
-
----
-
-## S15.4.2 — Promotion Calculation in Secure Server Quote
-
-**Status: CLOSED ✅**
-
-Implemented:
-
-* `src/lib/promotionQuote.ts` server-only calculation layer.
-* Best Promotion Wins by actual monetary value.
-* Fixed per-unit Promotion.
-* Percentage Promotion line calculation.
-* Artisan wins an exact Promotion monetary tie against IRTH.
-* Currency-aware minor-unit scale and Round Half-Up.
-* Promotion funding split: IRTH vs Artisan.
-* `/api/cart/quote` applies Promotion only after the trusted base quote.
-* Homepage displays the winning Promotion using Market currency.
-
----
-
-## S15.4.3 — Coupon DB Foundation
-
-**Status: CLOSED ✅**
-
-Implemented:
-
-```text
-coupons
-coupon_products
-coupon_crafts
-coupon_redemptions
-```
-
-Key protections:
-
-* Exactly one Market per Coupon.
-* Case-insensitive + trim-normalized code uniqueness per Market.
-* Percentage/Fixed validation.
-* Positive minimum/max/usage constraints.
-* `max_discount_amount` only for Percentage Coupons.
-* IRTH/Artisan funding integrity.
-* Product/Craft restriction tables.
-* Redemption ledger without fake `order_id` before Orders.
-* RLS on every Coupon table.
-* No anonymous direct Coupon table access.
-* No authenticated direct Redemption write.
-* Super Admin-only Coupon administration.
-
-Migrations:
-
-```text
-supabase/migrations/20260830154952_create_coupon_foundation.sql
-supabase/migrations/20260830160633_add_coupon_created_by_index.sql
-```
-
-Local replay, Remote push, schema verification and Advisor follow-up passed.
-
----
-
-## S15.4.4 — Coupon Calculation
-
-**Status: CLOSED ✅**
-
-Trusted pipeline now exists:
-
-```text
-Market Price
-    ↓
-Best Product Promotion
-    ↓
-Stackable Coupon after Promotion
-OR
-Non-stackable eligible-line comparison
-    ↓
-Funding Split
-    ↓
-Trusted Discounted Merchandise Total
-```
-
-Implemented:
-
-* Secure Coupon lookup migration `20260830163234_add_secure_coupon_lookup.sql`.
-* Private `SECURITY DEFINER` validation/lookup with pinned empty `search_path`.
-* Thin public `SECURITY INVOKER` wrapper.
-* Narrow Coupon metadata return; no Coupon-code list exposure.
-* Market, normalized code, active window, enabled state and total usage-limit validation.
-* Server-resolved eligible Product IDs.
-* Product/Craft OR/Union restrictions.
-* Artisan-funded Coupon scope.
-* `src/lib/couponQuote.ts` server-only calculation layer.
-* Percentage Coupon calculated once on total eligible subtotal.
-* Fixed Coupon cart-level once and capped at eligible subtotal.
-* Percentage `max_discount_amount` cap.
-* Minimum-order rules on approved stackable/non-stackable bases.
-* Exact string/integer money arithmetic.
-* Round Half-Up to currency minor unit.
-* Proportional Coupon allocation using largest fractional remainder and deterministic `product_id` ties.
-* Stackable Coupon after Product Promotion.
-* Non-stackable customer-best comparison only over Coupon-eligible lines.
-* Exact non-stackable tie keeps Promotion-only.
-* Promotions outside Coupon scope remain active (Decision 24A).
-* Separate trusted Promotion and Coupon funding attribution.
-* Optional `couponCode` accepted by `/api/cart/quote`; client price/discount/subtotal/total remains untrusted.
-* Quote does not consume Coupon usage.
-
-Verification completed:
-
-* Full local migration replay/reset passed.
-* Production Build / TypeScript passed.
-* Remote `db push` passed.
-* Private/public function security modes and privileges verified.
-* Plain authenticated Coupon-table read blocked by RLS.
-* No new S15.4.4-specific Security Advisor warning.
-* Normalized code, wrong Market, invalid/expired/exhausted Coupon tests passed.
-* Product restriction and Artisan-funded scope tests passed.
-* No Redemption consumption verified at DB boundary.
-* Local E2E test through real `/api/cart/quote` passed.
-* Stackable Percentage + Fixed passed.
-* Fixed proportional allocation + deterministic remainder passed.
-* Non-stackable Coupon-win / Promotion-win / exact-tie passed.
-* Decision 24A passed.
-* Minimum, Percentage max cap, Round Half-Up, Product ∪ Craft restriction, Artisan funding attribution passed.
-
-Reusable local-only test support:
-
-```text
-supabase/seed.sql
-scripts/test-coupon-e2e.mjs
-npm.cmd run test:coupon-e2e
-```
-
-Detailed decision record:
+Decision register:
 
 ```text
 docs/IRTH_S15_4_DECISION_REGISTER.md
@@ -460,783 +188,571 @@ docs/IRTH_S15_4_DECISION_REGISTER.md
 
 ---
 
-## S15.4.5 — Cart Promotion / Coupon UI
+## S15.5.1 — Trusted Checkout Summary — CLOSED ✅
 
-**Status: CLOSED ✅**
+Checkout summary is server-authoritative.
+
+---
+
+## S15.5.2 — Customer Details + Guest Checkout Foundation — CLOSED ✅
+
+- Guest Checkout supported.
+- Customer account optional.
+- Customer PII not persisted to local/session storage.
+- Market-locked delivery country.
+- Server customer validation.
+
+---
+
+## S15.5.3 — Shipping / Final Total Boundary — CLOSED ✅
+
+Approved Egypt shipping rule:
+
+```text
+Flat shipping fee:       150 EGP
+Free shipping threshold: 2000 EGP
+```
+
+Threshold basis:
+
+> trusted merchandise subtotal after Promotions + Coupon.
+
+Shipping is charged once per unified Order.
+
+Missing Market shipping config fails closed.
+
+---
+
+## S15.5.4 — Transactional Order Creation — CLOSED ✅
+
+Real transactional Order foundation exists:
+
+```text
+orders
+order_customer_details
+order_artisan_groups
+order_items
+shipments
+order_status_history
+```
+
+Important verified behavior:
+
+- One Customer Order.
+- Internal Artisan split.
+- Historical Product / Money snapshots.
+- Atomic stock revalidation + decrement.
+- Idempotent Order creation.
+- Coupon Redemption inside secure transaction.
+- Commission rate snapshot at sale.
+- Guest Customer supported.
+- Payment status separated from Order status.
+
+Closure record:
+
+```text
+docs/IRTH_S15_5_4_CLOSURE.md
+```
+
+---
+
+## Artisan Order Read Foundation — CLOSED ✅
+
+Artisan `/artisan/orders` now reads real Orders from Supabase.
+
+Privacy boundary verified:
+
+Artisan does NOT receive:
+
+- Customer email.
+- Customer phone.
+- Full delivery address.
+- Direct contact information.
+
+---
+
+## Secure Artisan Fulfillment Actions — CLOSED ✅
+
+Allowed Artisan transitions:
+
+```text
+received / confirmed
+↓
+preparing
+↓
+ready_for_courier_pickup
+```
+
+All transitions are server-validated and audited in:
+
+```text
+order_artisan_group_status_history
+```
+
+Closure record:
+
+```text
+docs/IRTH_ARTISAN_FULFILLMENT_CLOSURE.md
+```
+
+---
+
+## Admin Order Read Foundation — CLOSED ✅
+
+`/dashboard-admin/orders` reads real unified Orders from Supabase.
+
+Super Admin can see operational Customer / delivery data.
+
+Database authorization rejects non-Super-Admin users with `admin_required`.
+
+Closure record:
+
+```text
+docs/IRTH_ADMIN_ORDER_READ_CLOSURE.md
+```
+
+---
+
+## Admin Order + Shipping Status Foundation — CLOSED ✅
+
+Approved / implemented lifecycle:
+
+```text
+Order:
+received
+↓
+confirmed
+↓
+aggregated from Artisan Groups / Shipments
+
+Shipment:
+pending
+↓
+picked_up_from_artisan
+↓
+in_transit
+↓
+delivered
+```
+
+Exceptional Shipment status:
+
+```text
+delivery_failed
+```
 
 Implemented:
 
-* Coupon input with apply/remove flow.
-* Trusted Promotion/Coupon status display.
-* Trusted discounted line totals and cart summary.
-* Promotion and Coupon discount rows.
-* Quantity changes trigger server re-quote.
-* Checkout remains gated by trusted `canCheckout`.
-* Browser `localStorage("irth-cart")` remains cart intent only and is not monetary truth.
+- Super Admin Order confirmation.
+- Conservative Order aggregation.
+- One Shipment per Artisan Group in MVP.
+- Automatic Shipment creation when group becomes ready.
+- Manual Super Admin Shipment status actions.
+- `shipment_status_history` audit trail.
+- `delivered_at` / `shipped_at` lifecycle timestamps.
+- Order Status remains separate from Payment Status.
 
-Verified scenarios included:
-
-* Promotion-only.
-* Stackable Coupon.
-* Minimum not met.
-* Promotion preferred over non-stackable Coupon.
-* Coupon not applicable.
-* Invalid Coupon.
-* Normalized lowercase/whitespace Coupon code.
-* Coupon remove.
-* Quantity re-quote.
-
-Production Build / TypeScript passed.
-
----
-
-## S15.4.6 — Security / Edge Integration Closure
-
-**Status: CLOSED ✅**
-
-Completed final S15.4 integration and security review:
-
-* Reviewed browser → quote route → Market → Product/Price/Inventory → Promotion → Coupon → Cart display trust boundary.
-* Market change forces a full page reload, so Cart/Product quotes re-resolve against the newly confirmed Market.
-* Invalid Market cookie UUIDs are rejected before DB lookup instead of leaking into a DB error path.
-* `/api/cart/quote` now returns only customer-needed fields; internal Promotion/Coupon funding metadata is not exposed publicly.
-* Quote responses use `Cache-Control: no-store`.
-* Coupon tables remain RLS-protected from anonymous/direct customer reads.
-* Coupon Redemptions remain non-writable by anonymous/authenticated customer roles during Quote.
-* Promotion tables remain protected by their existing RLS boundary.
-* Coupon private/public RPC execution chain was reviewed and corrected without breaking guest/authenticated quote access.
-* Git/Live migration drift introduced during the privilege review was reconciled to the Live migration version `20260830180951`.
-* Temporary Live `UI...` test Coupons were disabled after validation.
-* Security Advisor shows no S15.4-specific Coupon/Cart warning; existing unrelated warnings remain documented below.
-* Local E2E runner was isolated into `.next-e2e` so it can run alongside the normal local dev server.
-
-Final verification:
+Closure record:
 
 ```text
-PASS S15.4.4/S15.4.6 coupon quote E2E
-```
-
-Confirmed by E2E:
-
-* Secure local RPC + real `/api/cart/quote` path.
-* Public quote hides internal Promotion/Coupon funding metadata.
-* Quote responses are `no-store`.
-* Stackable Percentage and Fixed Coupons.
-* Proportional allocation and deterministic remainder tie-break.
-* Non-stackable win / lose / exact tie.
-* Decision 24A: unrelated Promotions remain active.
-* Minimum, max cap, Round Half-Up and Product/Craft restriction union.
-* Artisan-funded Coupon scope.
-* Quote does not consume Coupon Redemption.
-
-**S15.4 — Promotion Calculation + Coupon Foundation is CLOSED ✅**
-
----
-
-## S15.5.1 — Trusted Checkout Summary
-
-**Status: CLOSED ✅**
-
-Implemented and tested:
-
-* Replaced the insecure Checkout summary with trusted server-quoted commerce data.
-* `/checkout` reuses the secure Cart quote pipeline for current Market, Product availability, Market price, inventory, Promotions and Coupon effects.
-* Browser-stored price/discount/total values are not trusted.
-* Trusted Product lines, quantity, original merchandise total, Promotion discount, Coupon discount and merchandise subtotal are displayed.
-* Checkout remains blocked when trusted `canCheckout` is false.
-* Shipping, payment and real Order creation remain intentionally outside this completed subtask.
-
-Manual functional test and Production Build / TypeScript passed.
-
----
-
-## S15.5.2 — Customer Details + Guest Checkout Foundation
-
-**Status: CLOSED ✅**
-
-Approved decision record:
-
-```text
-docs/IRTH_S15_5_DECISION_REGISTER.md
-```
-
-Implemented and tested:
-
-* One-page Mobile-First customer/contact and delivery-details foundation.
-* Required fields: recipient full name, email, phone, Market-locked delivery country, administrative area/governorate, city and detailed address; delivery notes optional.
-* Egypt Governorate selection with generic `administrative_area` architecture for later Markets.
-* Server-side normalization and validation through `/api/checkout/validate`.
-* Selected Market determines allowed delivery country; physical Geo remains suggestion-only.
-* Guest Checkout remains allowed with no automatic account creation.
-* Authenticated Customer name/email prefill is supported without silently overwriting account data.
-* Sensitive Checkout PII stays in React state and is not persisted to `localStorage` or `sessionStorage`.
-* Guest email/phone remain transactional-only; no marketing enrollment is created.
-* Safe Checkout sign-in return to `/checkout` is implemented without open redirect behavior.
-* Checkout-side server validation re-runs trusted Market/Product/Price/Inventory/Promotion/Coupon commerce functions directly.
-* Successful validation does not create an Order, consume Coupon Redemption, mutate inventory, calculate shipping or activate payment.
-* Checkout validation responses use a narrow customer-safe response and do not echo submitted PII.
-
-Verified functional scenarios:
-
-* Guest Checkout form and Egypt delivery-country lock.
-* Invalid email/phone validation.
-* Egypt Governorate validation.
-* Valid customer details return secure validation success with no Order created.
-* Refresh does not persist Guest PII.
-* Checkout `Sign in` opens Customer Login, successful Login returns safely to `/checkout`, and authenticated name/email prefill works.
-* Production Build / TypeScript passed after final Market-country relation normalization.
-
----
-
-# 6. Current Shopping State
-
-Real foundations now exist for:
-
-```text
-Market & Pricing                    ✅
-Market Selection                    ✅
-Secure Cart / Server Quote          ✅
-Promotion Market Scope              ✅
-Promotion Calculation               ✅
-Coupon DB Foundation                ✅
-Coupon Calculation                  ✅
-Cart Promotion/Coupon UX            ✅
-Security / Edge Closure             ✅
-Trusted Checkout Summary            ✅
-Customer Details / Guest/Auth       ✅
-Shipping / Final Total Boundary     ← NEXT
-Orders                              ⬜
-Payments                            ⬜
-```
-
-Current task:
-
-```text
-S15.5.3 — Shipping / Final Total Boundary
+docs/IRTH_ADMIN_ORDER_SHIPPING_CLOSURE.md
 ```
 
 ---
 
-# 7. Cart Current State
+# 5. Tracking Metadata Foundation
 
-**Status: Trusted commerce backend + Promotion/Coupon UX real ✅**
+**Status: IMPLEMENTED + BROWSER / DB / SECURITY VERIFIED 🟨**  
+**Final closure gate:** latest Production Build result still needs to be recorded.
 
-Cart persistence remains browser-based during MVP transition:
+Migration:
 
 ```text
-localStorage("irth-cart")
+supabase/migrations/20260831094605_create_admin_tracking_metadata_foundation.sql
 ```
 
-Browser storage is NOT authoritative for price, eligibility, discounts, or totals.
+Implemented:
 
-Server Quote resolves:
+- `courier_code` editing.
+- `tracking_number` editing.
+- `tracking_url` editing.
+- HTTPS-only Tracking URL validation.
+- `shipment_tracking_history` audit table.
+- Idempotent identical save.
+- Super Admin-only authorization.
+- Public `SECURITY INVOKER` RPC wrapper.
+- Private `SECURITY DEFINER` implementation with explicit `private.is_super_admin()` check.
 
-* Current Market and currency.
-* Product public availability.
-* Approved Market price.
-* Inventory and quantity.
-* Product Promotion.
-* Coupon eligibility.
-* Promotion/Coupon discounts.
-* Trusted final merchandise subtotal.
+Verification record:
 
-Cart UI now supports:
+```text
+docs/IRTH_TRACKING_METADATA_VERIFICATION.md
+```
 
-* Coupon apply/remove.
-* Trusted Promotion/Coupon status display.
-* Trusted discounted line totals.
-* Trusted summary totals.
-* Re-quote after quantity change.
+## Live browser / DB verification
 
-Internal Promotion/Coupon funding attribution remains server-side and is not exposed in the public quote response.
+Test Order:
 
-No persistent Cart database table has been approved or created.
+```text
+IRTH-20260830-782EBA88
+```
+
+Current verified state:
+
+```text
+Order status:      delivered
+Payment status:    pending
+Shipment status:   delivered
+Courier code:      test_courier
+Tracking number:   TEST-12345
+Tracking URL:      https://example.com/track/TEST-12345
+Tracking history:  1 row
+```
+
+The Admin UI showed the saved Tracking data and the second identical save returned:
+
+```text
+بيانات التتبع لم تتغير.
+```
+
+Live DB confirmed exactly one Tracking-history row, proving idempotency.
+
+The values above are test metadata, not an approved production Courier configuration.
 
 ---
 
-# 8. Checkout
+# 6. Current Order / Shipping Architecture
 
-**Status: Trusted foundation real 🟨 — S15.5.1 + S15.5.2 CLOSED; S15.5.3 NEXT**
-
-Route:
+Customer-facing conceptual structure remains:
 
 ```text
-/checkout
-```
-
-Current trusted Checkout foundation now provides:
-
-* Server-authoritative merchandise summary.
-* Promotion/Coupon-aware trusted totals.
-* Guest and authenticated Customer flow.
-* Required customer/contact/delivery-detail input.
-* Market-locked delivery country.
-* Server-side customer and commerce revalidation.
-* Sensitive PII kept out of browser persistence.
-* Safe Login return to Checkout.
-
-Current intentional boundary:
-
-```text
-Trusted merchandise + customer details ✅
-Shipping price / free-shipping rule    ← NEXT
-Final Checkout total                   ← NEXT
-Real transactional Order creation      ⬜
-Payment integration                    ⬜
-```
-
-No real Order is created yet, and the current Checkout must not be mistaken for a completed Order/Payment flow.
-
----
-
-# 9. Orders
-
-**Status: Prototype 🟧**
-
-Existing routes exist, but there is no real PostgreSQL Orders module yet.
-
-Approved architecture remains:
-
-```text
-Customer sees ONE order
+ONE Customer Order
         ↓
-IRTH internally splits by Artisan / Shipment
+Artisan Groups
+        ↓
+Shipments
 ```
 
-Exact future Order table names are not yet approved.
+Order status is not a free Admin dropdown.
 
-Before first real Coupon consumption, `coupon_redemptions` must receive a real `order_id -> orders.id` relationship as part of the Order transaction design.
+Order aggregation is server-controlled.
 
----
+Artisan controls only preparation transitions.
 
-# 10. Promotions
-
-**Status: Secure calculation real ✅; admin/artisan workflow already real**
-
-Approved and implemented rules include:
-
-* Promotion ≠ Coupon.
-* Every Promotion belongs to a Market.
-* Best actual monetary Promotion wins per Product.
-* Fixed Promotion is per-unit.
-* Percentage Promotion is line-level.
-* Exact Artisan-vs-IRTH tie → Artisan wins.
-* Customer-facing Promotion discount and funding attribution are separated.
-
-Artisan Promotions still require IRTH approval.
+IRTH / Courier-side logic controls shipment transitions.
 
 ---
 
-# 11. Coupon System
+# 7. Customer Tracking — NEXT
 
-**Status: DB + secure calculation + Cart UX real ✅**
-
-Approved and implemented rules include:
-
-* One Coupon per Cart/Order MVP.
-* Market-scoped code.
-* Product/Craft OR/Union restrictions.
-* Stackable Coupon applies after Promotions.
-* Non-stackable compares only Coupon-eligible portion.
-* Coupon never worsens customer price.
-* Exact non-stackable tie keeps Promotion-only.
-* Fixed Coupon is cart-level once.
-* Percentage Coupon calculated once on total eligible subtotal.
-* Currency-aware Round Half-Up.
-* Proportional allocation with deterministic remainder.
-* IRTH-funded or one-Artisan-funded scope.
-* Usage is not consumed during Quote or Checkout validation.
-* Customer-identity strategy is approved in S15.5; actual Redemption enforcement remains part of the future secure Order transaction.
-
----
-
-# 12. Public Marketplace / Identity / Security Snapshot
-
-Roles:
+Next planned MVP task after the Tracking Metadata Production Build passes:
 
 ```text
-customer
-artisan
-super_admin
+Customer Tracking View
++
+Secure Guest Tracking Link
 ```
 
-Implemented:
+Approved direction:
 
-* Customer signup/login ✅
-* Artisan login ✅
-* Super Admin login ✅
-* Role-based routing ✅
-* Protected dashboard routes ✅
-* Single Super Admin database rule ✅
-* Customer cannot self-assign Artisan or Super Admin ✅
+### Authenticated Customer
 
-Customer privacy remains a core business rule.
+Customer may read only their own Order / Tracking data.
 
-Artisans must NOT receive Customer phone, email, WhatsApp, Full Address, or Direct Contact Information unless a future explicit decision changes this.
+### Guest Customer
+
+Guest access must NOT use Order Number alone as authorization.
+
+Approved direction:
+
+```text
+Opaque high-entropy Guest Access Token
+↓
+raw token delivered to customer
+↓
+only token hash stored server-side
+↓
+secure Order / Tracking lookup
+```
+
+The current Order schema already has `guest_access_token_hash`, but the usable Guest Tracking link / raw token delivery flow is not implemented yet.
 
 ---
 
-# 13. Other Major Modules
+# 8. Money Status
 
-## Search
+## Commission
 
-**Status: Core real ✅ / Full Search partial 🟨**
+Real foundation exists ✅
 
-Search supports Products, Artisans, Countries, Crafts with intentionally simple ranking. Autocomplete, story/content search and ranking inputs based on future real Orders/Reviews remain later.
-
-## Saved / Wishlist & Recently Viewed
-
-**Status: PARTIAL 🟨**
-
-Browser storage keeps Product identity while display data is re-resolved from the live public Marketplace. Account-level persistence remains later.
-
-## Language / RTL / LTR
+Approved launch default:
 
 ```text
-RTL / LTR foundation       ✅
-Language preference         ✅
-Full Arabic UI              🟨
-Full English UI             🟨
-Translation architecture    ⬜
-Final bilingual QA          ⬜
+15% for all current Crafts
+0 Artisan overrides currently
 ```
 
-## Shipping
+Each Order Item stores the applied commission rate historically.
 
-**Status: NOT IMPLEMENTED ⬜ — S15.5.3 NEXT**
-
-Shipping Layer remains separate from Order System. MVP starts with one Courier; first Courier is not yet approved.
-
-The Specification requires Market-level fixed shipping cost plus an independent free-shipping threshold, configurable by IRTH. Final Egypt values are not yet approved and must not be invented.
+Exact Commission Amount calculation / payout accounting is not yet implemented.
 
 ## Payment
 
 **Status: NOT IMPLEMENTED ⬜**
 
-Payment Layer remains separate from Checkout. MVP starts with one Payment Gateway; first Gateway is not yet approved.
+Payment Layer stays separate from Checkout / Order.
 
-Important:
-
-```text
-Order Status ≠ Payment Status
-```
-
-## Commission
-
-**Status: Prototype 🟧**
-
-Approved model:
+Current test Order correctly remains:
 
 ```text
-Craft Default Commission
-        ↓
-Optional Artisan Override
-        ↓
-Historical Applied Snapshot
+payment_status = pending
 ```
 
-Commission calculation is intentionally not part of S15.4.
+First Payment Gateway is not yet approved.
 
 ## Payout
 
-**Status: Prototype 🟧**
+**Status: NOT IMPLEMENTED ⬜**
 
-Approved high-level sequence:
+Approved sequence remains:
 
 ```text
 Sale
 ↓
 Delivery
 ↓
-Return period expires
+Return period ends
 ↓
-Payout becomes eligible
+Eligible
 ↓
-Payout cycle
+Payout Cycle
 ```
-
-## Returns / Refunds
-
-**Status: NOT IMPLEMENTED ⬜**
-
-Confirmed MVP requirement. Final return period, exclusions and shipping responsibility still need decisions later.
-
-## Reviews
-
-**Status: Prototype 🟧**
-
-Real Reviews must depend on a real delivered Order / verified purchase. Artisan reply remains subject to IRTH moderation.
-
-## Notifications
-
-**Status: Prototype 🟧**
-
-Notification Layer remains independent. MVP channels are In-App + Email.
-
-## Wholesale
-
-**Status: NOT IMPLEMENTED ⬜**
-
-Wholesale Request is MVP scope and must preserve Customer-contact privacy from Artisans.
 
 ---
 
-# 14. Security Advisor / Security Notes
+# 9. Returns / Refunds
 
-Known unrelated existing warnings remain:
+**Status: REQUIRED BY MVP / DETAILED WORKFLOW LATER 🟨**
 
-1. `public.review_product_market_price_request(...)` is a `SECURITY DEFINER` function executable by `authenticated`; it performs internal Super Admin authorization but should be reviewed in the appropriate Security/Polish pass rather than silently changing closed S15.1 behavior.
-2. Leaked Password Protection is disabled in Supabase Auth.
-3. Existing performance/index warnings may remain until affected tables have real workload.
+Architecture remains ready for later Return / Refund workflow.
 
-S15.4 introduced no new Cart/Coupon-specific Security Advisor warning after final closure review.
+Still unresolved:
 
-Coupon lookup boundary intentionally uses:
+- Final Return Window.
+- Return Shipping Responsibility.
+- Detailed Refund engine.
+
+---
+
+# 10. Security / Privacy Snapshot
+
+Customer privacy remains a core Business Rule.
+
+Artisan must never receive:
+
+- Phone.
+- Email.
+- WhatsApp.
+- Full Address.
+- Direct Customer contact data.
+
+Important implemented security patterns:
 
 ```text
-public SECURITY INVOKER wrapper
-        ↓
-private SECURITY DEFINER lookup
+Browser
+↓
+Next.js Server / authenticated Supabase client
+↓
+public SECURITY INVOKER RPC
+↓
+private SECURITY DEFINER helper when privileged access is genuinely required
+↓
+explicit authorization inside private function
 ```
 
-with explicit narrow grants and no raw general Coupon-table client read.
+No Supabase secret/service key is exposed to the Browser.
+
+Known unrelated existing Security Advisor warnings remain:
+
+1. Legacy `public.review_product_market_price_request(...)` SECURITY DEFINER exposure pattern needs a later dedicated hardening pass.
+2. Supabase Leaked Password Protection is disabled.
+3. Audit history tables intentionally have RLS enabled with no direct Browser policies, which produces informational `rls_enabled_no_policy` Advisor notices.
 
 ---
 
-# 15. Known Technical Debt / Gaps
+# 11. Known Technical Debt / Gaps
 
-* Admin Artisans / Countries / Crafts remain mixed prototype/real areas.
-* Checkout now has trusted merchandise and customer-detail validation, but Shipping/final-total and real transactional Order creation are not yet implemented.
-* Orders, Notifications, Reviews, Commission UI, Payout UI remain prototype or absent as noted above.
-* Sensitive payout/bank settings must eventually move to strict server-side storage.
-* Full bilingual UI is incomplete.
-* Search v0.1 is incomplete.
-* Legacy `products.price` remains temporarily and must never be trusted for commerce.
-* Made-to-Order Server Quote branch lacks a suitable current Live production fixture; this is a documented test-fixture gap, not a known branch failure.
-* Existing `<img>` optimization warnings are non-blocking legacy UI debt.
-* Full repository lint still contains older unrelated debt; focused Shopping lint/build passes.
-
----
-
-# 16. Product Decisions Already Approved — Do Not Reopen Without Reason
-
-Do NOT automatically reopen:
-
-* IRTH handmade / heritage Marketplace.
-* Arabic + English; Arabic RTL + English LTR.
-* Mobile-First + Responsive.
-* Craft primary Shop entry; Explore can start from Country.
-* Comprehensive Search with simple MVP ranking.
-* Guest Checkout; optional Customer account.
-* Customer sees one Order with internal Artisan/Shipment split.
-* Artisan does not receive sensitive Customer contact information and does not directly contact Customer.
-* Product Approval in MVP.
-* Artisan Promotions require IRTH approval.
-* Reviews require delivered verified purchase; Artisan reply moderated.
-* One Super Admin in MVP.
-* Commission by Craft + optional Artisan override.
-* Payout delayed after delivery/return conditions.
-* Returns / Refunds in MVP.
-* Payment, Shipping and Notification layers separated.
-* One Payment Gateway + one Courier initially, extensible later.
-* Country and Market separate.
-* Product prices Market-specific; no automatic FX conversion.
-* Geo only suggests Market; Customer confirms/changes it.
-* Egypt Launch Market uses EGP.
-* Legacy Product prices are not automatically mapped to Egypt/EGP.
-* S15.4 Decisions 1A–24A as recorded in `IRTH_S15_4_DECISION_REGISTER.md`.
-* S15.5 Checkout Decisions 1–26 as recorded in `IRTH_S15_5_DECISION_REGISTER.md`.
+- Admin Login authenticates a user but the Login page itself does not enforce Super Admin before redirect; sensitive Admin Order / Shipping RPCs are nevertheless protected at the database boundary. Broader Admin route authorization cleanup remains technical debt.
+- Customer `/account/orders` still needs reconciliation with the new real Orders / Tracking foundation.
+- Guest Tracking link / usable raw Guest token is not implemented yet.
+- First Courier is not approved.
+- First Payment Gateway is not approved.
+- Notification Layer remains prototype / later.
+- Reviews still need real verified-purchase integration on top of delivered Orders.
+- Payout execution is not implemented.
+- Full bilingual QA remains incomplete.
+- Search v0.1 is partial.
+- Legacy `products.price` must never be trusted for Market-aware commerce.
+- A single transient `/api/markets` 500 was observed once during local development and then immediately returned 200 on retry; it is non-blocking unless reproduced.
 
 ---
 
-# 17. Decisions Still Needed Later
+# 12. Approved Decisions — Do Not Reopen Without Reason
 
-These points remain unresolved unless separately approved:
-
-* First Payment Gateway.
-* First Courier.
-* Final Egypt Shipping cost and free-shipping threshold.
-* Final Return Window.
-* Return Shipping Responsibility.
-* Final Payout Cycle.
-* Exact Orders schema/table naming.
-* Persistent Cart DB decision, if ever needed.
-
-S15.4 Promotion/Coupon overlap, Market scope, fixed/percentage calculation, rounding, stacking, allocation and non-stackable behavior are no longer unresolved; they are approved and implemented.
-
-S15.5.1 trusted summary and S15.5.2 customer-details/Guest/Auth decisions are also approved, implemented and closed.
+- Handmade / heritage Marketplace.
+- Arabic + English; RTL / LTR.
+- Mobile-First responsive UX.
+- Craft is a primary Shop entry.
+- Explore may start from Country.
+- Guest Checkout supported.
+- Customer account optional during purchase.
+- One Customer Order with internal Artisan / Shipment split.
+- Artisan cannot see sensitive Customer contact data.
+- Product Approval in MVP.
+- Artisan Promotions require IRTH approval.
+- Reviews require verified delivered purchase.
+- One Super Admin in MVP.
+- Commission by Craft with optional Artisan override.
+- Launch commission = 15% for current Crafts; no Artisan override currently.
+- Payout not immediately eligible after sale.
+- Return / Refund required in MVP.
+- Payment Layer independent from Checkout.
+- Shipping Layer independent from Order System.
+- Notification Layer independent.
+- One Payment Gateway + one Courier initially, extensible later.
+- Egypt Launch Market = EGP.
+- Egypt shipping fee = 150 EGP.
+- Egypt free-shipping threshold = 2000 EGP.
+- Order Status != Payment Status.
+- Artisan preparation transitions are limited and server-controlled.
+- Order status aggregation is server-controlled.
+- One Shipment per Artisan Group in MVP.
+- Manual Admin shipping transitions are valid before Courier API integration.
+- Tracking URL, when present, must use HTTPS.
+- Guest Tracking must use a secure opaque token; Order Number alone is not authorization.
 
 ---
 
-# 18. Shopping Implementation Sequence
+# 13. Decisions Still Needed Later
+
+- First Payment Gateway.
+- First Courier.
+- Final Return Window.
+- Return Shipping Responsibility.
+- Final Payout Cycle.
+- Detailed Refund workflow.
+- Notification delivery details / templates.
+
+The following are no longer unresolved:
+
+- Egypt shipping fee / threshold.
+- Orders schema foundation.
+- Artisan / Admin Order read boundaries.
+- Artisan fulfillment transitions.
+- Admin manual Shipment lifecycle.
+- Tracking metadata validation / audit direction.
+- Guest Tracking security direction.
+
+---
+
+# 14. Current Implementation Sequence
 
 ```text
-S15.0  Database Migration Reconciliation ✅
-        ↓
-S15.1  Market & Pricing Foundation ✅
-        ↓
-S15.2  Market Selection ✅
-        ↓
-S15.3  Secure Cart / Server Quote ✅
-        ↓
-S15.4.1 Promotion Market Scope ✅
-        ↓
-S15.4.2 Promotion Calculation ✅
-        ↓
-S15.4.3 Coupon DB Foundation ✅
-        ↓
-S15.4.4 Coupon Calculation ✅
-        ↓
-S15.4.5 Cart Promotion/Coupon UI ✅
-        ↓
-S15.4.6 Security / Edge Integration Closure ✅
-        ↓
-S15.5.1 Trusted Checkout Summary ✅
-        ↓
-S15.5.2 Customer Details + Guest Checkout Foundation ✅
-        ↓
-S15.5.3 Shipping / Final Total Boundary ← NEXT
-        ↓
-S15.5.4 Order Creation Transactional Design
-        ↓
-Shopping Integration Test
+S12 Product Foundations                              ✅
+S13 Product Approval                                 ✅
+S14 Public Marketplace DB Integration                ✅
+S15.0 Migration Reconciliation                       ✅
+S15.1 Market & Pricing                               ✅
+S15.2 Market Selection                               ✅
+S15.3 Secure Cart / Quote                            ✅
+S15.4 Promotions + Coupons                           ✅
+S15.5.1 Trusted Checkout Summary                     ✅
+S15.5.2 Customer Details / Guest Checkout            ✅
+S15.5.3 Shipping / Final Total                       ✅
+S15.5.4 Transactional Order Creation                 ✅
+Artisan Order Read                                   ✅
+Artisan Fulfillment                                  ✅
+Admin Order Read                                     ✅
+Admin Order + Shipping Status                        ✅
+Tracking Metadata                                    🟨 final Production Build pending
+Customer Tracking View                              NEXT
+Secure Guest Tracking Link                           NEXT / same Tracking group
+Notifications                                        LATER
+Payment Gateway                                      SEPARATE LAYER
 ```
-
-Payment integration remains a separate layer after the required Checkout/Order foundation.
 
 ---
 
-# 19. CURRENT STATUS
+# 15. CURRENT STATUS
 
 ```text
-LAST CLOSED TASK:
-S15.5.2 — Customer Details + Guest Checkout Foundation ✅
+LAST FULLY CLOSED TASK:
+Admin Order + Shipping Status Foundation ✅
 
-LAST CLOSED GROUP:
-S15.4 — Promotion Calculation + Coupon Foundation ✅
+CURRENT TASK:
+Tracking Metadata Foundation 🟨
 
-CURRENT GROUP:
-S15.5 — Checkout Foundation 🟨
+CURRENT STATE:
+Implementation + Browser E2E + Live DB verification + Security verification PASSED
+Final Production Build result after latest Tracking commit NOT YET RECORDED
 
-CURRENT MAJOR POSITION:
-Secure Shopping
-
-NEXT TASK:
-S15.5.3 — Shipping / Final Total Boundary
+NEXT AFTER CLOSURE:
+Customer Tracking View + Secure Guest Tracking Link
 ```
 
 ---
 
-# 20. NEXT TASK — S15.5.3
+# 16. Definition of Closed
 
-## S15.5.3 — Shipping / Final Total Boundary
+A task is CLOSED only when:
 
-**Status: READY FOR DECISION / START**
-
-Goal:
-
-Add the trusted Shipping-price and final-Checkout-total boundary on top of the closed trusted merchandise quote and customer-detail validation, without prematurely creating Orders or integrating a Courier/Payment provider.
-
-Approved boundaries already known:
-
-* Shipping Layer remains separate from Order System.
-* Selected Market determines the allowed delivery country.
-* One delivery address is used per Order in MVP.
-* Shipping rules are Market-specific.
-* The Specification requires a fixed shipping cost plus an independent free-shipping threshold configurable by IRTH.
-* Shipping amount and free-shipping threshold must affect the final trusted Checkout total server-side, not from client/localStorage values.
-* Final Egypt shipping fee and free-shipping threshold have NOT yet been approved.
-* First Courier has NOT yet been approved and must not be selected silently.
-* Real Order creation remains for S15.5.4 after its transactional model is approved.
-* Payment integration remains separate.
-
-Before implementation, the unresolved Egypt Shipping values and any required configuration/data-model detail must follow:
-
-```text
-Question
-↓
-Discussion
-↓
-Options
-↓
-Owner Decision
-↓
-Adopt
-↓
-Implement
-```
-
----
-
-# 21. S15.5 Boundary
-
-Current S15.5 sequence:
-
-```text
-S15.5.1 Trusted Checkout Summary                         CLOSED ✅
-S15.5.2 Customer Details + Guest Checkout Foundation     CLOSED ✅
-S15.5.3 Shipping / Final Total Boundary                  NEXT
-S15.5.4 Order Creation Transactional Design              LATER
-Payment integration                                      SEPARATE LAYER
-```
-
-S15.5 already owns or will own:
-
-* Trusted Checkout summary.
-* Customer shipping/contact input handling.
-* Guest/Auth Checkout behavior.
-* Checkout-side server revalidation.
-* Shipping/final-total boundary.
-* Secure transition from Quote toward real Order creation.
-* Removing insecure local/browser Order creation.
-* Future secure per-customer Coupon Redemption enforcement at the approved real Order transaction point.
-
-Payment provider integration, Courier integration and full Order/Shipment lifecycle must not be silently pulled into S15.5 without an approved subtask boundary.
-
----
-
-# 22. DO NOT REOPEN
-
-Unless there is a genuine technical/business conflict, do not reopen:
-
-```text
-S12 Inventory Foundation
-S12 Media Foundation
-S13 Product Approval Workflow
-S14 Public Marketplace DB Integration
-S15.0 Database Migration Reconciliation
-S15.1 Market & Pricing Foundation
-S15.2 Market Selection
-S15.3 Secure Cart / Server Quote
-S15.4.1 Promotion Market Scope
-S15.4.2 Promotion Calculation
-S15.4.3 Coupon DB Foundation
-S15.4.4 Coupon Calculation
-S15.4.5 Cart Promotion/Coupon UI
-S15.4.6 Security / Edge Integration Closure
-S15.5.1 Trusted Checkout Summary
-S15.5.2 Customer Details + Guest Checkout Foundation
-```
-
----
-
-# 23. Definition of "Closed"
-
-A task is only CLOSED when:
-
-1. Business rule is understood.
-2. Required decision is approved.
+1. Business Rule is understood.
+2. Required decisions are approved.
 3. Implementation exists.
 4. Security implications are reviewed.
 5. Expected flow is tested.
 6. Relevant edge cases are reviewed.
 7. No known blocker remains.
-8. `IRTH_PROJECT_STATUS.md` is updated.
+8. Required build / integration verification is completed where applicable.
+9. Project status documentation is updated.
 
-A page existing in the repository does NOT mean the feature is closed.
-
----
-
-# 24. Project Working Method
-
-For every task:
-
-```text
-Understand
-↓
-Discuss
-↓
-Decide
-↓
-Implement
-↓
-Test
-↓
-Close
-↓
-Update Project Status
-```
+A page existing in the repository does not mean the feature is closed.
 
 ---
 
-# 25. Change Log
+# 17. Change Log — 31 August 2026
 
-## 31 August 2026 — S15.5.1 + S15.5.2 Closure
+## Order Creation
 
-* Closed S15.5.1 — Trusted Checkout Summary.
-* Closed S15.5.2 — Customer Details + Guest Checkout Foundation.
-* Recorded and retained approved S15.5 Checkout decisions in `docs/IRTH_S15_5_DECISION_REGISTER.md`.
-* Replaced the old insecure Checkout prototype summary with trusted server-authoritative merchandise data.
-* Added server-side Checkout customer/contact/delivery validation without creating a real Order.
-* Added Guest Checkout customer details with Market-locked delivery country and Egypt Governorate validation.
-* Kept sensitive customer PII out of `localStorage` and `sessionStorage`.
-* Added authenticated Customer name/email prefill without silently overwriting account data.
-* Added safe Sign in from Checkout with return to `/checkout` and no open redirect.
-* Confirmed Quote/Checkout validation does not consume Coupon Redemption or mutate inventory.
-* Confirmed Shipping price, Payment and real Order creation remain intentionally inactive at this stage.
-* Corrected Supabase Market-country relation shape at the shared server helper boundary.
-* Production Build / TypeScript passed.
-* Manual Guest validation, invalid field, PII refresh, Market-country lock and Guest → Login → Checkout return/prefill scenarios passed.
-* Advanced the next task to S15.5.3 — Shipping / Final Total Boundary.
+- Closed S15.5.4 Transactional Order Creation.
+- Verified real browser Order creation and live DB snapshots.
+- Verified atomic stock decrement and idempotency.
 
-## 30 August 2026 — S15.4 Closure
+## Artisan Orders
 
-* Closed S15.4.5 — Cart Promotion/Coupon UI.
-* Closed S15.4.6 — Security / Edge Integration Closure.
-* Closed S15.4 — Promotion Calculation + Coupon Foundation as a whole.
-* Confirmed Cart Coupon apply/remove, status display, quantity re-quote and trusted discounted totals.
-* Final Security review kept browser state as intent only and server quote as monetary authority.
-* Reduced public Cart Quote response to customer-needed fields and hid internal Promotion/Coupon funding metadata.
-* Added `Cache-Control: no-store` on Cart Quote responses.
-* Added invalid Market cookie UUID guard before DB lookup.
-* Reviewed and corrected Coupon private/public RPC execution privileges while preserving guest/authenticated quote access.
-* Reconciled Git migration history to Live Supabase for the S15.4.6 privilege correction.
-* Re-verified Coupon/Promotion RLS boundaries and no customer Redemption write during Quote.
-* Disabled temporary Live UI test Coupons after validation.
-* Isolated the local E2E Next build directory to `.next-e2e` so tests can run beside the normal local dev server.
-* Final Production Build / TypeScript passed after application changes.
-* Final `npm.cmd run test:coupon-e2e` passed with public-response security checks and full Coupon calculation matrix.
-* Confirmed S15.5 — Checkout Foundation as next task.
+- Replaced Artisan Orders prototype with real DB-backed view.
+- Closed Artisan Order Read Foundation.
+- Added secure Artisan fulfillment transitions and audit history.
+- Closed Secure Artisan Fulfillment Actions.
 
-## 30 August 2026 — S15.4.4 Closure
+## Admin Orders / Shipping
 
-* Closed S15.4.4 — Coupon Calculation.
-* Added secure Market-scoped Coupon lookup RPC boundary.
-* Added `src/lib/couponQuote.ts` trusted server-only Coupon calculation.
-* Added Percentage and Fixed Coupon calculation with exact decimal-string arithmetic.
-* Added Round Half-Up and currency minor-unit handling.
-* Added minimum-order, percentage max-cap and fixed eligible-subtotal cap behavior.
-* Added proportional line allocation with deterministic largest-remainder / `product_id` tie-break.
-* Implemented stackable Promotion → Coupon flow.
-* Implemented non-stackable customer-best comparison only over Coupon-eligible lines.
-* Confirmed exact non-stackable tie keeps Promotion-only.
-* Approved and implemented Decision 24A: Promotions outside Coupon scope remain active.
-* Added separate trusted Coupon funding attribution.
-* Confirmed Quote never consumes Coupon Redemption.
-* Verified Remote function security modes, RLS boundary, usage limits, time window, normalization and Artisan scope.
-* Added local-only deterministic Coupon E2E fixtures and reusable `npm.cmd run test:coupon-e2e` runner.
-* Final real `/api/cart/quote` E2E passed for stackable, fixed, percentage, allocation, non-stackable win/lose/tie, 24A, minimum, max cap, rounding, restriction union and Artisan funding.
+- Replaced Admin Orders `localStorage` prototype with real DB-backed Super Admin view.
+- Closed Admin Order Read Foundation.
+- Added Admin Order confirmation.
+- Added server-controlled Order aggregation.
+- Added one Shipment per Artisan Group.
+- Added manual Shipment lifecycle and Shipment history.
+- Browser E2E reached delivered successfully while Payment remained pending.
+- Closed Admin Order + Shipping Status Foundation.
 
-## 30 August 2026 — S15.3 Closure
+## Tracking Metadata
 
-* Closed S15.3 — Secure Cart / Server Quote.
-* Removed trust in browser-provided Product prices and totals.
-* Added exact Market-price text transport and inventory/public eligibility validation.
-* Integrated Market-aware secure quote into Product and Cart surfaces.
-* Production Build / TypeScript passed.
-
-## 30 August 2026 — S15.2 Closure
-
-* Closed S15.2 — Market Selection.
-* Added active Market API/session selection, Header selector, ISO country codes and non-authoritative Geo suggestion.
-* Approved Egypt Launch Market using EGP.
-
-## 30 August 2026 — S15.1 Closure
-
-* Closed S15.1 — Market & Pricing Foundation.
-* Created Market-specific pricing and Artisan price moderation workflow.
-
-## 29 August 2026
-
-* Confirmed S12, S13 and S14 closed.
-* Completed S15.0 — Database Migration Reconciliation.
+- Added `shipment_tracking_history`.
+- Added Super Admin secure tracking RPC.
+- Added Courier code / Tracking number / HTTPS Tracking URL form.
+- Verified non-admin rejection and HTTP URL rejection.
+- Verified identical saves are idempotent.
+- Browser saved `test_courier / TEST-12345 / https://example.com/track/TEST-12345`.
+- Live DB confirmed exactly one Tracking history row after two identical saves.
+- Final Production Build after the latest Tracking UI commit remains the only current closure gate.
