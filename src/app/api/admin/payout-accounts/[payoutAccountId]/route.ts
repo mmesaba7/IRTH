@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { decryptPayoutDetails } from "@/lib/payouts/crypto";
 import {
@@ -29,11 +30,7 @@ function rows(value: unknown): Record<string, unknown>[] {
 async function loadAccount(
   payoutAccountId: string,
   userId: string,
-  admin: Awaited<ReturnType<typeof getPayoutServerContext>> extends infer T
-    ? T extends { admin: infer A }
-      ? A
-      : never
-    : never
+  admin: SupabaseClient
 ) {
   const { data, error } = await admin.rpc("get_payout_accounts_for_admin", {
     p_admin_user_id: userId,
@@ -41,7 +38,8 @@ async function loadAccount(
   });
 
   if (error) return { error, account: null };
-  const account = rows(data).find((row) => row.payout_account_id === payoutAccountId) ?? null;
+  const account =
+    rows(data).find((row) => row.payout_account_id === payoutAccountId) ?? null;
   return { error: null, account };
 }
 
@@ -56,7 +54,8 @@ export async function GET(
 
   try {
     const requestContext = await getPayoutServerContext();
-    if (!requestContext) return jsonNoStore({ error: "Authentication required" }, 401);
+    if (!requestContext)
+      return jsonNoStore({ error: "Authentication required" }, 401);
 
     const loaded = await loadAccount(
       payoutAccountId,
@@ -69,7 +68,8 @@ export async function GET(
       }
       return jsonNoStore({ error: "Unable to load payout account" }, 500);
     }
-    if (!loaded.account) return jsonNoStore({ error: "Payout account not found" }, 404);
+    if (!loaded.account)
+      return jsonNoStore({ error: "Payout account not found" }, 404);
 
     const details = decryptPayoutDetails(
       String(loaded.account.details_ciphertext ?? ""),
@@ -96,7 +96,10 @@ export async function GET(
       message.includes("decrypt payout")
     ) {
       return jsonNoStore(
-        { error: "Secure payout details are unavailable", code: "payout_encryption_unavailable" },
+        {
+          error: "Secure payout details are unavailable",
+          code: "payout_encryption_unavailable",
+        },
         503
       );
     }
@@ -110,7 +113,10 @@ export async function PATCH(
   context: { params: Promise<{ payoutAccountId: string }> }
 ) {
   if (!isSameOriginMutation(request)) {
-    return jsonNoStore({ error: "Cross-origin payout requests are not allowed" }, 403);
+    return jsonNoStore(
+      { error: "Cross-origin payout requests are not allowed" },
+      403
+    );
   }
 
   const { payoutAccountId } = await context.params;
@@ -140,13 +146,17 @@ export async function PATCH(
       : typeof source.reviewNote === "string"
       ? source.reviewNote.trim()
       : undefined;
-  if (reviewNote === undefined || (reviewNote !== null && reviewNote.length > 2000)) {
+  if (
+    reviewNote === undefined ||
+    (reviewNote !== null && reviewNote.length > 2000)
+  ) {
     return jsonNoStore({ error: "Invalid review note" }, 422);
   }
 
   try {
     const requestContext = await getPayoutServerContext();
-    if (!requestContext) return jsonNoStore({ error: "Authentication required" }, 401);
+    if (!requestContext)
+      return jsonNoStore({ error: "Authentication required" }, 401);
 
     const loaded = await loadAccount(
       payoutAccountId,
@@ -159,7 +169,8 @@ export async function PATCH(
       }
       return jsonNoStore({ error: "Unable to verify payout account" }, 500);
     }
-    if (!loaded.account) return jsonNoStore({ error: "Payout account not found" }, 404);
+    if (!loaded.account)
+      return jsonNoStore({ error: "Payout account not found" }, 404);
 
     decryptPayoutDetails(
       String(loaded.account.details_ciphertext ?? ""),
@@ -181,7 +192,10 @@ export async function PATCH(
         return jsonNoStore({ error: "Super Admin access required" }, 403);
       }
       if (error.message.includes("invalid_payout_account_review_state")) {
-        return jsonNoStore({ error: "Payout account is no longer pending review" }, 409);
+        return jsonNoStore(
+          { error: "Payout account is no longer pending review" },
+          409
+        );
       }
       return jsonNoStore({ error: "Unable to review payout account" }, 500);
     }
@@ -190,7 +204,9 @@ export async function PATCH(
     return jsonNoStore({
       payoutAccount: {
         id: result?.payout_account_id ?? payoutAccountId,
-        status: result?.status ?? (decision === "approved" ? "active" : "rejected"),
+        status:
+          result?.status ??
+          (decision === "approved" ? "active" : "rejected"),
         changed: Boolean(result?.changed),
       },
     });
