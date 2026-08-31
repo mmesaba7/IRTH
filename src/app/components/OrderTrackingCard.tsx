@@ -51,6 +51,7 @@ export default function OrderTrackingCard({
 }) {
   const reachedStageIndex = highestReachedStageIndex(order);
   const exceptionalStatus = ["cancelled", "returned", "delivery_failed"].includes(order.status);
+  const hasDeliveredItem = order.items.some((item) => Boolean(item.deliveredAt));
 
   return (
     <details open={defaultOpen} className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)]">
@@ -95,7 +96,14 @@ export default function OrderTrackingCard({
         </section>
 
         <section className="mt-7 border-t border-[var(--border-soft)] pt-6">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Products</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Products</p>
+            {!guestToken && hasDeliveredItem && (
+              <Link href={`/account/returns/${order.orderId}`} className="text-sm font-medium text-[var(--color-copper)] hover:underline">
+                Request / view return →
+              </Link>
+            )}
+          </div>
           <div className="mt-4 space-y-4">
             {order.items.map((item) => (
               <div key={item.orderItemId} className="rounded-[var(--radius-md)] border border-[var(--border-soft)] p-4 text-sm">
