@@ -118,3 +118,87 @@ export async function updateAdminShipmentStatus(
 
   return { ok: true, message: successMessage[targetStatus] ?? "تم تحديث الشحنة." };
 }
+
+export async function updateAdminShipmentTracking(
+  _previousState: AdminOrderActionState,
+  formData: FormData
+): Promise<AdminOrderActionState> {
+  const shipmentId = String(formData.get("shipmentId") ?? "").trim();
+  const courierCode = String(formData.get("courierCode") ?? "").trim().toLowerCase();
+  const trackingNumber = String(formData.get("trackingNumber") ?? "").trim();
+  const trackingUrl = String(formData.get("trackingUrl") ?? "").trim();
+
+  if (!shipmentId) {
+    return { ok: false, message: "الشحنة غير صالحة." };
+  }
+
+  if (courierCode && !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(courierCode)) {
+    return {
+      ok: false,
+      message: "Courier code يقبل حروف إنجليزية صغيرة وأرقام و _ أو - فقط.",
+    };
+  }
+
+  if (trackingNumber.length > 128 || /[\u0000-\u001f\u007f]/.test(trackingNumber)) {
+    return { ok: false, message: "رقم التتبع غير صالح." };
+  }
+
+  if (trackingUrl) {
+    try {
+      const parsed = new URL(trackingUrl);
+      if (parsed.protocol !== "https:") {
+        return { ok: false, message: "رابط التتبع يجب أن يبدأ بـ https://" };
+      }
+    } catch {
+      return { ok: false, message: "رابط التتبع غير صالح." };
+    }
+
+    if (trackingUrl.length > 2048) {
+      return { ok: false, message: "رابط التتبع طويل جدًا." };
+    }
+  }
+
+  const { supabase, authenticated } = await getAuthenticatedClient();
+  if (!authenticated) {
+    return { ok: false, message: "انتهت جلسة الإدارة. سجل الدخول مرة أخرى." };
+  }
+
+  const { data, error } = await supabase.rpc("update_admin_shipment_tracking", {
+    p_shipment_id: shipmentId,
+    p_courier_code: courierCode || null,
+    p_tracking_number: trackingNumber || null,
+    p_tracking_url: trackingUrl || null,
+  });
+
+  if (error) {
+    if (error.message.includes("admin_required")) {
+      return { ok: false, message: "هذه العملية متاحة للـ Super Admin فقط." };
+    }
+
+    if (error.message.includes("shipment_not_found")) {
+      return { ok: false, message: "الشحنة لم تعد موجودة. حدّث الصفحة." };
+    }
+
+    if (error.message.includes("invalid_courier_code")) {
+      return { ok: false, message: "Courier code غير صالح." };
+    }
+
+    if (error.message.includes("invalid_tracking_number")) {
+      return { ok: false, message: "رقم التتبع غير صالح." };
+    }
+
+    if (error.message.includes("invalid_tracking_url")) {
+      return { ok: false, message: "رابط التتبع يجب أن يكون رابط HTTPS صالحًا." };
+    }
+
+    return { ok: false, message: "تعذر حفظ بيانات التتبع الآن. حاول مرة أخرى." };
+  }
+
+  revalidatePath("/dashboard-admin/orders");
+
+  const changed = Array.isArray(data) ? Boolean(data[0]?.changed) : false;
+  return {
+    ok: true,
+    message: changed ? "تم حفظ بيانات التتبع وتسجيل التغيير." : "بيانات التتبع لم تتغير.",
+  };
+}
