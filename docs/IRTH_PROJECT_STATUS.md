@@ -3,7 +3,7 @@
 **Project:** IRTH  
 **Document Purpose:** Current implementation status of the IRTH MVP  
 **Last Updated:** 31 August 2026  
-**Current Position:** Notifications
+**Current Position:** Phase 6 — Money review after Notification Foundation closure
 
 ---
 
@@ -42,6 +42,14 @@ Core rule:
 
 Payment, Shipping and Notification remain separate layers.
 
+Future product direction already approved:
+
+- Android application after the web Marketplace reaches the appropriate stage.
+- iOS application after the web Marketplace reaches the appropriate stage.
+- Current web/backend architecture should remain reusable by future mobile clients rather than being rebuilt from zero.
+
+This is an **Architecture Later** direction, not an instruction to build mobile apps during the current MVP task.
+
 ---
 
 # 3. Overall MVP Progress
@@ -51,10 +59,13 @@ Foundation                  ✅ Core implemented
 Identity & Structure        🟨 Mostly implemented
 Marketplace                 ✅ Core implemented
 Shopping                    ✅ Trusted Checkout + real Order creation foundation
-Orders                      🟨 Core + Tracking implemented; Notifications/Returns/Payment remain
+Orders                      ✅ Core + Fulfillment + Shipping + Tracking + Notifications foundation
 Shipping                    🟨 Manual Shipment lifecycle + Tracking real; Courier API later
 Tracking                    ✅ Customer + Guest + Admin Tracking CLOSED
-Money                       🟨 Pricing + Promotions + Coupons + Commission snapshot real; Payment/Payout later
+Notifications               ✅ Notification Foundation v0.1 CLOSED
+Money                       🟨 Pricing + Promotions + Coupons + Commission-rate snapshot real; remaining Money work next
+Returns / Refunds           🟨 Required by MVP; detailed workflow still unresolved
+Reviews                     🟨 Existing UI/foundation; verified-purchase integration still required
 Testing & Final Polish      ⬜ Later
 ```
 
@@ -68,10 +79,9 @@ Artisan Fulfillment             ✅ core
 Admin Order Management          ✅ core
 Shipping Status                 ✅ manual MVP foundation
 Tracking Metadata               ✅ CLOSED
-Customer Tracking View          ✅ CLOSED
-Secure Guest Tracking Link      ✅ CLOSED
-Notifications                   ← NEXT
-Payments                        SEPARATE LAYER
+Customer / Guest Tracking       ✅ CLOSED
+Notification Foundation         ✅ CLOSED
+Money                           ← NEXT REVIEW
 ```
 
 ---
@@ -343,26 +353,6 @@ Implemented:
 - Idempotent identical save.
 - Super Admin-only authorization.
 
-Live browser / DB verification Order:
-
-```text
-IRTH-20260830-782EBA88
-```
-
-Verified test state:
-
-```text
-Order status:      delivered
-Payment status:    pending
-Shipment status:   delivered
-Courier code:      test_courier
-Tracking number:   TEST-12345
-Tracking URL:      https://example.com/track/TEST-12345
-Tracking history:  1 row
-```
-
-The `test_courier / TEST-12345 / example.com` values are test metadata only and are NOT an approved production Courier configuration.
-
 Closure record:
 
 ```text
@@ -381,60 +371,17 @@ supabase/migrations/20260831105348_create_secure_customer_guest_tracking_read_bo
 
 Implemented:
 
-- `/account/orders` now reads real Customer Orders from Supabase rather than the previous localStorage prototype.
+- `/account/orders` reads real Customer Orders from Supabase.
 - Authenticated customer access is ownership-scoped.
 - Direct authenticated SELECT on core Order/Tracking tables is revoked.
 - Customer payload exposes only customer-visible Order, item, timeline and Shipment fields.
 - Multi-Shipment tracking is supported.
 - Guest Tracking requires Order Number + opaque Guest credential.
 - Order Number alone is not authorization.
-- Guest RPC is `service_role`-only; `anon` and `authenticated` cannot execute it directly.
-- Guest token is created server-side with HMAC-SHA256 using private `IRTH_GUEST_TRACKING_SECRET` and the Order idempotency context.
-- PostgreSQL stores only SHA-256 of the raw Guest token.
-- Raw Guest token is not stored in localStorage, sessionStorage, PostgreSQL or project documentation.
-- Guest credential travels initially in a URL fragment, not a query parameter.
-- Success/Tracking pages capture the fragment then remove it from the visible URL/history using `history.replaceState`.
+- Guest RPC is `service_role`-only.
+- Raw Guest token is not persisted; PostgreSQL stores only its hash.
+- Guest credential is initially transported in a URL fragment and removed from visible URL/history after capture.
 - Guest API responses use no-store/no-referrer security headers.
-- Guest tracking page is `noindex, nofollow`.
-
-Authenticated browser E2E verified the existing delivered Order:
-
-```text
-IRTH-20260830-782EBA88
-```
-
-Negative Guest browser E2E verified:
-
-```text
-Order Number only         → no Order data
-Order Number + bad token  → no Order data
-Both cases                → same generic unavailable behavior
-```
-
-Valid Guest browser E2E created the retained Live test Order:
-
-```text
-IRTH-20260831-7987F614
-```
-
-Owner approved retaining this Order permanently as a Live test Order and allowing stock to decrement naturally.
-
-Live DB verification:
-
-```text
-customer_user_id:          null
-guest token hash:          present (64 hex chars)
-status:                    received
-payment status:            pending
-subtotal before promotion: 350 EGP
-promotion discount:         35 EGP
-coupon discount:             0 EGP
-merchandise subtotal:      315 EGP
-shipping fee:              150 EGP
-final total:               465 EGP
-commission snapshot:        15%
-clay-vessel stock:           4 → 3
-```
 
 Full closure record:
 
@@ -444,7 +391,109 @@ docs/IRTH_CUSTOMER_GUEST_TRACKING_CLOSURE.md
 
 ---
 
-# 5. Current Order / Shipping Architecture
+## Notification Foundation v0.1 — CLOSED ✅
+
+Specification requirement satisfied for the current real domain events:
+
+```text
+Domain Event
+    ↓
+Notification Layer
+    ├── In-App
+    └── Email Outbox
+            ↓
+       Worker
+            ↓
+       Provider Adapter
+            ↓
+          Resend
+```
+
+### N1 — Notification Database + Security — CLOSED ✅
+
+Migration:
+
+```text
+supabase/migrations/20260831114954_create_notification_foundation.sql
+```
+
+- Real `public.notifications` store.
+- Private Email Outbox.
+- Secure ownership-scoped read/mark RPCs.
+- Direct Browser table access denied.
+- Deduplication verified.
+
+### N2 — Order / Shipping / Moderation Wiring — CLOSED ✅
+
+Migrations:
+
+```text
+supabase/migrations/20260831115532_wire_order_shipping_notifications.sql
+supabase/migrations/20260831120010_wire_product_moderation_notifications.sql
+```
+
+- Existing audited domain history emits notification events.
+- Registered Customer, Guest Customer, Artisan and Super Admin fan-out verified.
+- Future Payment / Return / Payout events will use the same Notification Layer when their owning modules exist.
+
+### N3 — Real Notification Center — CLOSED ✅
+
+- Removed notification localStorage prototype.
+- `/notifications` is DB-backed.
+- Header unread badge is real.
+- Mark one / mark all read verified.
+
+### N4 — Resend Email Transport — CLOSED ✅
+
+Migration:
+
+```text
+supabase/migrations/20260831121510_add_notification_email_outbox_worker_boundary.sql
+```
+
+Implemented:
+
+- Provider adapter boundary.
+- Resend first MVP email provider.
+- Secure internal processor route.
+- Retry/backoff and stale-lock recovery.
+- Provider idempotency.
+- Arabic / English templates.
+- Egypt MVP `auto` email locale resolves to Arabic.
+- Guest Tracking token generated only at render/send time; raw token is not stored in outbox or DB.
+- Email failure remains independent from Order Status.
+
+Controlled transport E2E:
+
+```text
+claimed = 1
+sent    = 1
+failed  = 0
+```
+
+Live DB verification confirmed:
+
+```text
+status              = sent
+provider            = resend
+provider_message_id = present
+sent_at              = present
+last_error           = null
+```
+
+The controlled email test row was removed after verification.
+
+Production customer email delivery still requires an IRTH-controlled verified sender domain and production environment configuration. This is deployment configuration, not unfinished Notification architecture.
+
+Full closure record:
+
+```text
+docs/IRTH_NOTIFICATION_FOUNDATION_CLOSURE.md
+```
+
+---
+
+# 5. Current Order / Shipping / Notification Architecture
 
 ```text
 ONE Customer Order
@@ -464,26 +513,36 @@ Rules:
 - Tracking metadata belongs to the Shipment layer.
 - Customer tracking reads use a narrow customer-safe payload boundary.
 - Guest tracking uses a server-verified opaque credential.
+- Notification Layer consumes domain events and does not own Order/Shipping/Payment business rules.
+- Email provider failure does not mutate Order Status.
 
 ---
 
-# 6. NEXT — Notifications
+# 6. NEXT — Phase 6 Money Review
 
-**Status: READY TO REVIEW / START 🟢 MVP**
+The Specification roadmap places **Money** after Orders.
 
-Specification sequence after Tracking:
+Money scope includes:
 
-```text
-Tracking
-↓
-Notifications
-```
+- Commission.
+- Discounts.
+- Coupons.
+- Payout calculation.
+- Taxes / withholdings.
+- Refund basics.
 
-Notification Layer remains independent from Order/Shipping/Payment systems.
+Important current reality:
 
-Before implementation, Notification v0.1 decisions and the current `/notifications` prototype must be reviewed against the Specification.
+- Commission configuration/rate snapshot foundation already exists.
+- Promotions and Coupons already have real foundations.
+- These existing modules must be reused, not rebuilt.
+- Exact commission amount accounting / ledger is not yet implemented.
+- Payout calculation / eligibility ledger is not implemented.
+- Taxes / withholdings rules are not approved yet.
+- Refund basics depend on unresolved Return / Refund decisions.
+- Payment Gateway is a separate Payment Layer and the first provider is not yet approved.
 
-Do not start Payment Gateway or Courier API as part of Notifications.
+Therefore the next task is **review + gap mapping + required decision package for remaining Money work**, before writing financial DDL or code.
 
 ---
 
@@ -499,7 +558,17 @@ Artisan overrides: 0 currently
 ```
 
 Each Order Item stores the applied commission rate historically.
-Exact commission amount accounting / payout ledger is not implemented yet.
+
+Still not implemented:
+
+- Exact commission amount accounting ledger.
+- Final accounting treatment of IRTH-funded vs Artisan-funded discounts where money settlement is affected.
+
+## Discounts / Coupons
+
+Real commerce calculation foundations exist ✅
+
+Do not rebuild S15.4.
 
 ## Payment
 
@@ -526,17 +595,42 @@ Eligible
 Payout Cycle
 ```
 
+Final payout cycle is not approved yet.
+
+## Taxes / Withholdings
+
+**Status: DECISION NOT APPROVED ⬜**
+
+No tax type, rate or withholding rule should be invented before legal/accounting decisions are approved.
+
 ---
 
 # 8. Returns / Refunds
 
 **Status: REQUIRED BY MVP / DETAILED WORKFLOW LATER 🟨**
 
+Approved simple direction:
+
+```text
+Customer requests return
+↓
+IRTH reviews
+↓
+Accept / Reject
+↓
+If accepted: coordinate return
+↓
+Receive / inspect
+↓
+Refund handling
+```
+
 Still unresolved:
 
 - Final Return Window.
 - Return Shipping Responsibility.
 - Detailed Refund engine.
+- Exceptions for Custom / Made-to-Order products.
 
 ---
 
@@ -554,39 +648,39 @@ Artisan must never receive:
 
 No Supabase Secret / service key is exposed to the Browser.
 
-Current Order/customer read security model:
+Notification security model:
 
 ```text
-Authenticated Customer
+Authenticated User
 ↓
-public SECURITY INVOKER customer RPC
+secure ownership-scoped RPC
 ↓
-private SECURITY DEFINER ownership-scoped implementation
-↓
-customer-safe payload
+user's notification feed only
 ```
 
-Guest model:
+Email worker model:
 
 ```text
-Guest Browser credential
+Private processor secret
 ↓
-IRTH server POST endpoint
+server route
 ↓
-service_role-only Guest RPC
+service-role DB worker RPC
 ↓
-SHA-256 hash verification
-↓
-customer-safe payload
+provider adapter
 ```
 
-Known unrelated existing security notes:
+Final Security Advisor after Notification closure showed no new Notification-specific WARN vulnerability.
 
-1. Legacy `public.review_product_market_price_request(...)` exposure pattern needs a later dedicated hardening pass.
-2. Supabase Leaked Password Protection is disabled.
-3. Audit history tables intentionally have RLS enabled with no direct Browser policies; this produces informational `rls_enabled_no_policy` Advisor notices.
+Expected informational notices:
 
-Final Security Advisor after Customer/Guest Tracking showed no new Tracking-specific vulnerability.
+- `public.notifications` RLS enabled with no direct policies because Browser table access is intentionally denied and secure RPCs are used.
+- Audit history tables use the same intentional deny-direct-access pattern.
+
+Known pre-existing security notes:
+
+1. Legacy `public.review_product_market_price_request(...)` remains an authenticated-executable SECURITY DEFINER warning and needs a later dedicated hardening pass.
+2. Supabase Leaked Password Protection remains disabled.
 
 ---
 
@@ -595,13 +689,15 @@ Final Security Advisor after Customer/Guest Tracking showed no new Tracking-spec
 - Admin Login / broader Admin route authorization cleanup remains technical debt; sensitive Order/Shipping DB operations enforce Super Admin authorization.
 - First Courier is not approved.
 - First Payment Gateway is not approved.
-- Notification Layer is the current next task.
+- Production email sender domain is not approved / verified yet.
 - Reviews still need verified-purchase integration on delivered Orders.
-- Payout execution is not implemented.
+- Return / Refund workflow still needs final decisions and implementation.
+- Payout calculation / execution is not implemented.
+- Tax / withholding rules are not approved.
 - Full bilingual QA remains incomplete.
 - Search v0.1 is partial.
 - Legacy `products.price` must never be trusted for Market-aware commerce.
-- One transient `/api/markets` 500 was observed once and then returned 200 on retry; non-blocking unless reproduced.
+- One transient `/api/markets` 500 was previously observed once and then returned 200 on retry; non-blocking unless reproduced.
 
 ---
 
@@ -616,9 +712,11 @@ Final Security Advisor after Customer/Guest Tracking showed no new Tracking-spec
 - Customer account optional during purchase.
 - One Customer Order with internal Artisan / Shipment split.
 - Artisan cannot see sensitive Customer contact data.
+- Artisan cannot directly contact Customer.
 - Product Approval in MVP.
 - Artisan Promotions require IRTH approval.
 - Reviews require verified delivered purchase.
+- Artisan Review replies require IRTH moderation.
 - One Super Admin in MVP.
 - Commission by Craft with optional Artisan override.
 - Launch commission = 15% for current Crafts; no Artisan override currently.
@@ -627,6 +725,8 @@ Final Security Advisor after Customer/Guest Tracking showed no new Tracking-spec
 - Payment Layer independent from Checkout.
 - Shipping Layer independent from Order System.
 - Notification Layer independent.
+- Resend is the first MVP Email provider behind a provider-independent adapter.
+- Egypt MVP automatic notification email language resolves to Arabic.
 - One Payment Gateway + one Courier initially, extensible later.
 - Egypt Launch Market = EGP.
 - Egypt shipping fee = 150 EGP.
@@ -639,22 +739,42 @@ Final Security Advisor after Customer/Guest Tracking showed no new Tracking-spec
 - Tracking URL, when present, must use HTTPS.
 - Guest Tracking must use a secure opaque token; Order Number alone is not authorization.
 - Guest raw tracking token is not persisted; only its hash is stored.
+- Android + iOS are approved future product directions after the web Marketplace reaches the appropriate stage; they are not current MVP implementation tasks.
 
 ---
 
-# 12. Decisions Still Needed Later
+# 12. Decisions Still Needed
+
+## Before / during remaining Money work
+
+- Exact commission amount accounting base and settlement ledger rules where discounts affect funding.
+- Tax / withholding rules, if any.
+- Final Payout Cycle.
+
+## Payment Layer
 
 - First Payment Gateway.
+- Detailed COD operational/payment-status rules where needed.
+
+## Shipping
+
 - First Courier.
+
+## Returns / Refunds
+
 - Final Return Window.
 - Return Shipping Responsibility.
-- Final Payout Cycle.
 - Detailed Refund workflow.
-- Notification delivery details / templates, subject to the Specification review for the next task.
+- Custom / Made-to-Order return exceptions.
+
+## Production Email Configuration
+
+- Production IRTH domain / sender identity.
 
 No longer unresolved:
 
-- Egypt shipping fee / threshold.
+- Egypt launch market/currency.
+- Egypt shipping fee / free-shipping threshold.
 - Orders schema foundation.
 - Artisan / Admin Order read boundaries.
 - Artisan fulfillment transitions.
@@ -662,6 +782,9 @@ No longer unresolved:
 - Tracking metadata validation / audit direction.
 - Customer tracking read boundary.
 - Guest Tracking security direction and implementation.
+- Notification Foundation architecture.
+- First MVP email provider.
+- Egypt MVP automatic email language.
 
 ---
 
@@ -687,8 +810,12 @@ Admin Order + Shipping Status                        ✅
 Tracking Metadata                                    ✅
 Customer Tracking View                               ✅
 Secure Guest Tracking Link                           ✅
-Notifications                                        ← NEXT
-Payment Gateway                                      SEPARATE LAYER
+N1 Notification DB + Security                        ✅
+N2 Notification Domain Wiring                        ✅
+N3 Real Notification Center                          ✅
+N4 Resend Email Transport                            ✅
+Notification Foundation v0.1                         ✅ CLOSED
+Phase 6 Money                                        ← NEXT REVIEW
 ```
 
 ---
@@ -697,16 +824,16 @@ Payment Gateway                                      SEPARATE LAYER
 
 ```text
 LAST CLOSED TASK:
-Customer Tracking View + Secure Guest Tracking Link ✅
+Notification Foundation v0.1 ✅
 
 CURRENT TASK:
-Notifications — review/spec alignment before implementation
+Phase 6 Money — review existing foundations, identify gaps, batch unresolved decisions
 
 CURRENT MAJOR POSITION:
-Orders / Notifications
+Money
 
 NEXT IMPLEMENTATION GOAL:
-Review Notification v0.1 requirements and current prototype, batch any unresolved decisions, then implement the independent Notification Layer without coupling it to Payment or Courier providers.
+Do not write new financial code yet. First map what is already real (Commission, Promotions, Coupons, Order money snapshots) against the Specification's remaining Money requirements, then present one decision package for the unresolved financial rules.
 ```
 
 ---
@@ -737,15 +864,19 @@ A task is CLOSED only when:
 - Closed Admin Order Read Foundation.
 - Closed Admin Order + Shipping Status Foundation.
 - Closed Tracking Metadata Foundation.
-- Added secure customer-safe Order read boundary.
-- Replaced Customer `/account/orders` localStorage prototype with real Supabase Orders.
-- Added Customer Order Timeline and Multi-Shipment Tracking.
-- Added secure Guest Tracking server boundary.
-- Added HMAC-based idempotency-safe Guest credential generation.
-- Verified Order Number-only and invalid-token Guest attempts expose no Order data.
-- Verified valid Guest Tracking end to end with retained Live Order `IRTH-20260831-7987F614`.
-- Retained the Guest test Order by owner decision; `clay-vessel` finite stock decreased from 4 to 3.
-- Added final hardening to remove captured Guest credentials from visible URL/history after page load.
-- Added `docs/IRTH_CUSTOMER_GUEST_TRACKING_CLOSURE.md`.
 - Closed Customer Tracking View + Secure Guest Tracking Link.
-- Advanced current task to Notifications.
+- Implemented Notification Database + Security Foundation.
+- Wired current real Order / Shipping / Product moderation events into the independent Notification Layer.
+- Replaced notification localStorage prototype with the real DB-backed Notification Center and unread badge.
+- Added provider-independent Email Outbox processing boundary.
+- Added Resend as first MVP email provider.
+- Added protected internal email processor route, idempotency, retry/backoff and stale worker recovery.
+- Set current Egypt MVP automatic email locale to Arabic.
+- Verified email provider failure path without affecting Order state.
+- Verified successful controlled email transport E2E: `claimed=1`, `sent=1`, `failed=0`.
+- Verified successful outbox finalization with Resend provider message id and sent timestamp.
+- Removed controlled email test row after verification.
+- Ran final Supabase Security Advisor; no new Notification-specific WARN vulnerability found.
+- Added `docs/IRTH_NOTIFICATION_FOUNDATION_CLOSURE.md`.
+- Closed Notification Foundation v0.1.
+- Advanced current project position to **Phase 6 — Money review**.
