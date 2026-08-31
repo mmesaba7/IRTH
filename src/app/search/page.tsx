@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Header from "../components/Header";
 import ProductCard from "../components/ProductCard";
-import { createClient } from "@/lib/supabase/client";
 import {
   loadPublicMarketplaceCatalog,
   type PublicCatalogArtisan,
@@ -72,18 +71,23 @@ export default function SearchPage() {
         setCountries(catalog.countries);
         setCrafts(catalog.crafts);
 
-        const supabase = createClient();
-        const { data: ratingData } = await supabase.rpc("get_public_artisan_rating_summary");
-        if (!cancelled && Array.isArray(ratingData)) {
-          const ratingById = new Map(
-            (ratingData as RatingRow[]).map((row) => [row.artisan_id, Number(row.average_rating)])
-          );
-          const ratingBySlug: Record<string, number> = {};
-          for (const artisan of catalog.artisans) {
-            const value = ratingById.get(artisan.id);
-            if (Number.isFinite(value)) ratingBySlug[artisan.slug] = value as number;
+        try {
+          const ratingResponse = await fetch("/api/reviews/artisan-ratings", { cache: "no-store" });
+          if (ratingResponse.ok && !cancelled) {
+            const ratingBody = await ratingResponse.json() as { ratings?: unknown };
+            const ratingData = Array.isArray(ratingBody.ratings) ? ratingBody.ratings as RatingRow[] : [];
+            const ratingById = new Map(
+              ratingData.map((row) => [row.artisan_id, Number(row.average_rating)])
+            );
+            const ratingBySlug: Record<string, number> = {};
+            for (const artisan of catalog.artisans) {
+              const value = ratingById.get(artisan.id);
+              if (Number.isFinite(value)) ratingBySlug[artisan.slug] = value as number;
+            }
+            setArtisanRatings(ratingBySlug);
           }
-          setArtisanRatings(ratingBySlug);
+        } catch {
+          // Search remains usable; rating filtering will simply have no verified ratings loaded.
         }
 
         if (catalog.products.length > 0) {
