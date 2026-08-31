@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import OrderConfirmForm from "./OrderConfirmForm";
+import ShipmentActionForm from "./ShipmentActionForm";
 
 type AdminOrderItem = {
   id: string;
@@ -16,6 +18,16 @@ type AdminOrderItem = {
   commissionRatePercent: string;
 };
 
+type AdminShipment = {
+  id: string;
+  status: string;
+  courierCode: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+};
+
 type AdminArtisanGroup = {
   artisanGroupId: string;
   artisanId: string;
@@ -23,6 +35,7 @@ type AdminArtisanGroup = {
   artisanNameEn: string;
   fulfillmentStatus: string;
   merchandiseSubtotal: string;
+  shipment: AdminShipment | null;
   items: AdminOrderItem[];
 };
 
@@ -107,10 +120,10 @@ export default async function AdminOrdersPage() {
               Admin Panel
             </p>
             <h1 className="mt-2 font-[var(--font-display)] text-4xl text-[var(--color-espresso)] md:text-5xl">
-              الطلبات
+              الطلبات والشحن
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-              عرض موحد للطلبات الحقيقية، بيانات العميل، تقسيم الحرفيين، وحالة التجهيز. هذه المرحلة للقراءة فقط.
+              إدارة الطلب الموحد، تأكيده، ومتابعة كل Shipment بقواعد انتقال آمنة ومسجلة في الـ Audit History.
             </p>
           </div>
 
@@ -158,6 +171,9 @@ export default async function AdminOrdersPage() {
                     <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Status</p>
                     <p className="mt-2 text-sm font-medium text-[var(--color-espresso)]">{statusLabel(order.order_status)}</p>
                     <p className="mt-1 text-xs text-[var(--text-muted)]">Payment: {statusLabel(order.payment_status)}</p>
+                    {order.order_status === "received" && (
+                      <OrderConfirmForm orderId={order.order_id} />
+                    )}
                   </div>
 
                   <div>
@@ -207,7 +223,7 @@ export default async function AdminOrdersPage() {
                 </div>
 
                 <div className="p-6">
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Artisan groups</p>
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">Artisan groups & shipments</p>
                   <div className="mt-4 space-y-4">
                     {order.artisan_groups.map((group) => (
                       <details
@@ -228,23 +244,95 @@ export default async function AdminOrdersPage() {
                           </div>
                         </summary>
 
-                        <div className="space-y-3 border-t border-[var(--border-soft)] p-4">
-                          {group.items.map((item) => (
-                            <div key={item.id} className="rounded-[var(--radius-md)] bg-[var(--surface)] p-4">
-                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                <div>
-                                  <p className="font-medium text-[var(--color-espresso)]">{item.productNameEn}</p>
-                                  {item.productNameAr && <p className="mt-1 text-sm text-[var(--text-secondary)]">{item.productNameAr}</p>}
-                                  <p className="mt-2 text-xs text-[var(--text-muted)]">Quantity: {item.quantity}</p>
-                                  <p className="mt-1 text-xs text-[var(--text-muted)]">Commission snapshot: {item.commissionRatePercent}%</p>
-                                </div>
-                                <div className="text-sm sm:text-right">
-                                  <p>Unit: {order.currency_code} {item.unitPrice}</p>
-                                  <p className="mt-1 font-medium text-[var(--color-copper)]">Line: {order.currency_code} {item.lineTotal}</p>
+                        <div className="border-t border-[var(--border-soft)] p-4">
+                          <div className="rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4">
+                            <p className="text-xs font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]">Shipment</p>
+                            {group.shipment ? (
+                              <div className="mt-3 space-y-3">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                  <div>
+                                    <p className="text-sm font-medium text-[var(--color-espresso)]">
+                                      {statusLabel(group.shipment.status)}
+                                    </p>
+                                    {group.shipment.trackingNumber && (
+                                      <p className="mt-1 text-xs text-[var(--text-muted)]">
+                                        Tracking: {group.shipment.trackingNumber}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {order.order_status === "received" ? (
+                                    <p className="text-xs text-[var(--text-secondary)]">
+                                      يجب تأكيد الطلب قبل بدء إجراءات الشحن.
+                                    </p>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-2">
+                                      {group.shipment.status === "pending" && (
+                                        <ShipmentActionForm
+                                          shipmentId={group.shipment.id}
+                                          targetStatus="picked_up_from_artisan"
+                                          label="تم الاستلام من الحرفي"
+                                        />
+                                      )}
+                                      {group.shipment.status === "picked_up_from_artisan" && (
+                                        <ShipmentActionForm
+                                          shipmentId={group.shipment.id}
+                                          targetStatus="in_transit"
+                                          label="الشحنة في الطريق"
+                                        />
+                                      )}
+                                      {group.shipment.status === "in_transit" && (
+                                        <>
+                                          <ShipmentActionForm
+                                            shipmentId={group.shipment.id}
+                                            targetStatus="delivered"
+                                            label="تم التسليم"
+                                          />
+                                          <ShipmentActionForm
+                                            shipmentId={group.shipment.id}
+                                            targetStatus="delivery_failed"
+                                            label="فشل التسليم"
+                                            variant="danger"
+                                          />
+                                        </>
+                                      )}
+                                      {group.shipment.status === "delivered" && (
+                                        <p className="text-xs font-medium text-[var(--text-secondary)]">اكتملت الشحنة.</p>
+                                      )}
+                                      {group.shipment.status === "delivery_failed" && (
+                                        <p className="text-xs font-medium text-[var(--color-terracotta)]">
+                                          الشحنة تحتاج معالجة استثنائية لاحقًا ضمن Workflow المرتجعات/فشل التسليم.
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            ) : (
+                              <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                                سيتم إنشاء Shipment تلقائيًا عندما تصبح مجموعة الحرفي جاهزة للاستلام.
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="mt-4 space-y-3">
+                            {group.items.map((item) => (
+                              <div key={item.id} className="rounded-[var(--radius-md)] bg-[var(--surface)] p-4">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                  <div>
+                                    <p className="font-medium text-[var(--color-espresso)]">{item.productNameEn}</p>
+                                    {item.productNameAr && <p className="mt-1 text-sm text-[var(--text-secondary)]">{item.productNameAr}</p>}
+                                    <p className="mt-2 text-xs text-[var(--text-muted)]">Quantity: {item.quantity}</p>
+                                    <p className="mt-1 text-xs text-[var(--text-muted)]">Commission snapshot: {item.commissionRatePercent}%</p>
+                                  </div>
+                                  <div className="text-sm sm:text-right">
+                                    <p>Unit: {order.currency_code} {item.unitPrice}</p>
+                                    <p className="mt-1 font-medium text-[var(--color-copper)]">Line: {order.currency_code} {item.lineTotal}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </details>
                     ))}
