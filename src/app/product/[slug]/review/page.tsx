@@ -29,8 +29,9 @@ export default function ProductReviewPage() {
   const searchParams = useSearchParams();
   const slug = String(params.slug ?? "");
   const orderItemId = searchParams.get("orderItemId") ?? "";
-  const guestToken = searchParams.get("guestToken");
 
+  const [guestToken, setGuestToken] = useState<string | null>(null);
+  const [credentialReady, setCredentialReady] = useState(false);
   const [context, setContext] = useState<ReviewContext | null>(null);
   const [productRating, setProductRating] = useState(5);
   const [artisanRating, setArtisanRating] = useState(5);
@@ -41,6 +42,17 @@ export default function ProductReviewPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    const fragment = new URLSearchParams(window.location.hash.slice(1));
+    const token = fragment.get("access")?.trim() ?? "";
+    if (/^[A-Za-z0-9_-]{43}$/.test(token)) setGuestToken(token);
+    if (window.location.hash) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    }
+    setCredentialReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!credentialReady) return;
     const controller = new AbortController();
     if (!orderItemId) {
       setError("افتح التقييم من الطلب الذي تم تسليمه حتى نربطه بعملية الشراء الصحيحة.");
@@ -51,7 +63,11 @@ export default function ProductReviewPage() {
     const query = new URLSearchParams({ orderItemId });
     if (guestToken) query.set("guestToken", guestToken);
 
-    fetch(`/api/reviews/customer?${query.toString()}`, { cache: "no-store", signal: controller.signal })
+    fetch(`/api/reviews/customer?${query.toString()}`, {
+      cache: "no-store",
+      referrerPolicy: "no-referrer",
+      signal: controller.signal,
+    })
       .then(async (response) => {
         const body = await response.json();
         if (!response.ok) throw new Error(body?.error || "تعذر تحميل التقييم.");
@@ -72,7 +88,7 @@ export default function ProductReviewPage() {
       });
 
     return () => controller.abort();
-  }, [guestToken, orderItemId, slug]);
+  }, [credentialReady, guestToken, orderItemId, slug]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -91,6 +107,8 @@ export default function ProductReviewPage() {
       const response = await fetch("/api/reviews/customer", {
         method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        referrerPolicy: "no-referrer",
         body: JSON.stringify({
           ...(editing ? { reviewId: context.review?.id } : { orderItemId: context.orderItemId }),
           productRating,
