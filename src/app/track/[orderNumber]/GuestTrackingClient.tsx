@@ -18,6 +18,10 @@ export default function GuestTrackingClient({ orderNumber }: { orderNumber: stri
     const fragment = new URLSearchParams(window.location.hash.slice(1));
     const token = fragment.get("access")?.trim() ?? "";
 
+    if (window.location.hash) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
       setError("This secure tracking link is incomplete or invalid.");
       setLoading(false);
