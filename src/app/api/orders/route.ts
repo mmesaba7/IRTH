@@ -11,6 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createGuestTrackingToken } from "@/lib/guestTrackingToken";
 
 type PaymentMethod = "cod" | "online";
+type OrderCartInputItem = CartQuoteInputItem & { customizationText: string | null };
 
 function jsonNoStore(body: unknown, status = 200) {
   return NextResponse.json(body, {
@@ -22,16 +23,19 @@ function jsonNoStore(body: unknown, status = 200) {
   });
 }
 
-function parseItems(body: unknown): CartQuoteInputItem[] | null {
+function parseItems(body: unknown): OrderCartInputItem[] | null {
   if (typeof body !== "object" || body === null || !("items" in body)) return null;
   const rawItems = (body as { items?: unknown }).items;
   if (!Array.isArray(rawItems)) return null;
 
-  const items: CartQuoteInputItem[] = [];
+  const items: OrderCartInputItem[] = [];
   for (const rawItem of rawItems) {
     if (typeof rawItem !== "object" || rawItem === null) return null;
     const slug = "slug" in rawItem ? (rawItem as { slug?: unknown }).slug : null;
     const quantity = "quantity" in rawItem ? (rawItem as { quantity?: unknown }).quantity : null;
+    const rawCustomization = "customizationText" in rawItem
+      ? (rawItem as { customizationText?: unknown }).customizationText
+      : null;
 
     if (
       typeof slug !== "string" ||
@@ -43,7 +47,15 @@ function parseItems(body: unknown): CartQuoteInputItem[] | null {
       return null;
     }
 
-    items.push({ slug: slug.trim(), quantity });
+    let customizationText: string | null = null;
+    if (rawCustomization !== null && rawCustomization !== undefined && rawCustomization !== "") {
+      if (typeof rawCustomization !== "string") return null;
+      const normalized = rawCustomization.trim();
+      if (normalized.length > 500) return null;
+      customizationText = normalized || null;
+    }
+
+    items.push({ slug: slug.trim(), quantity, customizationText });
   }
 
   return items;
@@ -101,11 +113,13 @@ function mapOrderError(message: string) {
     message.includes("market_changed") ||
     message.includes("order_totals_changed") ||
     message.includes("order_item_totals_changed") ||
-    message.includes("order_aggregate_totals_changed")
+    message.includes("order_aggregate_totals_changed") ||
+    message.includes("invalid_customization_text") ||
+    message.includes("customization_not_allowed")
   ) {
     return {
       status: 409,
-      error: "Your cart changed while the order was being created. Review the latest total and try again.",
+      error: "Your cart changed while the order was being created. Review the latest details and try again.",
       code: "order_revalidation_failed",
     };
   }
@@ -190,6 +204,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const customizationBySlug = new Map(
+      items.map((item) => [item.slug, item.customizationText] as const)
+    );
+
     const transactionItems = quote.items.map((item) => {
       if (
         item.status !== "available" ||
@@ -214,6 +232,7 @@ export async function POST(request: NextRequest) {
         couponFundingIrth: item.couponFunding?.irth ?? "0",
         couponFundingArtisan: item.couponFunding?.artisan ?? "0",
         lineTotal: item.lineTotal,
+        customizationText: customizationBySlug.get(item.slug) ?? null,
       };
     });
 
