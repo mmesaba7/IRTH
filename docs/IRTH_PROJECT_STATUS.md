@@ -3,7 +3,7 @@
 **Project:** IRTH  
 **Document Purpose:** Current implementation status of the IRTH MVP  
 **Last Updated:** 31 August 2026  
-**Current Position:** Phase 6 — Money review after Notification Foundation closure
+**Current Position:** Phase 6 — Money / M1.1 Commission Settlement Ledger Foundation
 
 ---
 
@@ -63,7 +63,7 @@ Orders                      ✅ Core + Fulfillment + Shipping + Tracking + Notif
 Shipping                    🟨 Manual Shipment lifecycle + Tracking real; Courier API later
 Tracking                    ✅ Customer + Guest + Admin Tracking CLOSED
 Notifications               ✅ Notification Foundation v0.1 CLOSED
-Money                       🟨 Pricing + Promotions + Coupons + Commission-rate snapshot real; remaining Money work next
+Money                       🟨 Pricing + Promotions + Coupons + Commission-rate snapshot real; M1.1 next
 Returns / Refunds           🟨 Required by MVP; detailed workflow still unresolved
 Reviews                     🟨 Existing UI/foundation; verified-purchase integration still required
 Testing & Final Polish      ⬜ Later
@@ -81,7 +81,7 @@ Shipping Status                 ✅ manual MVP foundation
 Tracking Metadata               ✅ CLOSED
 Customer / Guest Tracking       ✅ CLOSED
 Notification Foundation         ✅ CLOSED
-Money                           ← NEXT REVIEW
+Money                           ← M1.1 Commission Settlement Ledger Foundation
 ```
 
 ---
@@ -409,81 +409,7 @@ Notification Layer
           Resend
 ```
 
-### N1 — Notification Database + Security — CLOSED ✅
-
-Migration:
-
-```text
-supabase/migrations/20260831114954_create_notification_foundation.sql
-```
-
-- Real `public.notifications` store.
-- Private Email Outbox.
-- Secure ownership-scoped read/mark RPCs.
-- Direct Browser table access denied.
-- Deduplication verified.
-
-### N2 — Order / Shipping / Moderation Wiring — CLOSED ✅
-
-Migrations:
-
-```text
-supabase/migrations/20260831115532_wire_order_shipping_notifications.sql
-supabase/migrations/20260831120010_wire_product_moderation_notifications.sql
-```
-
-- Existing audited domain history emits notification events.
-- Registered Customer, Guest Customer, Artisan and Super Admin fan-out verified.
-- Future Payment / Return / Payout events will use the same Notification Layer when their owning modules exist.
-
-### N3 — Real Notification Center — CLOSED ✅
-
-- Removed notification localStorage prototype.
-- `/notifications` is DB-backed.
-- Header unread badge is real.
-- Mark one / mark all read verified.
-
-### N4 — Resend Email Transport — CLOSED ✅
-
-Migration:
-
-```text
-supabase/migrations/20260831121510_add_notification_email_outbox_worker_boundary.sql
-```
-
-Implemented:
-
-- Provider adapter boundary.
-- Resend first MVP email provider.
-- Secure internal processor route.
-- Retry/backoff and stale-lock recovery.
-- Provider idempotency.
-- Arabic / English templates.
-- Egypt MVP `auto` email locale resolves to Arabic.
-- Guest Tracking token generated only at render/send time; raw token is not stored in outbox or DB.
-- Email failure remains independent from Order Status.
-
-Controlled transport E2E:
-
-```text
-claimed = 1
-sent    = 1
-failed  = 0
-```
-
-Live DB verification confirmed:
-
-```text
-status              = sent
-provider            = resend
-provider_message_id = present
-sent_at              = present
-last_error           = null
-```
-
-The controlled email test row was removed after verification.
-
-Production customer email delivery still requires an IRTH-controlled verified sender domain and production environment configuration. This is deployment configuration, not unfinished Notification architecture.
+N1 + N2 + N3 + N4 are CLOSED. Production customer email delivery still requires an IRTH-controlled verified sender domain and production environment configuration; this is deployment configuration, not unfinished Notification architecture.
 
 Full closure record:
 
@@ -518,9 +444,7 @@ Rules:
 
 ---
 
-# 6. NEXT — Phase 6 Money Review
-
-The Specification roadmap places **Money** after Orders.
+# 6. Phase 6 — Money
 
 Money scope includes:
 
@@ -531,22 +455,38 @@ Money scope includes:
 - Taxes / withholdings.
 - Refund basics.
 
-Important current reality:
+Existing foundations to reuse:
 
-- Commission configuration/rate snapshot foundation already exists.
-- Promotions and Coupons already have real foundations.
-- These existing modules must be reused, not rebuilt.
-- Exact commission amount accounting / ledger is not yet implemented.
-- Payout calculation / eligibility ledger is not implemented.
-- Taxes / withholdings rules are not approved yet.
-- Refund basics depend on unresolved Return / Refund decisions.
-- Payment Gateway is a separate Payment Layer and the first provider is not yet approved.
+- Commission configuration/rate snapshot.
+- Promotions.
+- Coupons.
+- Funding attribution.
+- Exact money arithmetic + Round Half-Up.
+- Historical Order money snapshots.
 
-Therefore the next task is **review + gap mapping + required decision package for remaining Money work**, before writing financial DDL or code.
+## Approved Phase 6 Decision Package — 31 August 2026
+
+Owner approved the full Money review recommendation package:
+
+1. **Commission funding treatment:** Artisan-funded discounts reduce the artisan settlement/commission base. IRTH-funded discounts do not reduce the artisan's economic settlement base; IRTH bears that subsidy separately.
+2. **Financial ledger:** use append-only financial/settlement ledger entries rather than silently rewriting financial history.
+3. **Payment architecture:** keep a dedicated Payment Domain with transaction/event history; `orders.payment_status` remains a summary and is not the sole payment record.
+4. **Return granularity:** Returns/Refunds must support Order Item + Quantity rather than forcing full-order return only.
+5. **Return hold:** make the return-period hold configurable; do not invent a duration. Missing required configuration must fail closed for automatic Payout eligibility.
+6. **Payout cycle:** MVP uses Super Admin-controlled/manual Payout Batches from eligible earnings; automated cycles are Architecture Later.
+7. **First Payout Method:** **Bank Transfer**.
+8. **Taxes/withholdings:** no automatic tax/withholding rule is invented. The ledger architecture must support explicit adjustment entries, while legal/accounting rules remain unresolved until formally approved.
+9. **Payment Gateway:** first gateway selection is deferred until the provider-independent Payment Core exists; only one gateway is implemented in MVP.
+10. **Pending online payment stock safety:** when Online Payment exists, failed/expired pending payments must have a trusted cancellation/stock-restoration path. This is an MVP correctness requirement, not feature creep.
+
+Scope classification:
+
+- Core ledger/payment/return/payout correctness: 🟢 MVP.
+- Automated payout scheduling / multiple payout methods / multiple gateways: 🟡 Architecture Later capability or 🔵 Post-MVP implementation as applicable.
 
 ---
 
-# 7. Money Status
+# 7. Money Current State
 
 ## Commission
 
@@ -559,10 +499,10 @@ Artisan overrides: 0 currently
 
 Each Order Item stores the applied commission rate historically.
 
-Still not implemented:
+Still not implemented before M1.1:
 
-- Exact commission amount accounting ledger.
-- Final accounting treatment of IRTH-funded vs Artisan-funded discounts where money settlement is affected.
+- Exact commission amount accounting.
+- Settlement ledger entries.
 
 ## Discounts / Coupons
 
@@ -575,7 +515,7 @@ Do not rebuild S15.4.
 **Status: NOT IMPLEMENTED ⬜**
 
 Payment Layer remains separate from Checkout / Order.
-First Payment Gateway is not approved yet.
+First Payment Gateway is intentionally not approved yet.
 
 ## Payout
 
@@ -586,22 +526,26 @@ Approved sequence:
 ```text
 Sale
 ↓
+Payment collected
+↓
 Delivery
 ↓
 Return period ends
 ↓
 Eligible
 ↓
-Payout Cycle
+Super Admin Payout Batch
+↓
+Bank Transfer
 ```
 
-Final payout cycle is not approved yet.
+Exact return-window duration remains unresolved.
 
 ## Taxes / Withholdings
 
-**Status: DECISION NOT APPROVED ⬜**
+**Status: BUSINESS / LEGAL RULE NOT APPROVED ⬜**
 
-No tax type, rate or withholding rule should be invented before legal/accounting decisions are approved.
+No tax type, rate or automatic withholding rule may be invented. Ledger support for explicit future adjustments is approved.
 
 ---
 
@@ -609,10 +553,10 @@ No tax type, rate or withholding rule should be invented before legal/accounting
 
 **Status: REQUIRED BY MVP / DETAILED WORKFLOW LATER 🟨**
 
-Approved simple direction:
+Approved direction:
 
 ```text
-Customer requests return
+Customer requests item/quantity return
 ↓
 IRTH reviews
 ↓
@@ -623,13 +567,16 @@ If accepted: coordinate return
 Receive / inspect
 ↓
 Refund handling
+↓
+Financial reversal/adjustment
 ```
 
 Still unresolved:
 
-- Final Return Window.
+- Final Return Window duration.
 - Return Shipping Responsibility.
-- Detailed Refund engine.
+- Whether/when original Shipping is refundable.
+- Detailed refund execution rules.
 - Exceptions for Custom / Made-to-Order products.
 
 ---
@@ -646,41 +593,22 @@ Artisan must never receive:
 - Full Address.
 - Direct Customer contact data.
 
-No Supabase Secret / service key is exposed to the Browser.
+Financial rules:
 
-Notification security model:
+- Browser/Client is never the source of truth for payment, commission, refund, payout, discount, tax or settlement values.
+- Sensitive Artisan payout account data must not be stored in Browser local/session storage in the real implementation.
+- Current `/artisan/payouts`, `/artisan/payouts/setting`, and `/dashboard-admin/commission` pages are legacy/prototype UI and are not financial sources of truth.
+- Future real payout-account reads should expose masked data where full values are unnecessary.
+- Financial actions must be server/database protected and auditable.
 
-```text
-Authenticated User
-↓
-secure ownership-scoped RPC
-↓
-user's notification feed only
-```
+Final Security Advisor after Notification closure and Phase 6 review showed no new Money-specific warning.
 
-Email worker model:
+Known pre-existing warnings remain:
 
-```text
-Private processor secret
-↓
-server route
-↓
-service-role DB worker RPC
-↓
-provider adapter
-```
+1. Legacy `public.review_product_market_price_request(...)` authenticated-executable SECURITY DEFINER warning.
+2. Supabase Leaked Password Protection disabled.
 
-Final Security Advisor after Notification closure showed no new Notification-specific WARN vulnerability.
-
-Expected informational notices:
-
-- `public.notifications` RLS enabled with no direct policies because Browser table access is intentionally denied and secure RPCs are used.
-- Audit history tables use the same intentional deny-direct-access pattern.
-
-Known pre-existing security notes:
-
-1. Legacy `public.review_product_market_price_request(...)` remains an authenticated-executable SECURITY DEFINER warning and needs a later dedicated hardening pass.
-2. Supabase Leaked Password Protection remains disabled.
+Expected informational notices include intentional RLS-enabled/no-direct-policy tables used through secure RPC boundaries.
 
 ---
 
@@ -688,195 +616,112 @@ Known pre-existing security notes:
 
 - Admin Login / broader Admin route authorization cleanup remains technical debt; sensitive Order/Shipping DB operations enforce Super Admin authorization.
 - First Courier is not approved.
-- First Payment Gateway is not approved.
+- First Payment Gateway is intentionally deferred until Payment Core.
 - Production email sender domain is not approved / verified yet.
 - Reviews still need verified-purchase integration on delivered Orders.
-- Return / Refund workflow still needs final decisions and implementation.
+- Return / Refund workflow still needs final policy details and implementation.
 - Payout calculation / execution is not implemented.
 - Tax / withholding rules are not approved.
 - Full bilingual QA remains incomplete.
 - Search v0.1 is partial.
 - Legacy `products.price` must never be trusted for Market-aware commerce.
-- One transient `/api/markets` 500 was previously observed once and then returned 200 on retry; non-blocking unless reproduced.
+- Legacy Money UI pages still use localStorage/prototype calculations and must not be treated as real financial implementation.
 
 ---
 
-# 11. Approved Decisions — Do Not Reopen Without Reason
+# 11. Phase 6 Planned Implementation Sequence
 
-- Handmade / heritage Marketplace.
-- Arabic + English; RTL / LTR.
-- Mobile-First responsive UX.
-- Craft is a primary Shop entry.
-- Explore may start from Country.
-- Guest Checkout supported.
-- Customer account optional during purchase.
-- One Customer Order with internal Artisan / Shipment split.
-- Artisan cannot see sensitive Customer contact data.
-- Artisan cannot directly contact Customer.
-- Product Approval in MVP.
-- Artisan Promotions require IRTH approval.
-- Reviews require verified delivered purchase.
-- Artisan Review replies require IRTH moderation.
-- One Super Admin in MVP.
-- Commission by Craft with optional Artisan override.
-- Launch commission = 15% for current Crafts; no Artisan override currently.
-- Payout not immediately eligible after sale.
-- Return / Refund required in MVP.
-- Payment Layer independent from Checkout.
-- Shipping Layer independent from Order System.
-- Notification Layer independent.
-- Resend is the first MVP Email provider behind a provider-independent adapter.
-- Egypt MVP automatic notification email language resolves to Arabic.
-- One Payment Gateway + one Courier initially, extensible later.
-- Egypt Launch Market = EGP.
-- Egypt shipping fee = 150 EGP.
-- Egypt free-shipping threshold = 2000 EGP.
-- Order Status != Payment Status.
-- Artisan preparation transitions are limited and server-controlled.
-- Order aggregation is server-controlled.
-- One Shipment per Artisan Group in MVP.
-- Manual Admin Shipment transitions are valid before Courier API integration.
-- Tracking URL, when present, must use HTTPS.
-- Guest Tracking must use a secure opaque token; Order Number alone is not authorization.
-- Guest raw tracking token is not persisted; only its hash is stored.
-- Android + iOS are approved future product directions after the web Marketplace reaches the appropriate stage; they are not current MVP implementation tasks.
+```text
+M1 Commission + Settlement Ledger Foundation
+    ↓
+M2 Payment Core Foundation
+    ↓
+M3 First Online Payment Provider
+    ↓
+M4 Returns / Refunds Foundation
+    ↓
+M5 Payout Eligibility Foundation
+    ↓
+M6 Payout Accounts + Manual Payout Batches / Bank Transfer
+    ↓
+M7 Real Money UI + Money Notifications
+```
+
+Current task:
+
+```text
+M1.1 — Commission Settlement Rules + Ledger Foundation
+```
+
+M1.1 must not integrate Payment Gateway, execute Refunds, collect Bank details, or execute Payouts.
 
 ---
 
-# 12. Decisions Still Needed
+# 12. Decisions Still Needed Later
 
-## Before / during remaining Money work
+## Before production Payout eligibility
 
-- Exact commission amount accounting base and settlement ledger rules where discounts affect funding.
-- Tax / withholding rules, if any.
-- Final Payout Cycle.
+- Exact Return Window duration.
+- Return Shipping Responsibility.
+- Shipping refund policy.
+- Custom / Made-to-Order return exceptions.
+- Any legally required tax/withholding rules.
 
 ## Payment Layer
 
-- First Payment Gateway.
-- Detailed COD operational/payment-status rules where needed.
+- First Payment Gateway, after provider-independent Payment Core contract is implemented/reviewed.
 
-## Shipping
+## Production operations
 
 - First Courier.
-
-## Returns / Refunds
-
-- Final Return Window.
-- Return Shipping Responsibility.
-- Detailed Refund workflow.
-- Custom / Made-to-Order return exceptions.
-
-## Production Email Configuration
-
-- Production IRTH domain / sender identity.
-
-No longer unresolved:
-
-- Egypt launch market/currency.
-- Egypt shipping fee / free-shipping threshold.
-- Orders schema foundation.
-- Artisan / Admin Order read boundaries.
-- Artisan fulfillment transitions.
-- Admin manual Shipment lifecycle.
-- Tracking metadata validation / audit direction.
-- Customer tracking read boundary.
-- Guest Tracking security direction and implementation.
-- Notification Foundation architecture.
-- First MVP email provider.
-- Egypt MVP automatic email language.
+- Verified production email sender domain.
 
 ---
 
-# 13. Current Implementation Sequence
-
-```text
-S12 Product Foundations                              ✅
-S13 Product Approval                                 ✅
-S14 Public Marketplace DB Integration                ✅
-S15.0 Migration Reconciliation                       ✅
-S15.1 Market & Pricing                               ✅
-S15.2 Market Selection                               ✅
-S15.3 Secure Cart / Quote                            ✅
-S15.4 Promotions + Coupons                           ✅
-S15.5.1 Trusted Checkout Summary                     ✅
-S15.5.2 Customer Details / Guest Checkout            ✅
-S15.5.3 Shipping / Final Total                       ✅
-S15.5.4 Transactional Order Creation                 ✅
-Artisan Order Read                                   ✅
-Artisan Fulfillment                                  ✅
-Admin Order Read                                     ✅
-Admin Order + Shipping Status                        ✅
-Tracking Metadata                                    ✅
-Customer Tracking View                               ✅
-Secure Guest Tracking Link                           ✅
-N1 Notification DB + Security                        ✅
-N2 Notification Domain Wiring                        ✅
-N3 Real Notification Center                          ✅
-N4 Resend Email Transport                            ✅
-Notification Foundation v0.1                         ✅ CLOSED
-Phase 6 Money                                        ← NEXT REVIEW
-```
-
----
-
-# 14. CURRENT STATUS
+# 13. Current Status
 
 ```text
 LAST CLOSED TASK:
 Notification Foundation v0.1 ✅
 
+LAST APPROVED DECISION PACKAGE:
+Phase 6 Money Review ✅
+- Settlement funding rules approved
+- Append-only ledger approved
+- Payment domain separation approved
+- Item/quantity returns approved
+- Configurable fail-closed return hold approved
+- Manual Super Admin payout batches approved
+- Bank Transfer selected as first payout method
+- No invented tax rule approved
+- Gateway selection deferred to M3
+
 CURRENT TASK:
-Phase 6 Money — review existing foundations, identify gaps, batch unresolved decisions
+M1.1 — Commission Settlement Rules + Ledger Foundation
 
 CURRENT MAJOR POSITION:
 Money
 
 NEXT IMPLEMENTATION GOAL:
-Do not write new financial code yet. First map what is already real (Commission, Promotions, Coupons, Order money snapshots) against the Specification's remaining Money requirements, then present one decision package for the unresolved financial rules.
+Build and verify the smallest secure append-only settlement-ledger foundation using existing historical Order Item money/funding/commission-rate snapshots. Do not rebuild Promotions/Coupons and do not integrate Payment/Payout/Refund execution yet.
 ```
 
 ---
 
-# 15. Definition of Closed
+# 14. Definition of Closed
 
-A task is CLOSED only when:
+A task is not considered closed merely because code exists.
 
-1. Business rule is understood.
-2. Required decisions are approved.
+Closure requires, as applicable:
+
+1. Business rule understood.
+2. Required Product decisions approved.
 3. Implementation exists.
-4. Security implications are reviewed.
-5. Expected flow is tested.
-6. Relevant edge cases are reviewed.
-7. No known blocker remains.
-8. Production Build passes when application code changed.
-9. Project status documentation is updated.
-10. Local / GitHub / Live Supabase state is reconciled where relevant.
+4. Security reviewed.
+5. Expected flows tested.
+6. Important edge cases reviewed.
+7. Git and Live Supabase state reconciled.
+8. Production Build passed for relevant application-code changes.
+9. Closure documentation updated.
 
----
-
-# 16. Change Log — 31 August 2026
-
-- Closed S15.5.3 Shipping / Final Total Boundary.
-- Closed S15.5.4 Transactional Order Creation.
-- Closed Artisan Order Read Foundation.
-- Closed Secure Artisan Fulfillment Actions.
-- Closed Admin Order Read Foundation.
-- Closed Admin Order + Shipping Status Foundation.
-- Closed Tracking Metadata Foundation.
-- Closed Customer Tracking View + Secure Guest Tracking Link.
-- Implemented Notification Database + Security Foundation.
-- Wired current real Order / Shipping / Product moderation events into the independent Notification Layer.
-- Replaced notification localStorage prototype with the real DB-backed Notification Center and unread badge.
-- Added provider-independent Email Outbox processing boundary.
-- Added Resend as first MVP email provider.
-- Added protected internal email processor route, idempotency, retry/backoff and stale worker recovery.
-- Set current Egypt MVP automatic email locale to Arabic.
-- Verified email provider failure path without affecting Order state.
-- Verified successful controlled email transport E2E: `claimed=1`, `sent=1`, `failed=0`.
-- Verified successful outbox finalization with Resend provider message id and sent timestamp.
-- Removed controlled email test row after verification.
-- Ran final Supabase Security Advisor; no new Notification-specific WARN vulnerability found.
-- Added `docs/IRTH_NOTIFICATION_FOUNDATION_CLOSURE.md`.
-- Closed Notification Foundation v0.1.
-- Advanced current project position to **Phase 6 — Money review**.
+For financial work, historical/audit correctness is part of closure.
