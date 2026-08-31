@@ -1,4 +1,4 @@
-import { createHash, createHmac } from "node:crypto";
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { quoteCart, type CartQuoteInputItem } from "@/lib/cartQuote";
 import { applyPromotionsToQuote } from "@/lib/promotionQuote";
@@ -8,6 +8,7 @@ import { getSelectedMarket } from "@/lib/marketSelection";
 import { validateCheckoutCustomer } from "@/lib/checkoutCustomer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createGuestTrackingToken } from "@/lib/guestTrackingToken";
 
 function jsonNoStore(body: unknown, status = 200) {
   return NextResponse.json(body, {
@@ -57,18 +58,6 @@ function parseCouponCode(body: unknown) {
 
 function hashIdentity(value: string) {
   return createHash("sha256").update(value).digest("hex");
-}
-
-function createGuestTrackingToken(idempotencyScope: string, idempotencyKey: string) {
-  const secret = process.env.IRTH_GUEST_TRACKING_SECRET?.trim();
-
-  if (!secret || secret.length < 32) {
-    throw new Error("Missing guest tracking secret configuration");
-  }
-
-  return createHmac("sha256", secret)
-    .update(`irth-guest-tracking:v1:${idempotencyScope}:${idempotencyKey}`)
-    .digest("base64url");
 }
 
 function mapOrderError(message: string) {
