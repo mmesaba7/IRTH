@@ -64,6 +64,7 @@ export default function DashboardAdminPage() {
     ["📦 Orders", "Manage all orders", "/dashboard-admin/orders"],
     ["↩ Returns", `${data.counts.openReturns} open`, "/dashboard-admin/returns"],
     ["👥 Customers", "Accounts, suspension & support notes", "/dashboard-admin/customers"],
+    ["✍️ Customization Requests", "Order customization snapshots", "/dashboard-admin/customizations"],
     ["👤 Artisans", "Manage artisans", "/dashboard-admin/artisans"],
     ["🛍️ Products", "Manage products", "/dashboard-admin/products"],
     ["💰 Commission", "Craft defaults & overrides", "/dashboard-admin/commission"],
