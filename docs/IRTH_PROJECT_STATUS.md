@@ -3,7 +3,7 @@
 **Project:** IRTH  
 **Document Purpose:** Current implementation status of the IRTH MVP  
 **Last Updated:** 31 August 2026  
-**Current Position:** Phase 6 — Money review after Notification Foundation closure
+**Current Position:** Phase 6 — M2 Payment Core review after M1.1 Settlement Ledger closure
 
 ---
 
@@ -63,7 +63,7 @@ Orders                      ✅ Core + Fulfillment + Shipping + Tracking + Notif
 Shipping                    🟨 Manual Shipment lifecycle + Tracking real; Courier API later
 Tracking                    ✅ Customer + Guest + Admin Tracking CLOSED
 Notifications               ✅ Notification Foundation v0.1 CLOSED
-Money                       🟨 Pricing + Promotions + Coupons + Commission-rate snapshot real; remaining Money work next
+Money                       🟨 M1.1 Settlement Ledger CLOSED; Payment Core is next
 Returns / Refunds           🟨 Required by MVP; detailed workflow still unresolved
 Reviews                     🟨 Existing UI/foundation; verified-purchase integration still required
 Testing & Final Polish      ⬜ Later
@@ -81,7 +81,7 @@ Shipping Status                 ✅ manual MVP foundation
 Tracking Metadata               ✅ CLOSED
 Customer / Guest Tracking       ✅ CLOSED
 Notification Foundation         ✅ CLOSED
-Money                           ← NEXT REVIEW
+Money / Payment Core            ← NEXT REVIEW
 ```
 
 ---
@@ -493,6 +493,46 @@ docs/IRTH_NOTIFICATION_FOUNDATION_CLOSURE.md
 
 ---
 
+## M1.1 — Commission Settlement Ledger Foundation — CLOSED ✅
+
+Migration:
+
+```text
+supabase/migrations/20260831152241_create_money_settlement_ledger_foundation.sql
+```
+
+Implemented:
+
+- Market-level `currency_minor_unit_scale`; Egypt / EGP = 2.
+- Fail-closed currency precision configuration.
+- Private append-only `private.artisan_settlement_ledger`.
+- Three deterministic sale entries per Order Item: merchandise proceeds, IRTH-funded subsidy and commission.
+- Artisan-funded discounts reduce the commission/settlement base.
+- IRTH-funded discounts preserve Artisan economic entitlement and are recorded separately.
+- Commission amount uses the historical Order Item commission-rate snapshot.
+- Existing Order Items backfilled from trusted snapshots.
+- New Order Item inserts create settlement entries inside the same PostgreSQL transaction.
+- Browser roles have no direct ledger access.
+- Controlled append-only and trigger/rollback tests passed.
+
+Verified live state at closure:
+
+```text
+Orders:        2
+Order Items:   2
+Ledger rows:   6
+Formula checks: 2 / 2 correct
+Test leakage:  0
+```
+
+Closure record:
+
+```text
+docs/IRTH_M1_1_SETTLEMENT_LEDGER_CLOSURE.md
+```
+
+---
+
 # 5. Current Order / Shipping / Notification Architecture
 
 ```text
@@ -518,51 +558,51 @@ Rules:
 
 ---
 
-# 6. NEXT — Phase 6 Money Review
+# 6. NEXT — M2 Provider-Independent Payment Core Review
 
-The Specification roadmap places **Money** after Orders.
+The approved Phase 6 sequence now advances from M1.1 into **M2 Payment Core**.
 
-Money scope includes:
+M1.1 is closed and must be reused, not rebuilt.
 
-- Commission.
-- Discounts.
-- Coupons.
-- Payout calculation.
-- Taxes / withholdings.
-- Refund basics.
+Before Payment DDL or application code is written, M2 review must define the smallest safe provider-independent Payment model for:
 
-Important current reality:
+- Payment method / attempt / transaction-event history.
+- Trusted Payment status transitions.
+- COD collection lifecycle.
+- Online Payment attempt lifecycle.
+- Provider callback signature verification and idempotency boundary.
+- Failed / expired pending Online Payment handling.
+- Atomic finite-stock restoration when an unpaid Order is cancelled/expired where applicable.
+- Synchronization between the dedicated Payment Domain and `orders.payment_status` summary.
 
-- Commission configuration/rate snapshot foundation already exists.
-- Promotions and Coupons already have real foundations.
-- These existing modules must be reused, not rebuilt.
-- Exact commission amount accounting / ledger is not yet implemented.
-- Payout calculation / eligibility ledger is not implemented.
-- Taxes / withholdings rules are not approved yet.
-- Refund basics depend on unresolved Return / Refund decisions.
-- Payment Gateway is a separate Payment Layer and the first provider is not yet approved.
-
-Therefore the next task is **review + gap mapping + required decision package for remaining Money work**, before writing financial DDL or code.
+The first Online Payment Gateway remains intentionally unselected until M3.
 
 ---
 
 # 7. Money Status
 
-## Commission
+## Commission / Settlement Ledger
 
-Real foundation exists ✅
+**Status: M1.1 CLOSED ✅**
 
 ```text
 Launch default: 15% for all current Crafts
 Artisan overrides: 0 currently
+Egypt / EGP currency minor-unit scale: 2
 ```
 
-Each Order Item stores the applied commission rate historically.
+Each Order Item stores the historical applied commission rate, and each real Order Item now has append-only settlement records for:
 
-Still not implemented:
+```text
+Merchandise proceeds
++ IRTH-funded discount subsidy
+- Commission
+```
 
-- Exact commission amount accounting ledger.
-- Final accounting treatment of IRTH-funded vs Artisan-funded discounts where money settlement is affected.
+Approved discount-funding treatment is implemented:
+
+- Artisan-funded discount reduces settlement / commission base.
+- IRTH-funded discount does not reduce Artisan economic entitlement / commission base.
 
 ## Discounts / Coupons
 
@@ -572,36 +612,44 @@ Do not rebuild S15.4.
 
 ## Payment
 
-**Status: NOT IMPLEMENTED ⬜**
+**Status: NOT IMPLEMENTED ⬜ — M2 REVIEW NEXT**
 
 Payment Layer remains separate from Checkout / Order.
-First Payment Gateway is not approved yet.
+A dedicated provider-independent Payment Domain is approved.
+First Online Payment Gateway remains intentionally unresolved until M3.
 
 ## Payout
 
 **Status: NOT IMPLEMENTED ⬜**
 
-Approved sequence:
+Approved sequence remains:
 
 ```text
-Sale
+Payment collected
 ↓
 Delivery
 ↓
-Return period ends
+Configured Return hold ends
+↓
+No unresolved Return / Refund condition
 ↓
 Eligible
 ↓
-Payout Cycle
+Manual Super Admin Payout Batch
+↓
+Bank Transfer
 ```
 
-Final payout cycle is not approved yet.
+Approved MVP payout method: **Bank Transfer**.
+Approved MVP payout execution model: **Manual Super Admin-controlled Payout Batches**.
+Automated payout scheduling is deferred.
 
 ## Taxes / Withholdings
 
-**Status: DECISION NOT APPROVED ⬜**
+**Status: ARCHITECTURE DECISION APPROVED / LEGAL RULE UNRESOLVED 🟨**
 
-No tax type, rate or withholding rule should be invented before legal/accounting decisions are approved.
+No automatic tax or withholding rule/rate is invented.
+The settlement ledger is adjustment-capable, but any legally required rule still needs formal legal/accounting approval before real production payouts.
 
 ---
 
@@ -625,11 +673,17 @@ Receive / inspect
 Refund handling
 ```
 
+Approved additional direction:
+
+- Return / Refund granularity supports Order Item + Quantity.
+- Payout eligibility uses a configurable Return hold and fails closed if required configuration is missing.
+
 Still unresolved:
 
 - Final Return Window.
 - Return Shipping Responsibility.
-- Detailed Refund engine.
+- Whether / when original Shipping is refundable.
+- Detailed Refund workflow.
 - Exceptions for Custom / Made-to-Order products.
 
 ---
@@ -670,7 +724,20 @@ service-role DB worker RPC
 provider adapter
 ```
 
-Final Security Advisor after Notification closure showed no new Notification-specific WARN vulnerability.
+Money security model after M1.1:
+
+```text
+Trusted Order Item snapshot
+↓
+private DB trigger
+↓
+private append-only settlement ledger
+```
+
+Browser roles cannot directly read or write the settlement ledger.
+Historical ledger UPDATE / DELETE is blocked.
+
+Final Security Advisor after M1.1 showed no new M1.1-specific WARN vulnerability.
 
 Expected informational notices:
 
@@ -688,12 +755,14 @@ Known pre-existing security notes:
 
 - Admin Login / broader Admin route authorization cleanup remains technical debt; sensitive Order/Shipping DB operations enforce Super Admin authorization.
 - First Courier is not approved.
-- First Payment Gateway is not approved.
+- First Online Payment Gateway is not approved and is intentionally deferred until M3.
 - Production email sender domain is not approved / verified yet.
 - Reviews still need verified-purchase integration on delivered Orders.
 - Return / Refund workflow still needs final decisions and implementation.
-- Payout calculation / execution is not implemented.
-- Tax / withholding rules are not approved.
+- Payout eligibility / execution is not implemented.
+- Real Bank Transfer payout-account storage / verification is not implemented.
+- Legally required tax / withholding rules are not approved.
+- Legacy Money UI still contains prototype/localStorage behavior and must not be treated as financial source of truth.
 - Full bilingual QA remains incomplete.
 - Search v0.1 is partial.
 - Legacy `products.price` must never be trusted for Market-aware commerce.
@@ -720,9 +789,21 @@ Known pre-existing security notes:
 - One Super Admin in MVP.
 - Commission by Craft with optional Artisan override.
 - Launch commission = 15% for current Crafts; no Artisan override currently.
+- Artisan-funded discounts reduce the Artisan settlement and Commission base.
+- IRTH-funded discounts preserve the Artisan economic entitlement / Commission base and are funded separately by IRTH.
+- Financial / settlement history uses an append-only ledger.
+- Egypt / EGP currency minor-unit scale = 2 for trusted settlement rounding.
 - Payout not immediately eligible after sale.
+- Payout eligibility uses a configurable Return hold and fails closed when required configuration is missing.
+- Manual Super Admin Payout Batches are the MVP execution model.
+- Bank Transfer is the first MVP Artisan payout method.
+- No automatic tax / withholding rule is invented before legal/accounting approval.
 - Return / Refund required in MVP.
+- Returns / Refunds support Order Item + Quantity granularity.
 - Payment Layer independent from Checkout.
+- Dedicated provider-independent Payment Domain is approved.
+- First Online Payment Gateway is selected at M3, not before Payment Core definition.
+- Failed / expired pending Online Payment Orders require trusted finite-stock recovery where applicable.
 - Shipping Layer independent from Order System.
 - Notification Layer independent.
 - Resend is the first MVP Email provider behind a provider-independent adapter.
@@ -745,16 +826,15 @@ Known pre-existing security notes:
 
 # 12. Decisions Still Needed
 
-## Before / during remaining Money work
+## Before real production Payouts
 
-- Exact commission amount accounting base and settlement ledger rules where discounts affect funding.
-- Tax / withholding rules, if any.
-- Final Payout Cycle.
+- Any legally required tax / withholding rules and rates.
+- Final Return Window duration.
 
 ## Payment Layer
 
-- First Payment Gateway.
-- Detailed COD operational/payment-status rules where needed.
+- First Online Payment Gateway — intentionally decided at M3 after M2 Payment Core review.
+- Any remaining COD operational details discovered during M2 review that are not already implied by the approved Payment architecture.
 
 ## Shipping
 
@@ -764,6 +844,7 @@ Known pre-existing security notes:
 
 - Final Return Window.
 - Return Shipping Responsibility.
+- Whether / when original Shipping is refundable.
 - Detailed Refund workflow.
 - Custom / Made-to-Order return exceptions.
 
@@ -773,6 +854,14 @@ Known pre-existing security notes:
 
 No longer unresolved:
 
+- Commission discount-funding treatment.
+- Append-only settlement ledger direction.
+- Currency minor-unit configuration direction for Money.
+- Manual MVP Payout Batch model.
+- First Artisan payout method: Bank Transfer.
+- Return / Refund granularity: Order Item + Quantity.
+- Configurable Return hold / fail-closed payout eligibility direction.
+- Provider-independent Payment Domain direction.
 - Egypt launch market/currency.
 - Egypt shipping fee / free-shipping threshold.
 - Orders schema foundation.
@@ -815,7 +904,8 @@ N2 Notification Domain Wiring                        ✅
 N3 Real Notification Center                          ✅
 N4 Resend Email Transport                            ✅
 Notification Foundation v0.1                         ✅ CLOSED
-Phase 6 Money                                        ← NEXT REVIEW
+M1.1 Commission Settlement Ledger                    ✅ CLOSED
+M2 Provider-Independent Payment Core                 ← NEXT REVIEW
 ```
 
 ---
@@ -824,16 +914,16 @@ Phase 6 Money                                        ← NEXT REVIEW
 
 ```text
 LAST CLOSED TASK:
-Notification Foundation v0.1 ✅
+M1.1 Commission Settlement Rules + Ledger Foundation ✅
 
 CURRENT TASK:
-Phase 6 Money — review existing foundations, identify gaps, batch unresolved decisions
+M2 Provider-Independent Payment Core — review and decision mapping before implementation
 
 CURRENT MAJOR POSITION:
-Money
+Money / Payment Core
 
 NEXT IMPLEMENTATION GOAL:
-Do not write new financial code yet. First map what is already real (Commission, Promotions, Coupons, Order money snapshots) against the Specification's remaining Money requirements, then present one decision package for the unresolved financial rules.
+Define the minimum safe Payment status / event model, COD lifecycle, Online Payment attempt lifecycle, provider callback + idempotency boundary, and failed/expired pending-payment stock-recovery path. Do not choose or integrate the first Online Payment Gateway until M3.
 ```
 
 ---
@@ -879,4 +969,15 @@ A task is CLOSED only when:
 - Ran final Supabase Security Advisor; no new Notification-specific WARN vulnerability found.
 - Added `docs/IRTH_NOTIFICATION_FOUNDATION_CLOSURE.md`.
 - Closed Notification Foundation v0.1.
-- Advanced current project position to **Phase 6 — Money review**.
+- Approved Phase 6 Money decision package, including Bank Transfer as the first MVP Artisan payout method.
+- Added `docs/IRTH_MONEY_DECISION_REGISTER.md`.
+- Implemented `currency_minor_unit_scale` with Egypt / EGP = 2.
+- Added private append-only Artisan Settlement Ledger with deterministic sale entries.
+- Backfilled 2 existing Order Items into 6 settlement ledger rows.
+- Verified M1.1 settlement formula for 2 / 2 current Order Items.
+- Verified Browser roles cannot directly access the settlement ledger.
+- Verified append-only mutation protection and atomic new-Order-Item ledger trigger with controlled rollback tests.
+- Ran final Supabase Security Advisor; no new M1.1-specific WARN vulnerability found.
+- Added `docs/IRTH_M1_1_SETTLEMENT_LEDGER_CLOSURE.md`.
+- Closed M1.1 Commission Settlement Rules + Ledger Foundation.
+- Advanced current project position to **M2 Provider-Independent Payment Core review**.
