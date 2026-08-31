@@ -27,9 +27,21 @@ type PendingReply = {
   createdAt: string;
 };
 
+type PendingMedia = {
+  id: string;
+  reviewId: string;
+  mimeType: string;
+  byteSize: number;
+  sortOrder: number;
+  signedUrl: string | null;
+};
+
+type ModerationTarget = "review" | "reply" | "media";
+
 export default function AdminReviewsPage() {
   const [reviews, setReviews] = useState<PendingReview[]>([]);
   const [replies, setReplies] = useState<PendingReply[]>([]);
+  const [media, setMedia] = useState<PendingMedia[]>([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -44,6 +56,7 @@ export default function AdminReviewsPage() {
       if (!response.ok) throw new Error(body?.error || "Unable to load review queue.");
       setReviews(Array.isArray(body?.reviews) ? body.reviews : []);
       setReplies(Array.isArray(body?.replies) ? body.replies : []);
+      setMedia(Array.isArray(body?.media) ? body.media : []);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load review queue.");
     } finally {
@@ -53,7 +66,7 @@ export default function AdminReviewsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function decide(target: "review" | "reply", id: string, decision: "approved" | "rejected") {
+  async function decide(target: ModerationTarget, id: string, decision: "approved" | "rejected") {
     if (working) return;
     setWorking(`${target}:${id}`);
     setError("");
@@ -83,7 +96,7 @@ export default function AdminReviewsPage() {
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">Admin Panel</p>
             <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">Review Moderation</h1>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">Customer reviews and Artisan replies remain hidden until IRTH approves them.</p>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">Customer review text, customer images, and Artisan replies are moderated independently by IRTH.</p>
           </div>
           <Link href="/dashboard-admin/dashboard" className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)]">← Dashboard</Link>
         </div>
@@ -101,7 +114,7 @@ export default function AdminReviewsPage() {
                 <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs">{reviews.length} pending</span>
               </div>
               {reviews.length === 0 ? (
-                <div className="mt-4 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-6 text-sm text-[var(--text-secondary)]">No customer reviews pending moderation.</div>
+                <Empty>No customer reviews pending moderation.</Empty>
               ) : (
                 <div className="mt-4 space-y-4">
                   {reviews.map((review) => (
@@ -110,9 +123,31 @@ export default function AdminReviewsPage() {
                       <p className="mt-2 font-medium text-[var(--color-espresso)]">{review.productNameAr || review.productNameEn} · {review.artisanName}</p>
                       <p className="mt-2 text-sm text-[var(--color-copper)]">Product {'★'.repeat(review.productRating)} · Artisan {'★'.repeat(review.artisanRating)}</p>
                       <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[var(--text-secondary)]">{review.reviewText}</p>
-                      <div className="mt-5 flex gap-3 border-t border-[var(--border-soft)] pt-4">
-                        <button disabled={Boolean(working)} onClick={() => void decide("review", review.id, "approved")} className="rounded-[var(--radius-md)] bg-green-700 px-5 py-2 text-sm text-white disabled:opacity-50">Approve</button>
-                        <button disabled={Boolean(working)} onClick={() => void decide("review", review.id, "rejected")} className="rounded-[var(--radius-md)] bg-red-600 px-5 py-2 text-sm text-white disabled:opacity-50">Reject</button>
+                      <DecisionButtons working={working} approve={() => void decide("review", review.id, "approved")} reject={() => void decide("review", review.id, "rejected")} />
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="border-t border-[var(--border-soft)] pt-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">Customer Review Images</h2>
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">Private images remain invisible on the Product page until individually approved.</p>
+                </div>
+                <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs">{media.length} pending</span>
+              </div>
+              {media.length === 0 ? (
+                <Empty>No review images pending moderation.</Empty>
+              ) : (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {media.map((image) => (
+                    <article key={image.id} className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)]">
+                      {image.signedUrl ? <img src={image.signedUrl} alt="Pending customer review" className="aspect-square w-full object-cover" referrerPolicy="no-referrer" /> : <div className="aspect-square bg-[var(--surface-muted)]" />}
+                      <div className="p-4">
+                        <p className="text-xs text-[var(--text-muted)]">Review {image.reviewId.slice(0, 8)}… · {(Number(image.byteSize) / 1024 / 1024).toFixed(2)} MB</p>
+                        <DecisionButtons working={working} approve={() => void decide("media", image.id, "approved")} reject={() => void decide("media", image.id, "rejected")} />
                       </div>
                     </article>
                   ))}
@@ -126,7 +161,7 @@ export default function AdminReviewsPage() {
                 <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs">{replies.length} pending</span>
               </div>
               {replies.length === 0 ? (
-                <div className="mt-4 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-6 text-sm text-[var(--text-secondary)]">No Artisan replies pending moderation.</div>
+                <Empty>No Artisan replies pending moderation.</Empty>
               ) : (
                 <div className="mt-4 space-y-4">
                   {replies.map((reply) => (
@@ -140,10 +175,7 @@ export default function AdminReviewsPage() {
                         <p className="text-xs font-medium text-[var(--color-copper)]">Artisan reply</p>
                         <p className="mt-2 text-sm text-[var(--text-secondary)]">{reply.replyText}</p>
                       </div>
-                      <div className="mt-5 flex gap-3">
-                        <button disabled={Boolean(working)} onClick={() => void decide("reply", reply.id, "approved")} className="rounded-[var(--radius-md)] bg-green-700 px-5 py-2 text-sm text-white disabled:opacity-50">Approve reply</button>
-                        <button disabled={Boolean(working)} onClick={() => void decide("reply", reply.id, "rejected")} className="rounded-[var(--radius-md)] bg-red-600 px-5 py-2 text-sm text-white disabled:opacity-50">Reject reply</button>
-                      </div>
+                      <DecisionButtons working={working} approve={() => void decide("reply", reply.id, "approved")} reject={() => void decide("reply", reply.id, "rejected")} />
                     </article>
                   ))}
                 </div>
@@ -153,5 +185,18 @@ export default function AdminReviewsPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <div className="mt-4 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-6 text-sm text-[var(--text-secondary)]">{children}</div>;
+}
+
+function DecisionButtons({ working, approve, reject }: { working: string | null; approve: () => void; reject: () => void }) {
+  return (
+    <div className="mt-5 flex gap-3 border-t border-[var(--border-soft)] pt-4">
+      <button disabled={Boolean(working)} onClick={approve} className="rounded-[var(--radius-md)] bg-green-700 px-5 py-2 text-sm text-white disabled:opacity-50">Approve</button>
+      <button disabled={Boolean(working)} onClick={reject} className="rounded-[var(--radius-md)] bg-red-600 px-5 py-2 text-sm text-white disabled:opacity-50">Reject</button>
+    </div>
   );
 }
