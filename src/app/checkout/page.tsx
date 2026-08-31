@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import Header from "../components/Header";
 
-type StoredCartItem = { slug: string };
+type StoredCartItem = { slug: string; customizationText?: string | null };
+type QuoteInputItem = { slug: string; quantity: number; customizationText: string | null };
 type QuoteItemStatus = "available" | "product_unavailable" | "not_priced_for_market" | "out_of_stock" | "insufficient_stock";
 type ShippingQuoteStatus = "flat_rate" | "free_shipping" | "configuration_missing";
 type PaymentMethod = "cod" | "online";
@@ -90,10 +91,20 @@ function parseCart(snapshot: string): StoredCartItem[] {
     return parsed.filter((item): item is StoredCartItem => typeof item === "object" && item !== null && "slug" in item && typeof (item as { slug?: unknown }).slug === "string" && (item as { slug: string }).slug.trim().length > 0);
   } catch { return []; }
 }
-function groupCart(items: StoredCartItem[]) {
-  const grouped: Record<string, number> = {};
-  for (const item of items) grouped[item.slug.trim()] = (grouped[item.slug.trim()] ?? 0) + 1;
-  return Object.entries(grouped).map(([slug, quantity]) => ({ slug, quantity }));
+function groupCart(items: StoredCartItem[]): QuoteInputItem[] {
+  const grouped = new Map<string, { quantity: number; customizationText: string | null }>();
+  for (const item of items) {
+    const slug = item.slug.trim();
+    const customizationText = typeof item.customizationText === "string"
+      ? item.customizationText.trim().slice(0, 500) || null
+      : null;
+    const current = grouped.get(slug);
+    grouped.set(slug, {
+      quantity: (current?.quantity ?? 0) + 1,
+      customizationText: current?.customizationText ?? customizationText,
+    });
+  }
+  return Array.from(grouped, ([slug, value]) => ({ slug, quantity: value.quantity, customizationText: value.customizationText }));
 }
 function hasPositiveMoney(value: string | null | undefined) { return Boolean(value && Number(value) > 0); }
 function inputClass(hasError = false) {
@@ -104,6 +115,10 @@ export default function CheckoutPage() {
   const cartSnapshot = useSyncExternalStore(subscribeToCart, getCartSnapshot, getServerCartSnapshot);
   const cartItems = useMemo(() => parseCart(cartSnapshot), [cartSnapshot]);
   const quoteItems = useMemo(() => groupCart(cartItems), [cartItems]);
+  const customizationBySlug = useMemo(
+    () => new Map(quoteItems.map((item) => [item.slug, item.customizationText])),
+    [quoteItems]
+  );
   const [couponCode, setCouponCode] = useState<string | null>(null);
   const [couponReady, setCouponReady] = useState(false);
   const [checkoutContext, setCheckoutContext] = useState<CheckoutContext | null>(null);
@@ -282,7 +297,29 @@ export default function CheckoutPage() {
               {orderError && <p className="mt-5 text-sm text-[var(--color-terracotta)]">{orderError}</p>}
             </form>
 
-            {quote?.items.map((item) => <div key={item.slug} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6"><div className="flex items-start justify-between gap-6"><div><h2 className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">{item.product?.name_en ?? item.slug}</h2>{item.product && <p className="mt-2 text-sm text-[var(--text-secondary)]">By {item.product.artisan_name_en}</p>}<p className="mt-2 text-xs text-[var(--text-muted)]">Quantity: {item.requestedQuantity}</p>{item.status !== "available" && <p className="mt-3 text-sm text-[var(--color-terracotta)]">This item must be resolved in your cart before checkout.</p>}{item.status === "available" && <div className="mt-3 space-y-1 text-xs text-[var(--color-olive)]">{hasPositiveMoney(item.promotionDiscount) && <p>Promotion saved {currency} {item.promotionDiscount}</p>}{hasPositiveMoney(item.couponDiscount) && <p>Coupon saved {currency} {item.couponDiscount}</p>}</div>}</div><div className="text-right">{item.originalLineTotal && item.lineTotal && item.originalLineTotal !== item.lineTotal && <p className="text-xs text-[var(--text-muted)] line-through">{currency} {item.originalLineTotal}</p>}<p className="mt-1 font-medium text-[var(--color-copper)]">{item.lineTotal ? `${currency} ${item.lineTotal}` : "—"}</p></div></div></div>)}
+            {quote?.items.map((item) => {
+              const customizationText = customizationBySlug.get(item.slug);
+              return (
+                <div key={item.slug} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
+                  <div className="flex items-start justify-between gap-6">
+                    <div>
+                      <h2 className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">{item.product?.name_en ?? item.slug}</h2>
+                      {item.product && <p className="mt-2 text-sm text-[var(--text-secondary)]">By {item.product.artisan_name_en}</p>}
+                      <p className="mt-2 text-xs text-[var(--text-muted)]">Quantity: {item.requestedQuantity}</p>
+                      {customizationText && (
+                        <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface-muted)] p-3">
+                          <p className="text-xs font-medium text-[var(--text-muted)]">Customization request</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--color-espresso)]">{customizationText}</p>
+                        </div>
+                      )}
+                      {item.status !== "available" && <p className="mt-3 text-sm text-[var(--color-terracotta)]">This item must be resolved in your cart before checkout.</p>}
+                      {item.status === "available" && <div className="mt-3 space-y-1 text-xs text-[var(--color-olive)]">{hasPositiveMoney(item.promotionDiscount) && <p>Promotion saved {currency} {item.promotionDiscount}</p>}{hasPositiveMoney(item.couponDiscount) && <p>Coupon saved {currency} {item.couponDiscount}</p>}</div>}
+                    </div>
+                    <div className="text-right">{item.originalLineTotal && item.lineTotal && item.originalLineTotal !== item.lineTotal && <p className="text-xs text-[var(--text-muted)] line-through">{currency} {item.originalLineTotal}</p>}<p className="mt-1 font-medium text-[var(--color-copper)]">{item.lineTotal ? `${currency} ${item.lineTotal}` : "—"}</p></div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <aside className="h-fit rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-7">
