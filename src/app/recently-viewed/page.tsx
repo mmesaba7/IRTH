@@ -6,6 +6,7 @@ import Link from "next/link";
 import ProductCard from "../components/ProductCard";
 import type { PublicCatalogProduct } from "@/lib/publicMarketplace";
 import { loadPublicMarketplaceCatalog } from "@/lib/publicMarketplace";
+import { clearRecentlyViewed, loadRecentlyViewed } from "@/lib/recentlyViewedClient";
 
 export default function RecentlyViewedPage() {
   const [products, setProducts] = useState<PublicCatalogProduct[]>([]);
@@ -16,16 +17,15 @@ export default function RecentlyViewedPage() {
     let cancelled = false;
 
     const load = async () => {
-      const recentlyViewedSlugs = JSON.parse(
-        localStorage.getItem("irth-recently-viewed") || "[]"
-      ) as string[];
-
-      if (recentlyViewedSlugs.length === 0) {
-        setLoading(false);
-        return;
-      }
-
       try {
+        const recentlyViewedSlugs = await loadRecentlyViewed();
+        if (cancelled) return;
+
+        if (recentlyViewedSlugs.length === 0) {
+          setProducts([]);
+          return;
+        }
+
         const catalog = await loadPublicMarketplaceCatalog();
         if (cancelled) return;
 
@@ -53,6 +53,11 @@ export default function RecentlyViewedPage() {
     };
   }, []);
 
+  const clearHistory = () => {
+    clearRecentlyViewed();
+    setProducts([]);
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen bg-[var(--background)]">
@@ -72,14 +77,12 @@ export default function RecentlyViewedPage() {
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">History</p>
             <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)] md:text-5xl">Recently Viewed</h1>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">Recent products follow your account when you are signed in, while guests keep a local history.</p>
           </div>
           {products.length > 0 && (
             <button
               type="button"
-              onClick={() => {
-                localStorage.removeItem("irth-recently-viewed");
-                setProducts([]);
-              }}
+              onClick={clearHistory}
               className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
             >
               Clear history
