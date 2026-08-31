@@ -3,7 +3,7 @@
 **Project:** IRTH  
 **Document Purpose:** Current implementation status of the IRTH MVP  
 **Last Updated:** 31 August 2026  
-**Current Position:** Phase 6 — M4 Returns / Refunds backend foundation CLOSED; M5 Payout Eligibility Foundation is next. Real Online Gateway selection/integration remains intentionally deferred.
+**Current Position:** Phase 6 — M6 Payout Accounts + Manual Bank Transfer backend CLOSED; M7 Real Money UI + Money Notifications is next. Real Online Gateway selection/integration remains intentionally deferred.
 
 ---
 
@@ -82,8 +82,9 @@ Orders                      ✅ Core + Fulfillment + Shipping + Tracking + Notif
 Shipping                    🟨 Manual Shipment lifecycle + Tracking real; Courier API later
 Tracking                    ✅ Customer + Guest + Admin Tracking CLOSED
 Notifications               ✅ Notification Foundation v0.1 CLOSED
-Money                       🟨 M1.1 Ledger + M2 Payment Core + M3.0 Gateway Compatibility + M4 Returns/Refunds backend CLOSED; M5 next
-Returns / Refunds           ✅ Backend foundation CLOSED; UI/notifications remain for later Money UI stage
+Money                       🟨 M1.1 + M2 + M3.0 + M4 + M5 + M6 backend foundations CLOSED; M7 UI/notifications next
+Returns / Refunds           ✅ Backend foundation CLOSED; UI/notifications remain for M7
+Payouts                     ✅ Eligibility + Account Verification + Manual Batch backend CLOSED; secure UI/encryption wiring remains for M7
 Reviews                     🟨 Existing UI/foundation; verified-purchase integration still required
 Testing & Final Polish      ⬜ Later
 ```
@@ -100,12 +101,14 @@ Shipping Status                 ✅ manual MVP foundation
 Tracking Metadata               ✅ CLOSED
 Customer / Guest Tracking       ✅ CLOSED
 Notification Foundation         ✅ CLOSED
-Money / Payment Core            ✅ CLOSED
+M1.1 Settlement Ledger          ✅ CLOSED
+M2 Payment Core                 ✅ CLOSED
 M3.0 Gateway Compatibility      ✅ CLOSED
 M3 Real Gateway Integration     ⏸️ DEFERRED by owner
-M4.1 Return Foundation          ✅ CLOSED
-M4.2 Refund Money Logic         ✅ CLOSED
-M5 Payout Eligibility           ← NEXT
+M4 Returns / Refunds Backend    ✅ CLOSED
+M5 Payout Eligibility           ✅ CLOSED
+M6 Payout Backend               ✅ CLOSED
+M7 Money UI + Notifications     ← NEXT
 ```
 
 ---
@@ -202,19 +205,6 @@ Implemented:
 - Payment and Return audit events.
 - Idempotent repeated success handling.
 
-Controlled rollback-safe tests passed for:
-
-- Split quantity refund reconciliation.
-- Full Payment refund including explicit shipping exception.
-- Partial Payment status when shipping is retained.
-- IRTH-funded subsidy reversal.
-- Commission reversal.
-- Inventory restoration.
-- Over-refund prevention.
-- Callback/idempotency replay.
-- Customer ownership/Admin authorization abuse cases.
-- Zero test leakage after rollback.
-
 Migration:
 
 ```text
@@ -227,53 +217,171 @@ Closure record:
 docs/IRTH_M4_2_REFUND_MONEY_LOGIC_CLOSURE.md
 ```
 
----
+## M5 — Payout Eligibility Foundation — CLOSED ✅
 
-# 6. M5 — Payout Eligibility Foundation — NEXT
-
-Approved rule already exists:
+Owner-approved eligibility clock:
 
 ```text
+Each Artisan Group's own Shipment delivered_at
+↓
+Configured Return Hold
+↓
 Payment collected
 ↓
-Delivery
+No unresolved Return / Refund on the Order Item
 ↓
-Configured Return hold ends
+Positive append-only settlement balance
 ↓
-No unresolved Return / Refund condition
-↓
-Eligible
+Eligible for Payout
 ```
 
-Important unresolved Product/Legal value:
+Implemented:
+
+- `markets.payout_return_hold_days` configuration.
+- Exact Return Hold duration remains `NULL` / unapproved.
+- Missing Return Hold config fails closed with `configuration_missing`.
+- Eligibility is derived from the Artisan's own Shipment delivery time, not whole-Order completion.
+- New Return requests are blocked after the configured Return Window ends once a value is approved/configured.
+- Eligibility amount comes from current append-only settlement balance.
+- Payout execution remains separate from eligibility.
+
+Migration:
 
 ```text
-Exact Return Hold duration = NOT YET APPROVED
+supabase/migrations/20260831173411_create_payout_eligibility_foundation.sql
 ```
 
-M5 must therefore:
+Closure record:
 
-- Store/configure the Return Hold duration without inventing a number.
-- Fail closed while the required configuration is missing.
-- Require collected Payment.
-- Require Delivery.
-- Block eligibility while Return/Refund is unresolved.
-- Derive eligible Artisan amount from append-only settlement history rather than client-side calculations.
-- Keep payout execution separate from eligibility.
+```text
+docs/IRTH_M5_PAYOUT_ELIGIBILITY_CLOSURE.md
+```
+
+Current live configuration remains deliberately fail-closed:
+
+```text
+Configured markets with payout_return_hold_days = 0
+```
+
+Therefore no live-normal payout becomes eligible merely because M6 exists.
+
+## M6 — Payout Accounts + Manual Bank Transfer — CLOSED ✅
+
+Approved first payout method:
+
+```text
+Bank Transfer
+```
+
+### M6.1 Payout Account Verification
+
+Implemented:
+
+- Private payout account records.
+- `Pending Verification → Approve/Reject → Active` workflow.
+- Changed approved details create a new pending request while old Active remains until approval.
+- Approval atomically supersedes old Active account.
+- At most one Active and one Pending account per Artisan + method.
+- Sensitive account payload is stored as opaque encrypted ciphertext contract + fingerprint + key version, never modelled as plaintext bank-account columns.
+- Payout account audit events are append-only.
+- Sensitive historical fields are immutable.
+
+### M6.2 Manual Payout Batches
+
+Implemented:
+
+- Manual Super Admin payout batches.
+- Only currently M5-eligible Order Items can be reserved.
+- Active verified Bank Transfer account required.
+- One Order Item cannot be reserved in two pending batches.
+- Batch creation is idempotent; idempotency-key reuse with different selection is rejected.
+- Pending batch cancellation releases reservations without financial ledger effect.
+- Mark Paid revalidates eligibility, balance and currency before any financial mutation.
+- Paid payout creates one deterministic negative `payout` Settlement Ledger entry per Batch Item.
+- Same Bank Reference replay is a no-op; a different replay reference is rejected.
+- After full payout, settlement balance naturally becomes zero and another payout is blocked unless a legitimate future positive adjustment appears.
+
+### M6 Preflight/Postflight Verification
+
+Before M6:
+
+```text
+Existing payout-account/batch domain conflicts = 0
+```
+
+After M6:
+
+```text
+one-active unique guard copies       = 1
+one-pending unique guard copies      = 1
+one-reserved-item guard copies       = 1
+batch-idempotency guard copies       = 1
+payout-ledger sign constraint copies = 1
+payout-ledger source copies          = 1
+```
+
+Controlled tests used fake encrypted values / fake transfer references only and were fully rolled back.
+
+Final test leakage:
+
+```text
+Payout Accounts        = 0
+Payout Account Events  = 0
+Payout Batches         = 0
+Payout Batch Items     = 0
+Payout Batch Events    = 0
+Payout Ledger Entries  = 0
+```
+
+No real Bank Transfer was executed.
+
+Migrations:
+
+```text
+supabase/migrations/20260831175115_create_payout_account_verification_foundation.sql
+supabase/migrations/20260831175315_create_manual_payout_batch_foundation.sql
+supabase/migrations/20260831175523_harden_payout_foreign_key_indexes.sql
+```
+
+Closure record:
+
+```text
+docs/IRTH_M6_PAYOUT_ACCOUNTS_MANUAL_BANK_TRANSFER_CLOSURE.md
+```
 
 ---
 
-# 7. Payout
+# 6. M7 — Real Money UI + Money Notifications — NEXT
 
-**Status: NOT IMPLEMENTED ⬜**
+M7 must replace remaining prototype/localStorage Money screens with real secure server-backed flows.
 
-Approved MVP payout method: **Bank Transfer**.
-Approved MVP payout execution model: **Manual Super Admin-controlled Payout Batches**.
-Automated payout scheduling is deferred.
+Important existing prototype debt:
+
+```text
+src/app/artisan/payouts/page.tsx
+src/app/artisan/payouts/setting/page.tsx
+src/app/dashboard-admin/commission/page.tsx
+```
+
+These old screens are not trusted financial implementations.
+
+M7 priorities:
+
+- Remove payout/bank-data localStorage behavior.
+- Add secure server-only payout account submit/read/review routes.
+- Implement application-side encryption/decryption for payout account payloads using server-only environment secrets and explicit key versioning.
+- Never put raw payout/bank details in localStorage, sessionStorage, browser logs, server logs or unnecessary responses.
+- Mask payout details in ordinary UI and expose only the minimum needed for authorized Admin verification.
+- Build real Artisan payout status/history UI from trusted backend data.
+- Build Super Admin payout-account verification + payout batch UI.
+- Wire Return / Refund / Payout notifications through the existing Notification Layer.
+- Keep actual Bank Transfer execution manual in MVP.
+
+Exact bank-field requirements for the first market still require deliberate review before building the final form; M6 does not invent IBAN/account-field business requirements.
 
 ---
 
-# 8. Taxes / Withholdings
+# 7. Taxes / Withholdings
 
 No automatic tax or withholding rule/rate is invented.
 
@@ -283,28 +391,34 @@ Before real production payouts, any legally required withholding/tax handling mu
 
 ---
 
-# 9. Security Review Notes
+# 8. Security / Performance Review Notes
 
-Known pre-existing items remain tracked:
+Known pre-existing Security Advisor items remain tracked:
 
 - Legacy authenticated-executable SECURITY DEFINER function `public.review_product_market_price_request(...)`.
+- Selected guarded M4 Return SECURITY DEFINER RPC notices.
 - Supabase Auth Leaked Password Protection disabled.
-- Security Advisor INFO for selected RLS-enabled/no-policy tables using narrow RPC boundaries.
+- INFO for selected RLS-enabled/no-policy tables using narrow RPC boundaries.
 
-M4 additionally uses intentional guarded authenticated `SECURITY DEFINER` Return/Admin RPCs with fixed empty `search_path` and in-function ownership/Super-Admin authorization. Explicit abuse tests passed. Reassess whether to move more of these boundaries behind Next.js server-only routes when Return UI/API is implemented.
+M6 introduced no new Security Advisor warning.
 
-Security Advisor references:
+M6 Postflight Performance Advisor initially reported M6 foreign keys without covering indexes. Migration `20260831175523_harden_payout_foreign_key_indexes` added only the M6-required covering indexes. Re-check confirmed no remaining `unindexed_foreign_keys` finding belongs to M6.
+
+References:
 
 - https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable
 - https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
+- https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys
 - https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
 
 ---
 
-# 10. Immediate Next Task
+# 9. Immediate Next Task
 
 ```text
-M5 — Payout Eligibility Foundation
+M7 — Real Money UI + Money Notifications
 ```
 
 Real Payment Gateway selection/integration remains deferred until the owner reopens it.
+
+The project remains in Pre-Live Financial Testing Mode. Before real financial operations on hosting/domain, perform the dedicated Production Readiness / Money Safety Review.
