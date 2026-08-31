@@ -51,7 +51,14 @@ type CheckoutContext = {
 };
 
 type OrderResponse = {
-  order?: { id: string; orderNumber: string; status: string; paymentStatus: string; reused: boolean };
+  order?: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    paymentStatus: string;
+    reused: boolean;
+    guestTrackingToken: string | null;
+  };
   fieldErrors?: FieldErrors;
   error?: string;
   code?: string;
@@ -195,6 +202,8 @@ export default function CheckoutPage() {
           await refreshQuote();
         } else if (response.status === 503 && payload.code === "server_secret_missing") {
           setOrderError("Server order creation is not configured yet.");
+        } else if (response.status === 503 && payload.code === "guest_tracking_secret_missing") {
+          setOrderError("Guest order tracking is not configured yet.");
         } else if (response.status === 422) {
           setOrderError("Please correct the highlighted checkout details.");
         } else {
@@ -207,7 +216,10 @@ export default function CheckoutPage() {
       sessionStorage.removeItem(CHECKOUT_COUPON_KEY);
       window.dispatchEvent(new Event("irth-cart-updated"));
       const params = new URLSearchParams({ order: payload.order.orderNumber, status: payload.order.status, payment: payload.order.paymentStatus });
-      window.location.assign(`/order-success?${params.toString()}`);
+      const guestFragment = payload.order.guestTrackingToken
+        ? `#access=${encodeURIComponent(payload.order.guestTrackingToken)}`
+        : "";
+      window.location.assign(`/order-success?${params.toString()}${guestFragment}`);
     } catch {
       setOrderError("Unable to create order. Check your connection and try again.");
     } finally {
