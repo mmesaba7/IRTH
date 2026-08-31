@@ -9,6 +9,7 @@ export type CustomerOrderItem = {
   promotionDiscount: string;
   couponDiscount: string;
   lineTotal: string;
+  customizationText: string | null;
   deliveredAt: string | null;
   reviewId: string | null;
   reviewStatus: string | null;
