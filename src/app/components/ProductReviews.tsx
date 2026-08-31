@@ -11,6 +11,7 @@ type PublishedReview = {
   edited: boolean;
   reply_text: string | null;
   reply_created_at: string | null;
+  images: Array<{ id: string; url: string }>;
 };
 
 export default function ProductReviews({ slug }: { slug: string }) {
@@ -77,6 +78,13 @@ export default function ProductReviews({ slug }: { slug: string }) {
                 Product {'★'.repeat(review.product_rating)}{'☆'.repeat(5 - review.product_rating)} · Artisan {'★'.repeat(review.artisan_rating)}{'☆'.repeat(5 - review.artisan_rating)}
               </p>
               <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[var(--text-secondary)]">{review.review_text}</p>
+              {review.images.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {review.images.map((image) => (
+                    <img key={image.id} src={image.url} alt="Customer review" className="aspect-square w-full rounded-[var(--radius-md)] object-cover" loading="lazy" referrerPolicy="no-referrer" />
+                  ))}
+                </div>
+              )}
               <p className="mt-3 text-xs text-[var(--text-muted)]">{new Date(review.created_at).toLocaleDateString("en-GB")}{review.edited ? " · edited once" : ""}</p>
               {review.reply_text && (
                 <div className="mt-5 rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-4">
