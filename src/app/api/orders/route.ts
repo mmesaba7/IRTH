@@ -10,6 +10,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createGuestTrackingToken } from "@/lib/guestTrackingToken";
 
+type PaymentMethod = "cod" | "online";
+
 function jsonNoStore(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,
@@ -56,6 +58,13 @@ function parseCouponCode(body: unknown) {
   return normalized.length > 0 ? normalized : null;
 }
 
+function parsePaymentMethod(body: unknown): PaymentMethod | null {
+  if (typeof body !== "object" || body === null || !("paymentMethod" in body)) return null;
+  const raw = (body as { paymentMethod?: unknown }).paymentMethod;
+  if (raw === "cod" || raw === "online") return raw;
+  return null;
+}
+
 function hashIdentity(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -66,6 +75,18 @@ function mapOrderError(message: string) {
       status: 409,
       error: "Order creation is not available until commission is configured for every item.",
       code: "commission_not_configured",
+    };
+  }
+
+  if (
+    message.includes("payment_method_mismatch") ||
+    message.includes("payment_method_unknown_for_reused_order") ||
+    message.includes("payment_record_missing_for_reused_order")
+  ) {
+    return {
+      status: 409,
+      error: "This order attempt no longer matches the selected payment method. Start the order again.",
+      code: "payment_method_conflict",
     };
   }
 
@@ -115,8 +136,15 @@ export async function POST(request: NextRequest) {
 
   const items = parseItems(body);
   const couponCode = parseCouponCode(body);
+  const paymentMethod = parsePaymentMethod(body);
   if (!items || items.length === 0 || couponCode === undefined) {
     return jsonNoStore({ error: "Invalid order cart input" }, 400);
+  }
+  if (!paymentMethod) {
+    return jsonNoStore(
+      { error: "Select a valid payment method.", code: "invalid_payment_method" },
+      400
+    );
   }
 
   try {
@@ -204,7 +232,7 @@ export async function POST(request: NextRequest) {
       : null;
 
     const admin = createAdminClient();
-    const { data, error } = await admin.rpc("create_order_transaction", {
+    const { data, error } = await admin.rpc("create_order_with_payment_transaction", {
       p_order: {
         marketId: market.id,
         currencyCode: market.currency_code,
@@ -223,6 +251,7 @@ export async function POST(request: NextRequest) {
       p_items: transactionItems,
       p_idempotency_scope: idempotencyScope,
       p_idempotency_key: idempotencyKey,
+      p_payment_method: paymentMethod,
       p_guest_access_token_hash: guestAccessTokenHash,
     });
 
@@ -233,7 +262,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = Array.isArray(data) ? data[0] : null;
-    if (!result?.order_id || !result?.order_number) {
+    if (!result?.order_id || !result?.order_number || !result?.payment_method) {
       return jsonNoStore({ error: "Unable to create order." }, 500);
     }
 
@@ -244,6 +273,7 @@ export async function POST(request: NextRequest) {
           orderNumber: result.order_number,
           status: "received",
           paymentStatus: "pending",
+          paymentMethod: result.payment_method,
           reused: Boolean(result.reused),
           guestTrackingToken,
         },
