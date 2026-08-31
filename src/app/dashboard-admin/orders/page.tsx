@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import OrderConfirmForm from "./OrderConfirmForm";
 import ShipmentActionForm from "./ShipmentActionForm";
+import TrackingMetadataForm from "./TrackingMetadataForm";
 
 type AdminOrderItem = {
   id: string;
@@ -123,7 +124,7 @@ export default async function AdminOrdersPage() {
               الطلبات والشحن
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-              إدارة الطلب الموحد، تأكيده، ومتابعة كل Shipment بقواعد انتقال آمنة ومسجلة في الـ Audit History.
+              إدارة الطلب الموحد، الشحن، وبيانات التتبع بقواعد آمنة ومسجلة في Audit History.
             </p>
           </div>
 
@@ -254,10 +255,25 @@ export default async function AdminOrdersPage() {
                                     <p className="text-sm font-medium text-[var(--color-espresso)]">
                                       {statusLabel(group.shipment.status)}
                                     </p>
+                                    {group.shipment.courierCode && (
+                                      <p className="mt-1 text-xs text-[var(--text-muted)]">
+                                        Courier: {group.shipment.courierCode}
+                                      </p>
+                                    )}
                                     {group.shipment.trackingNumber && (
                                       <p className="mt-1 text-xs text-[var(--text-muted)]">
                                         Tracking: {group.shipment.trackingNumber}
                                       </p>
+                                    )}
+                                    {group.shipment.trackingUrl && (
+                                      <a
+                                        href={group.shipment.trackingUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="mt-1 inline-block text-xs font-medium text-[var(--color-copper)] hover:underline"
+                                      >
+                                        فتح رابط التتبع ↗
+                                      </a>
                                     )}
                                   </div>
 
@@ -307,6 +323,13 @@ export default async function AdminOrdersPage() {
                                     </div>
                                   )}
                                 </div>
+
+                                <TrackingMetadataForm
+                                  shipmentId={group.shipment.id}
+                                  courierCode={group.shipment.courierCode}
+                                  trackingNumber={group.shipment.trackingNumber}
+                                  trackingUrl={group.shipment.trackingUrl}
+                                />
                               </div>
                             ) : (
                               <p className="mt-2 text-xs text-[var(--text-secondary)]">
