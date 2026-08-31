@@ -6,6 +6,10 @@ import Header from "../components/Header";
 import ProductCard from "../components/ProductCard";
 import type { PublicCatalogProduct } from "@/lib/publicMarketplace";
 import { loadPublicMarketplaceCatalog } from "@/lib/publicMarketplace";
+import {
+  ensureSavedProductsLoaded,
+  removeSavedProduct,
+} from "@/lib/savedProductsClient";
 
 export default function SavedPage() {
   const [savedSlugs, setSavedSlugs] = useState<string[]>([]);
@@ -17,17 +21,16 @@ export default function SavedPage() {
     let cancelled = false;
 
     const load = async () => {
-      const saved = JSON.parse(
-        localStorage.getItem("irth-saved-products") || "[]"
-      ) as string[];
-      setSavedSlugs(saved);
-
-      if (saved.length === 0) {
-        setLoading(false);
-        return;
-      }
-
       try {
+        const saved = await ensureSavedProductsLoaded();
+        if (cancelled) return;
+        setSavedSlugs(saved);
+
+        if (saved.length === 0) {
+          setProducts([]);
+          return;
+        }
+
         const catalog = await loadPublicMarketplaceCatalog();
         if (cancelled) return;
 
@@ -55,9 +58,8 @@ export default function SavedPage() {
   }, []);
 
   const removeSaved = (slug: string) => {
-    const updated = savedSlugs.filter((item) => item !== slug);
-    localStorage.setItem("irth-saved-products", JSON.stringify(updated));
-    setSavedSlugs(updated);
+    removeSavedProduct(slug);
+    setSavedSlugs((current) => current.filter((item) => item !== slug));
     setProducts((current) => current.filter((product) => product.slug !== slug));
   };
 
@@ -76,6 +78,9 @@ export default function SavedPage() {
       <section className="mx-auto max-w-[var(--container-max)] px-6 py-12 md:py-20">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">Your collection</p>
         <h1 className="mt-3 font-[var(--font-display)] text-5xl font-normal text-[var(--color-espresso)]">Saved crafts</h1>
+        <p className="mt-3 text-sm text-[var(--text-secondary)]">
+          {savedSlugs.length > 0 ? "Saved products follow your account when you are signed in." : "Save products you want to return to later."}
+        </p>
 
         {error && (
           <div className="mt-6 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-600">{error}</div>
