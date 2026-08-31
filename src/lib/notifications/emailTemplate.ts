@@ -31,8 +31,19 @@ function getText(payload: Record<string, unknown>, key: string) {
 
 function copyFor(eventKey: string, payload: Record<string, unknown>): Copy {
   const orderNumber = getText(payload, "orderNumber");
+  const batchNumber = getText(payload, "batchNumber");
+  const amount = getText(payload, "amount");
+  const currencyCode = getText(payload, "currencyCode");
   const orderSuffixAr = orderNumber ? ` ${orderNumber}` : "";
   const orderSuffixEn = orderNumber ? ` ${orderNumber}` : "";
+  const batchSuffixAr = batchNumber ? ` ${batchNumber}` : "";
+  const batchSuffixEn = batchNumber ? ` ${batchNumber}` : "";
+  const amountSuffixAr = amount
+    ? ` بقيمة ${amount}${currencyCode ? ` ${currencyCode}` : ""}`
+    : "";
+  const amountSuffixEn = amount
+    ? ` for ${amount}${currencyCode ? ` ${currencyCode}` : ""}`
+    : "";
 
   switch (eventKey) {
     case "order_created":
@@ -130,8 +141,87 @@ function copyFor(eventKey: string, payload: Record<string, unknown>): Copy {
       return {
         arTitle: "يحتاج منتجك إلى مراجعة",
         enTitle: "Product needs changes",
-        arBody: "لم تتم الموافقة على المنتج في المراجعة الحالية. راجع لوحة الحرفي لمعرفة الحالة والتعديلات المطلوبة.",
-        enBody: "The product was not approved in the current review. Check the artisan dashboard for its status and required changes.",
+        arBody:
+          "لم تتم الموافقة على المنتج في المراجعة الحالية. راجع لوحة الحرفي لمعرفة الحالة والتعديلات المطلوبة.",
+        enBody:
+          "The product was not approved in the current review. Check the artisan dashboard for its status and required changes.",
+      };
+    case "payment_confirmed_artisan":
+      return {
+        arTitle: "تم تأكيد دفع الطلب",
+        enTitle: "Order payment confirmed",
+        arBody: `تم تأكيد الدفع للطلب${orderSuffixAr}. يمكنك متابعة حالة الطلب من لوحة الحرفي.`,
+        enBody: `Payment for order${orderSuffixEn} has been confirmed. You can follow the order from the artisan dashboard.`,
+      };
+    case "return_requested":
+      return {
+        arTitle: "تم استلام طلب الإرجاع",
+        enTitle: "Return request received",
+        arBody: `استلمنا طلب الإرجاع الخاص بطلبك${orderSuffixAr}. سيقوم فريق IRTH بمراجعته وإدارة الخطوات التالية.`,
+        enBody: `We received your return request for order${orderSuffixEn}. IRTH will review it and manage the next steps.`,
+      };
+    case "return_requested_artisan":
+      return {
+        arTitle: "يوجد طلب إرجاع",
+        enTitle: "A return was requested",
+        arBody: `تم تقديم طلب إرجاع على منتج من الطلب${orderSuffixAr}. IRTH ستدير المراجعة والتواصل مع العميل.`,
+        enBody: `A return was requested for an item in order${orderSuffixEn}. IRTH will manage the review and customer communication.`,
+      };
+    case "return_approved":
+      return {
+        arTitle: "تم قبول طلب الإرجاع",
+        enTitle: "Return request approved",
+        arBody: `تم قبول طلب الإرجاع الخاص بطلبك${orderSuffixAr}. سيتابع فريق IRTH خطوات الإرجاع.`,
+        enBody: `Your return request for order${orderSuffixEn} was approved. IRTH will coordinate the return steps.`,
+      };
+    case "return_rejected":
+      return {
+        arTitle: "لم تتم الموافقة على طلب الإرجاع",
+        enTitle: "Return request not approved",
+        arBody: `لم تتم الموافقة على طلب الإرجاع الخاص بطلبك${orderSuffixAr} في المراجعة الحالية.`,
+        enBody: `Your return request for order${orderSuffixEn} was not approved in the current review.`,
+      };
+    case "refund_processing":
+      return {
+        arTitle: "جاري تجهيز الاسترداد",
+        enTitle: "Refund is being prepared",
+        arBody: `بدأ فريق IRTH تجهيز الاسترداد الخاص بطلبك${orderSuffixAr}.`,
+        enBody: `IRTH has started preparing the refund for order${orderSuffixEn}.`,
+      };
+    case "refund_succeeded":
+      return {
+        arTitle: "تم تسجيل الاسترداد",
+        enTitle: "Refund completed",
+        arBody: `تم تسجيل استرداد طلبك${orderSuffixAr} بنجاح${amountSuffixAr}.`,
+        enBody: `The refund for order${orderSuffixEn} was completed successfully${amountSuffixEn}.`,
+      };
+    case "refund_adjusted_artisan":
+      return {
+        arTitle: "تم تحديث المستحقات بعد الاسترداد",
+        enTitle: "Earnings adjusted after refund",
+        arBody: `تم تحديث مستحقات الطلب${orderSuffixAr} بعد تنفيذ الاسترداد. راجع صفحة المستحقات لمعرفة الرصيد الحالي.`,
+        enBody: `Your earnings for order${orderSuffixEn} were adjusted after the refund. Check the payouts page for the current balance.`,
+      };
+    case "payout_account_approved":
+      return {
+        arTitle: "تم اعتماد بيانات الصرف",
+        enTitle: "Payout details approved",
+        arBody: "تمت مراجعة واعتماد بيانات الصرف الخاصة بك. لا تحتوي هذه الرسالة على أي بيانات بنكية حساسة.",
+        enBody: "Your payout details were reviewed and approved. This email does not contain sensitive bank information.",
+      };
+    case "payout_account_rejected":
+      return {
+        arTitle: "بيانات الصرف تحتاج تعديل",
+        enTitle: "Payout details need changes",
+        arBody: "لم يتم اعتماد بيانات الصرف في المراجعة الحالية. راجع حالتها داخل IRTH وأرسل بيانات جديدة عند الحاجة.",
+        enBody: "Your payout details were not approved in the current review. Check their status in IRTH and submit new details if needed.",
+      };
+    case "payout_batch_paid":
+      return {
+        arTitle: "تم تسجيل عملية الصرف",
+        enTitle: "Payout recorded",
+        arBody: `تم تسجيل دفعة الصرف${batchSuffixAr} كمدفوعة${amountSuffixAr}. راجع سجل المستحقات داخل IRTH للتفاصيل.`,
+        enBody: `Payout batch${batchSuffixEn} was recorded as paid${amountSuffixEn}. Check your payout history in IRTH for details.`,
       };
     default:
       return {
@@ -170,11 +260,18 @@ export function renderNotificationEmail(input: {
     bodyHtml = `<div dir="rtl" lang="ar"><h1>${escapeHtml(copy.arTitle)}</h1><p>${escapeHtml(copy.arBody)}</p></div><hr /><div dir="ltr" lang="en"><h2>${escapeHtml(copy.enTitle)}</h2><p>${escapeHtml(copy.enBody)}</p></div>`;
   }
 
-  const linkText = input.locale === "en" ? "Open IRTH" : input.locale === "ar" ? "افتح IRTH" : "افتح IRTH / Open IRTH";
+  const linkText =
+    input.locale === "en"
+      ? "Open IRTH"
+      : input.locale === "ar"
+      ? "افتح IRTH"
+      : "افتح IRTH / Open IRTH";
   const linkHtml = safeLink
     ? `<p style="margin-top:24px"><a href="${safeLink}" rel="noreferrer">${escapeHtml(linkText)}</a></p>`
     : "";
-  const textWithLink = input.link ? `${text}\n\n${linkText}: ${input.link}` : text;
+  const textWithLink = input.link
+    ? `${text}\n\n${linkText}: ${input.link}`
+    : text;
 
   return {
     subject,
