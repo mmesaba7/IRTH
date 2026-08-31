@@ -6,9 +6,7 @@ import Header from "../components/Header";
 
 type LegacyCartItem = {
   slug: string;
-  artisan: string;
-  name: string;
-  price: number;
+  customizationText?: string | null;
 };
 
 type QuoteItemStatus =
@@ -323,6 +321,12 @@ export default function CartPage() {
                             <p className="mt-2 text-sm text-[var(--text-secondary)]">
                               By {quotedItem.product.artisan_name_en}
                             </p>
+                          )}
+                          {storedItem.customizationText && (
+                            <div className="mt-3 max-w-xl rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface-muted)] p-3">
+                              <p className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">Customization request</p>
+                              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--color-espresso)]">{storedItem.customizationText}</p>
+                            </div>
                           )}
                           {unavailableMessage && (
                             <p className="mt-3 max-w-md text-sm text-[var(--color-terracotta)]">{unavailableMessage}</p>
