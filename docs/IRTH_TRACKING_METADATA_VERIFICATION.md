@@ -2,7 +2,7 @@
 
 **Date:** 31 August 2026  
 **Scope:** Admin Tracking Metadata Foundation  
-**Status:** IMPLEMENTED + FUNCTIONALLY VERIFIED; FINAL PRODUCTION BUILD PENDING
+**Status:** CLOSED ✅
 
 ---
 
@@ -47,7 +47,7 @@ public.update_admin_shipment_tracking(...)
 Security boundary:
 
 ```text
-Authenticated browser/server action
+Authenticated Admin UI / Server Action
         ↓
 public SECURITY INVOKER wrapper
         ↓
@@ -121,6 +121,8 @@ null/null -> test_courier/TEST-12345
 
 This confirms the second identical save did not create another history record.
 
+The values above are test metadata and are not an approved production Courier configuration.
+
 ---
 
 ## Security Verification
@@ -141,7 +143,7 @@ authenticated EXECUTE: true
 
 Authorization remains enforced inside the private function through `private.is_super_admin()`.
 
-Earlier transaction tests also verified:
+Transaction/security tests also verified:
 
 - non-Super-Admin rejection;
 - insecure `http://` Tracking URL rejection;
@@ -150,20 +152,48 @@ Earlier transaction tests also verified:
 
 ---
 
-## Remaining Closure Gate
+## Production Build Verification
 
-The latest Tracking UI / Server Action commit has been exercised successfully in Next.js development mode and verified against Live Supabase.
-
-However, a final `npm.cmd run build` result after the latest Tracking commit has not yet been recorded in the project conversation.
-
-Therefore this subtask is **not marked CLOSED yet**.
-
-Closure condition:
+Final build was run locally after pulling GitHub `main` at:
 
 ```text
-latest GitHub main pulled locally
-        +
-npm.cmd run build passes
+9cb56f0d5b850b8e8cd2e87035db63b04a6e195a
 ```
 
-After that, Tracking Metadata Foundation may be marked CLOSED and work can move to Customer Tracking View + Secure Guest Tracking Link.
+Result:
+
+```text
+Next.js 16.3.1 (Turbopack)
+Compiled successfully
+TypeScript finished successfully
+Static pages generated: 51/51
+Build completed successfully
+```
+
+Local `HEAD` and `origin/main` matched at the same SHA before this closure-document commit.
+
+---
+
+## Closure
+
+All closure gates passed:
+
+1. Business/security direction approved.
+2. Database implementation exists.
+3. Admin UI implementation exists.
+4. Browser save verified.
+5. Live DB state verified.
+6. Idempotency verified.
+7. Authorization / RPC boundary verified.
+8. HTTPS validation verified.
+9. Final Production Build passed.
+
+**Tracking Metadata Foundation is CLOSED ✅**
+
+Next task:
+
+```text
+Customer Tracking View
++
+Secure Guest Tracking Link
+```
