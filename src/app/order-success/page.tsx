@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Header from "../components/Header";
@@ -10,6 +10,13 @@ function OrderSuccessContent() {
   const orderNumber = searchParams.get("order");
   const status = searchParams.get("status") ?? "received";
   const paymentStatus = searchParams.get("payment") ?? "pending";
+  const [guestTrackingToken, setGuestTrackingToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fragment = new URLSearchParams(window.location.hash.slice(1));
+    const token = fragment.get("access")?.trim() ?? "";
+    setGuestTrackingToken(/^[A-Za-z0-9_-]{43}$/.test(token) ? token : null);
+  }, []);
 
   if (!orderNumber) {
     return (
@@ -25,6 +32,10 @@ function OrderSuccessContent() {
       </main>
     );
   }
+
+  const guestTrackingHref = guestTrackingToken
+    ? `/track/${encodeURIComponent(orderNumber)}#access=${encodeURIComponent(guestTrackingToken)}`
+    : null;
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
@@ -51,11 +62,29 @@ function OrderSuccessContent() {
             </div>
           </div>
 
+          {guestTrackingHref && (
+            <div className="mt-6 rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface-muted)] p-5 text-left">
+              <p className="text-sm font-medium text-[var(--color-espresso)]">Private guest tracking link</p>
+              <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">
+                Keep this page private. The secure link is the credential for tracking this guest order and is not stored in IRTH as plain text.
+              </p>
+              <Link
+                href={guestTrackingHref}
+                referrerPolicy="no-referrer"
+                className="mt-4 inline-block rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-5 py-3 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)]"
+              >
+                Track this order securely →
+              </Link>
+            </div>
+          )}
+
           <p className="mt-6 text-xs leading-5 text-[var(--text-muted)]">This page intentionally does not expose delivery address, phone, email, or other private customer data.</p>
 
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Link href="/" className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-7 py-3 text-sm font-medium text-[var(--color-espresso)] transition hover:border-[var(--color-copper)]">Continue shopping</Link>
-            <Link href="/account/orders" className="rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-7 py-3 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)]">View my orders</Link>
+            {!guestTrackingHref && (
+              <Link href="/account/orders" className="rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-7 py-3 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)]">View my orders</Link>
+            )}
           </div>
         </div>
       </section>
