@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { quoteCart, type CartQuoteInputItem } from "@/lib/cartQuote";
 import { applyPromotionsToQuote } from "@/lib/promotionQuote";
@@ -12,7 +12,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 function jsonNoStore(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,
-    headers: { "Cache-Control": "no-store" },
+    headers: {
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+    },
   });
 }
 
@@ -54,6 +57,18 @@ function parseCouponCode(body: unknown) {
 
 function hashIdentity(value: string) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function createGuestTrackingToken(idempotencyScope: string, idempotencyKey: string) {
+  const secret = process.env.IRTH_GUEST_TRACKING_SECRET?.trim();
+
+  if (!secret || secret.length < 32) {
+    throw new Error("Missing guest tracking secret configuration");
+  }
+
+  return createHmac("sha256", secret)
+    .update(`irth-guest-tracking:v1:${idempotencyScope}:${idempotencyKey}`)
+    .digest("base64url");
 }
 
 function mapOrderError(message: string) {
@@ -192,12 +207,12 @@ export async function POST(request: NextRequest) {
     const idempotencyScope = user
       ? `user:${user.id}`
       : `guest:${guestIdentityHash}`;
-
-    // Guest tracking is a later surface. We still store an opaque verifier now so
-    // the order never relies on order_number as an authorization credential.
-    const guestAccessTokenHash = user
+    const guestTrackingToken = user
       ? null
-      : hashIdentity(randomBytes(32).toString("base64url"));
+      : createGuestTrackingToken(idempotencyScope, idempotencyKey);
+    const guestAccessTokenHash = guestTrackingToken
+      ? hashIdentity(guestTrackingToken)
+      : null;
 
     const admin = createAdminClient();
     const { data, error } = await admin.rpc("create_order_transaction", {
@@ -241,6 +256,7 @@ export async function POST(request: NextRequest) {
           status: "received",
           paymentStatus: "pending",
           reused: Boolean(result.reused),
+          guestTrackingToken,
         },
       },
       result.reused ? 200 : 201
@@ -256,6 +272,19 @@ export async function POST(request: NextRequest) {
         {
           error: "Server order creation is not configured yet.",
           code: "server_secret_missing",
+        },
+        503
+      );
+    }
+
+    if (
+      error instanceof Error &&
+      error.message === "Missing guest tracking secret configuration"
+    ) {
+      return jsonNoStore(
+        {
+          error: "Guest order tracking is not configured yet.",
+          code: "guest_tracking_secret_missing",
         },
         503
       );
