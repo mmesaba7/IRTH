@@ -3,7 +3,7 @@
 **Project:** IRTH  
 **Document Purpose:** Current implementation status of the IRTH MVP  
 **Last Updated:** 31 August 2026  
-**Current Position:** Customer / Guest Order Tracking
+**Current Position:** Notifications
 
 ---
 
@@ -51,9 +51,9 @@ Foundation                  ✅ Core implemented
 Identity & Structure        🟨 Mostly implemented
 Marketplace                 ✅ Core implemented
 Shopping                    ✅ Trusted Checkout + real Order creation foundation
-Orders                      🟨 Real core implemented; customer tracking/returns/payment integration remain
-Shipping                    🟨 Manual Shipment lifecycle + Tracking metadata real; Courier API later
-Tracking                    🟨 Admin Tracking CLOSED; Customer / Guest Tracking NEXT
+Orders                      🟨 Core + Tracking implemented; Notifications/Returns/Payment remain
+Shipping                    🟨 Manual Shipment lifecycle + Tracking real; Courier API later
+Tracking                    ✅ Customer + Guest + Admin Tracking CLOSED
 Money                       🟨 Pricing + Promotions + Coupons + Commission snapshot real; Payment/Payout later
 Testing & Final Polish      ⬜ Later
 ```
@@ -68,9 +68,9 @@ Artisan Fulfillment             ✅ core
 Admin Order Management          ✅ core
 Shipping Status                 ✅ manual MVP foundation
 Tracking Metadata               ✅ CLOSED
-Customer Tracking View          ← NEXT
-Secure Guest Tracking Link      ← NEXT / same Tracking group
-Notifications                   LATER
+Customer Tracking View          ✅ CLOSED
+Secure Guest Tracking Link      ✅ CLOSED
+Notifications                   ← NEXT
 Payments                        SEPARATE LAYER
 ```
 
@@ -107,8 +107,6 @@ Super Admin Review
 ↓
 Approve / Reject
 ```
-
-Non-published Products remain unavailable publicly.
 
 ---
 
@@ -168,7 +166,6 @@ Includes:
 - Market-scoped Promotions.
 - Best Promotion calculation.
 - Coupon DB foundation.
-- Stackable / non-stackable Coupon logic.
 - Exact money arithmetic + Round Half-Up.
 - Cart Coupon UX.
 - Security / edge integration review.
@@ -207,9 +204,7 @@ Free shipping threshold: 2000 EGP
 ```
 
 Threshold basis is trusted merchandise subtotal after Promotions + Coupon.
-
 Shipping is charged once per unified Order.
-
 Missing Market shipping config fails closed.
 
 ---
@@ -227,7 +222,7 @@ shipments
 order_status_history
 ```
 
-Verified behavior:
+Verified behavior includes:
 
 - One Customer Order.
 - Internal Artisan split.
@@ -267,11 +262,7 @@ preparing
 ready_for_courier_pickup
 ```
 
-Transitions are server-validated and audited in:
-
-```text
-order_artisan_group_status_history
-```
+Transitions are server-validated and audited in `order_artisan_group_status_history`.
 
 Closure record:
 
@@ -286,7 +277,6 @@ docs/IRTH_ARTISAN_FULFILLMENT_CLOSURE.md
 `/dashboard-admin/orders` reads real unified Orders from Supabase.
 
 Super Admin can see operational Customer / delivery data.
-
 Database authorization rejects non-Super-Admin users.
 
 Closure record:
@@ -299,17 +289,9 @@ docs/IRTH_ADMIN_ORDER_READ_CLOSURE.md
 
 ## Admin Order + Shipping Status Foundation — CLOSED ✅
 
-Implemented lifecycle:
+Implemented Shipment lifecycle:
 
 ```text
-Order:
-received
-↓
-confirmed
-↓
-server aggregation from Artisan Groups / Shipments
-
-Shipment:
 pending
 ↓
 picked_up_from_artisan
@@ -328,12 +310,11 @@ delivery_failed
 Implemented:
 
 - Super Admin Order confirmation.
-- Conservative Order aggregation.
+- Conservative server-controlled Order aggregation.
 - One Shipment per Artisan Group in MVP.
 - Automatic Shipment creation when group becomes ready.
 - Manual Super Admin Shipment status actions.
 - `shipment_status_history` audit trail.
-- `delivered_at` / `shipped_at` lifecycle timestamps.
 - Order Status remains separate from Payment Status.
 
 Closure record:
@@ -361,10 +342,8 @@ Implemented:
 - `shipment_tracking_history` audit table.
 - Idempotent identical save.
 - Super Admin-only authorization.
-- Public `SECURITY INVOKER` RPC wrapper.
-- Private privileged implementation with explicit Super Admin authorization.
 
-Live browser / DB verification used Order:
+Live browser / DB verification Order:
 
 ```text
 IRTH-20260830-782EBA88
@@ -382,29 +361,85 @@ Tracking URL:      https://example.com/track/TEST-12345
 Tracking history:  1 row
 ```
 
-Second identical save returned:
+The `test_courier / TEST-12345 / example.com` values are test metadata only and are NOT an approved production Courier configuration.
 
-```text
-بيانات التتبع لم تتغير.
-```
-
-Live DB confirmed exactly one Tracking-history row.
-
-Final Production Build after the Tracking changes passed:
-
-```text
-Next.js 16.3.1
-Compiled successfully
-TypeScript passed
-Static pages generated: 51/51
-```
-
-The values `test_courier / TEST-12345 / example.com` are test metadata only and are NOT an approved production Courier configuration.
-
-Verification / closure record:
+Closure record:
 
 ```text
 docs/IRTH_TRACKING_METADATA_VERIFICATION.md
+```
+
+---
+
+## Customer Tracking View + Secure Guest Tracking Link — CLOSED ✅
+
+Migration:
+
+```text
+supabase/migrations/20260831105348_create_secure_customer_guest_tracking_read_boundary.sql
+```
+
+Implemented:
+
+- `/account/orders` now reads real Customer Orders from Supabase rather than the previous localStorage prototype.
+- Authenticated customer access is ownership-scoped.
+- Direct authenticated SELECT on core Order/Tracking tables is revoked.
+- Customer payload exposes only customer-visible Order, item, timeline and Shipment fields.
+- Multi-Shipment tracking is supported.
+- Guest Tracking requires Order Number + opaque Guest credential.
+- Order Number alone is not authorization.
+- Guest RPC is `service_role`-only; `anon` and `authenticated` cannot execute it directly.
+- Guest token is created server-side with HMAC-SHA256 using private `IRTH_GUEST_TRACKING_SECRET` and the Order idempotency context.
+- PostgreSQL stores only SHA-256 of the raw Guest token.
+- Raw Guest token is not stored in localStorage, sessionStorage, PostgreSQL or project documentation.
+- Guest credential travels initially in a URL fragment, not a query parameter.
+- Success/Tracking pages capture the fragment then remove it from the visible URL/history using `history.replaceState`.
+- Guest API responses use no-store/no-referrer security headers.
+- Guest tracking page is `noindex, nofollow`.
+
+Authenticated browser E2E verified the existing delivered Order:
+
+```text
+IRTH-20260830-782EBA88
+```
+
+Negative Guest browser E2E verified:
+
+```text
+Order Number only         → no Order data
+Order Number + bad token  → no Order data
+Both cases                → same generic unavailable behavior
+```
+
+Valid Guest browser E2E created the retained Live test Order:
+
+```text
+IRTH-20260831-7987F614
+```
+
+Owner approved retaining this Order permanently as a Live test Order and allowing stock to decrement naturally.
+
+Live DB verification:
+
+```text
+customer_user_id:          null
+guest token hash:          present (64 hex chars)
+status:                    received
+payment status:            pending
+subtotal before promotion: 350 EGP
+promotion discount:         35 EGP
+coupon discount:             0 EGP
+merchandise subtotal:      315 EGP
+shipping fee:              150 EGP
+final total:               465 EGP
+commission snapshot:        15%
+clay-vessel stock:           4 → 3
+```
+
+Full closure record:
+
+```text
+docs/IRTH_CUSTOMER_GUEST_TRACKING_CLOSURE.md
 ```
 
 ---
@@ -427,45 +462,28 @@ Rules:
 - IRTH / Courier-side logic controls Shipment transitions.
 - Payment Status remains independent from Order Status.
 - Tracking metadata belongs to the Shipment layer.
+- Customer tracking reads use a narrow customer-safe payload boundary.
+- Guest tracking uses a server-verified opaque credential.
 
 ---
 
-# 6. NEXT — Customer Tracking View + Secure Guest Tracking Link
+# 6. NEXT — Notifications
 
-**Status: READY TO START 🟢 MVP**
+**Status: READY TO REVIEW / START 🟢 MVP**
 
-Approved direction:
-
-### Authenticated Customer
-
-Customer may read only their own Orders / Tracking data.
-
-### Guest Customer
-
-Order Number alone is NOT authorization.
-
-Approved security direction:
+Specification sequence after Tracking:
 
 ```text
-Opaque high-entropy Guest Access Token
+Tracking
 ↓
-raw token delivered to customer
-↓
-only token hash stored server-side
-↓
-secure Order / Tracking lookup
+Notifications
 ```
 
-The current Orders foundation already has `guest_access_token_hash`, but a usable raw Guest Tracking token/link flow is not implemented yet.
+Notification Layer remains independent from Order/Shipping/Payment systems.
 
-The next implementation must preserve:
+Before implementation, Notification v0.1 decisions and the current `/notifications` prototype must be reviewed against the Specification.
 
-- no customer-to-artisan direct contact exposure;
-- no customer PII leakage through tracking URLs/pages;
-- authenticated ownership checks;
-- secure Guest token verification;
-- Order / Shipment Timeline from real audited statuses;
-- optional Courier tracking number/link when present.
+Do not start Payment Gateway or Courier API as part of Notifications.
 
 ---
 
@@ -481,7 +499,6 @@ Artisan overrides: 0 currently
 ```
 
 Each Order Item stores the applied commission rate historically.
-
 Exact commission amount accounting / payout ledger is not implemented yet.
 
 ## Payment
@@ -489,13 +506,6 @@ Exact commission amount accounting / payout ledger is not implemented yet.
 **Status: NOT IMPLEMENTED ⬜**
 
 Payment Layer remains separate from Checkout / Order.
-
-Current test Order correctly remains:
-
-```text
-payment_status = pending
-```
-
 First Payment Gateway is not approved yet.
 
 ## Payout
@@ -542,42 +552,56 @@ Artisan must never receive:
 - Full Address.
 - Direct Customer contact data.
 
-Important security pattern used in privileged Order/Shipping functions:
+No Supabase Secret / service key is exposed to the Browser.
+
+Current Order/customer read security model:
 
 ```text
-Browser / Next.js authenticated context
+Authenticated Customer
 ↓
-public SECURITY INVOKER RPC
+public SECURITY INVOKER customer RPC
 ↓
-private SECURITY DEFINER helper only where privileged DB access is genuinely required
+private SECURITY DEFINER ownership-scoped implementation
 ↓
-explicit authorization inside private function
+customer-safe payload
 ```
 
-No Supabase Secret / service key is exposed to the Browser.
+Guest model:
+
+```text
+Guest Browser credential
+↓
+IRTH server POST endpoint
+↓
+service_role-only Guest RPC
+↓
+SHA-256 hash verification
+↓
+customer-safe payload
+```
 
 Known unrelated existing security notes:
 
 1. Legacy `public.review_product_market_price_request(...)` exposure pattern needs a later dedicated hardening pass.
 2. Supabase Leaked Password Protection is disabled.
-3. Audit history tables intentionally have RLS enabled with no direct Browser policies; this can produce informational `rls_enabled_no_policy` Advisor notices.
+3. Audit history tables intentionally have RLS enabled with no direct Browser policies; this produces informational `rls_enabled_no_policy` Advisor notices.
+
+Final Security Advisor after Customer/Guest Tracking showed no new Tracking-specific vulnerability.
 
 ---
 
 # 10. Known Technical Debt / Gaps
 
-- Admin Login page authenticates but broader Admin route authorization cleanup remains technical debt; sensitive Order/Shipping DB operations themselves enforce Super Admin authorization.
-- Customer `/account/orders` still needs reconciliation with the real Orders / Tracking foundation.
-- Secure Guest Tracking link / usable raw Guest token is not implemented yet.
+- Admin Login / broader Admin route authorization cleanup remains technical debt; sensitive Order/Shipping DB operations enforce Super Admin authorization.
 - First Courier is not approved.
 - First Payment Gateway is not approved.
-- Notification Layer remains prototype / later.
+- Notification Layer is the current next task.
 - Reviews still need verified-purchase integration on delivered Orders.
 - Payout execution is not implemented.
 - Full bilingual QA remains incomplete.
 - Search v0.1 is partial.
 - Legacy `products.price` must never be trusted for Market-aware commerce.
-- One transient `/api/markets` 500 was observed once during local development and then returned 200 on retry; non-blocking unless reproduced.
+- One transient `/api/markets` 500 was observed once and then returned 200 on retry; non-blocking unless reproduced.
 
 ---
 
@@ -614,6 +638,7 @@ Known unrelated existing security notes:
 - Manual Admin Shipment transitions are valid before Courier API integration.
 - Tracking URL, when present, must use HTTPS.
 - Guest Tracking must use a secure opaque token; Order Number alone is not authorization.
+- Guest raw tracking token is not persisted; only its hash is stored.
 
 ---
 
@@ -625,7 +650,7 @@ Known unrelated existing security notes:
 - Return Shipping Responsibility.
 - Final Payout Cycle.
 - Detailed Refund workflow.
-- Notification delivery details / templates.
+- Notification delivery details / templates, subject to the Specification review for the next task.
 
 No longer unresolved:
 
@@ -635,7 +660,8 @@ No longer unresolved:
 - Artisan fulfillment transitions.
 - Admin manual Shipment lifecycle.
 - Tracking metadata validation / audit direction.
-- Guest Tracking security direction.
+- Customer tracking read boundary.
+- Guest Tracking security direction and implementation.
 
 ---
 
@@ -659,9 +685,9 @@ Artisan Fulfillment                                  ✅
 Admin Order Read                                     ✅
 Admin Order + Shipping Status                        ✅
 Tracking Metadata                                    ✅
-Customer Tracking View                               ← NEXT
-Secure Guest Tracking Link                           ← NEXT / same Tracking group
-Notifications                                        LATER
+Customer Tracking View                               ✅
+Secure Guest Tracking Link                           ✅
+Notifications                                        ← NEXT
 Payment Gateway                                      SEPARATE LAYER
 ```
 
@@ -671,16 +697,16 @@ Payment Gateway                                      SEPARATE LAYER
 
 ```text
 LAST CLOSED TASK:
-Tracking Metadata Foundation ✅
+Customer Tracking View + Secure Guest Tracking Link ✅
 
 CURRENT TASK:
-Customer Tracking View + Secure Guest Tracking Link
+Notifications — review/spec alignment before implementation
 
 CURRENT MAJOR POSITION:
-Orders / Tracking
+Orders / Notifications
 
 NEXT IMPLEMENTATION GOAL:
-Secure customer-facing Order Timeline and Tracking access for authenticated customers and guests.
+Review Notification v0.1 requirements and current prototype, batch any unresolved decisions, then implement the independent Notification Layer without coupling it to Payment or Courier providers.
 ```
 
 ---
@@ -698,6 +724,7 @@ A task is CLOSED only when:
 7. No known blocker remains.
 8. Production Build passes when application code changed.
 9. Project status documentation is updated.
+10. Local / GitHub / Live Supabase state is reconciled where relevant.
 
 ---
 
@@ -709,11 +736,16 @@ A task is CLOSED only when:
 - Closed Secure Artisan Fulfillment Actions.
 - Closed Admin Order Read Foundation.
 - Closed Admin Order + Shipping Status Foundation.
-- Added real Shipment lifecycle and audit history.
-- Added Super Admin Order confirmation and server-controlled aggregation.
-- Added Tracking Metadata Foundation with HTTPS validation and audit history.
-- Verified Tracking browser save and identical-save idempotency.
-- Verified Live DB has exactly one Tracking-history row for the browser test.
-- Final Tracking Production Build passed with TypeScript and 51/51 static pages.
 - Closed Tracking Metadata Foundation.
-- Advanced current task to Customer Tracking View + Secure Guest Tracking Link.
+- Added secure customer-safe Order read boundary.
+- Replaced Customer `/account/orders` localStorage prototype with real Supabase Orders.
+- Added Customer Order Timeline and Multi-Shipment Tracking.
+- Added secure Guest Tracking server boundary.
+- Added HMAC-based idempotency-safe Guest credential generation.
+- Verified Order Number-only and invalid-token Guest attempts expose no Order data.
+- Verified valid Guest Tracking end to end with retained Live Order `IRTH-20260831-7987F614`.
+- Retained the Guest test Order by owner decision; `clay-vessel` finite stock decreased from 4 to 3.
+- Added final hardening to remove captured Guest credentials from visible URL/history after page load.
+- Added `docs/IRTH_CUSTOMER_GUEST_TRACKING_CLOSURE.md`.
+- Closed Customer Tracking View + Secure Guest Tracking Link.
+- Advanced current task to Notifications.
