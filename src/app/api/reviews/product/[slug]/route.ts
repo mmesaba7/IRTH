@@ -14,11 +14,27 @@ export async function GET(
 
   try {
     const admin = createAdminClient();
-    const { data, error } = await admin.rpc("get_published_product_reviews", {
-      p_product_slug: normalized,
+    const [{ data: reviews, error: reviewsError }, { data: media, error: mediaError }] = await Promise.all([
+      admin.rpc("get_published_product_reviews", { p_product_slug: normalized }),
+      admin.rpc("get_published_review_media_paths", { p_product_slug: normalized }),
+    ]);
+    if (reviewsError || mediaError) return jsonNoStore({ error: "Unable to load reviews." }, 500);
+
+    const mediaByReview = new Map<string, Array<{ id: string; url: string }>>();
+    for (const item of Array.isArray(media) ? media : []) {
+      const { data: signed } = await admin.storage.from("review-media").createSignedUrl(item.storage_path, 900);
+      if (!signed?.signedUrl) continue;
+      const current = mediaByReview.get(item.review_id) ?? [];
+      current.push({ id: item.media_id, url: signed.signedUrl });
+      mediaByReview.set(item.review_id, current);
+    }
+
+    return jsonNoStore({
+      reviews: (Array.isArray(reviews) ? reviews : []).map((review) => ({
+        ...review,
+        images: mediaByReview.get(review.review_id) ?? [],
+      })),
     });
-    if (error) return jsonNoStore({ error: "Unable to load reviews." }, 500);
-    return jsonNoStore({ reviews: Array.isArray(data) ? data : [] });
   } catch {
     return jsonNoStore({ error: "Review service is unavailable." }, 503);
   }
