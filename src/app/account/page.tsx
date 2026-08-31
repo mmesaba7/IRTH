@@ -22,7 +22,7 @@ export default function AccountPage() {
             </h1>
 
             <p className="mt-3 text-sm text-[var(--text-secondary)]">
-              Manage your orders and account.
+              Manage your orders and shopping activity.
             </p>
           </div>
 
@@ -39,25 +39,52 @@ export default function AccountPage() {
           </button>
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          <Link
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <AccountCard
             href="/account/orders"
-            className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:border-[var(--color-copper)]"
-          >
-            <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
-              My Orders
-            </h2>
-
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              View and follow your previous orders.
-            </p>
-
-            <p className="mt-5 text-sm font-medium text-[var(--color-copper)]">
-              View orders →
-            </p>
-          </Link>
+            title="My Orders"
+            description="View, track, and review your purchases."
+            action="View orders →"
+          />
+          <AccountCard
+            href="/saved"
+            title="Saved Crafts"
+            description="Return to products you saved for later."
+            action="View saved →"
+          />
+          <AccountCard
+            href="/recently-viewed"
+            title="Recently Viewed"
+            description="Continue exploring products you recently opened."
+            action="View history →"
+          />
         </div>
       </section>
     </main>
+  );
+}
+
+function AccountCard({
+  href,
+  title,
+  description,
+  action,
+}: {
+  href: string;
+  title: string;
+  description: string;
+  action: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:border-[var(--color-copper)]"
+    >
+      <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
+        {title}
+      </h2>
+      <p className="mt-2 text-sm text-[var(--text-secondary)]">{description}</p>
+      <p className="mt-5 text-sm font-medium text-[var(--color-copper)]">{action}</p>
+    </Link>
   );
 }
