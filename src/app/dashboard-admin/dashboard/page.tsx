@@ -4,269 +4,137 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-type Order = {
-  id: string;
-  customer: { name: string };
-  items: any[];
-  total: number;
-  status: string;
-  createdAt: string;
+
+type DashboardData = {
+  counts: {
+    orders: number;
+    artisans: number;
+    products: number;
+    openReturns: number;
+    openWholesale: number;
+  };
+  commissionByCurrency: Array<{ currencyCode: string; amount: string | number }>;
+  recentOrders: Array<{
+    orderId: string;
+    orderNumber: string;
+    status: string;
+    paymentStatus: string;
+    currencyCode: string;
+    finalTotal: string | number;
+    createdAt: string;
+    itemCount: number;
+  }>;
+};
+
+const EMPTY: DashboardData = {
+  counts: { orders: 0, artisans: 0, products: 0, openReturns: 0, openWholesale: 0 },
+  commissionByCurrency: [],
+  recentOrders: [],
 };
 
 export default function DashboardAdminPage() {
   const router = useRouter();
   const supabase = createClient();
+  const [data, setData] = useState<DashboardData>(EMPTY);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    orders: 0,
-    artisans: 0,
-    products: 0,
-    commission: 0,
-  });
-  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-   
-    const orders: Order[] = JSON.parse(
-      localStorage.getItem("irth-orders") || "[]"
-    );
-    const artisans: any[] = JSON.parse(
-      localStorage.getItem("irth-artisans") || "[]"
-    );
-    const products: any[] = JSON.parse(
-      localStorage.getItem("irth-artisan-products") || "[]"
-    );
-
-    setStats({
-      orders: orders.length,
-      artisans: artisans.length,
-      products: products.length,
-      commission: orders.reduce((sum, order) => sum + order.total * 0.15, 0),
-    });
-
-    const sortedOrders = [...orders].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-    setRecentOrders(sortedOrders.slice(0, 5));
-    setLoading(false);
-  }, [router]);
+    const controller = new AbortController();
+    fetch("/api/admin/dashboard", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body?.error || "Unable to load dashboard.");
+        setData(body as DashboardData);
+      })
+      .catch((loadError) => {
+        if (!controller.signal.aborted) setError(loadError instanceof Error ? loadError.message : "Unable to load dashboard.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
 
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[var(--background)]">
-        <p className="text-[var(--text-secondary)]">Loading...</p>
-      </div>
-    );
+    return <div className="flex h-screen items-center justify-center bg-[var(--background)] text-[var(--text-secondary)]">Loading trusted dashboard…</div>;
   }
+
+  const nav = [
+    ["📦 Orders", "Manage all orders", "/dashboard-admin/orders"],
+    ["↩ Returns", `${data.counts.openReturns} open`, "/dashboard-admin/returns"],
+    ["👤 Artisans", "Manage artisans", "/dashboard-admin/artisans"],
+    ["🛍️ Products", "Manage products", "/dashboard-admin/products"],
+    ["💰 Commission", "Craft defaults & overrides", "/dashboard-admin/commission"],
+    ["💳 Payouts", "Payout operations", "/dashboard-admin/payouts"],
+    ["📝 Reviews", "Moderate reviews & replies", "/dashboard-admin/reviews"],
+    ["📦 Wholesale", `${data.counts.openWholesale} open`, "/dashboard-admin/wholesale"],
+    ["🏺 Crafts", "Manage crafts", "/dashboard-admin/crafts"],
+    ["🌍 Countries", "Manage countries", "/dashboard-admin/countries"],
+    ["🏷 Promotions", "Manage promotions", "/dashboard-admin/promotions"],
+    ["🤝 Artisan Promotions", "Review artisan offers", "/dashboard-admin/artisan-promotions"],
+    ["⚙️ Settings", "Shipping & return settings", "/dashboard-admin/settings"],
+  ];
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
       <div className="mx-auto max-w-[var(--container-max)] px-6 py-10">
         <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-6">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
-              Admin Panel
-            </p>
-            <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">
-              Dashboard
-            </h1>
+            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">Admin Panel</p>
+            <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">Dashboard</h1>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">Live trusted marketplace state — no local prototype data.</p>
           </div>
-          <button
-            type="button"
-            onClick={async () => {
-  await supabase.auth.signOut({ scope: "local" });
-  router.replace("/dashboard-admin/login");
-  router.refresh();
-}}
-            className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
-          >
-            Logout
-          </button>
+          <button type="button" onClick={async () => { await supabase.auth.signOut({ scope: "local" }); router.replace("/dashboard-admin/login"); router.refresh(); }} className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]">Logout</button>
         </div>
 
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <p className="text-sm text-[var(--text-muted)]">الطلبات</p>
-            <p className="mt-2 text-3xl font-bold text-[var(--color-espresso)]">
-              {stats.orders}
-            </p>
-          </div>
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <p className="text-sm text-[var(--text-muted)]">الحرفيين</p>
-            <p className="mt-2 text-3xl font-bold text-[var(--color-espresso)]">
-              {stats.artisans}
-            </p>
-          </div>
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <p className="text-sm text-[var(--text-muted)]">المنتجات</p>
-            <p className="mt-2 text-3xl font-bold text-[var(--color-espresso)]">
-              {stats.products}
-            </p>
-          </div>
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <p className="text-sm text-[var(--text-muted)]">إجمالي العمولات</p>
-            <p className="mt-2 text-3xl font-bold text-[var(--color-copper)]">
-              ${stats.commission.toFixed(2)}
-            </p>
-          </div>
+        {error && <div className="mt-6 rounded-[var(--radius-md)] bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
+          <Stat label="Orders" value={data.counts.orders} />
+          <Stat label="Active artisans" value={data.counts.artisans} />
+          <Stat label="Published products" value={data.counts.products} />
+          <Stat label="Open returns" value={data.counts.openReturns} />
+          <Stat label="Open wholesale" value={data.counts.openWholesale} />
         </div>
 
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-  <Link
-    href="/dashboard-admin/orders"
-    className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 text-center transition hover:shadow-[var(--shadow-card)] hover:-translate-y-1"
-  >
-    <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-      📦 Orders
-    </p>
-    <p className="text-sm text-[var(--text-secondary)]">
-      Manage all orders
-    </p>
-  </Link>
-  <Link
-    href="/dashboard-admin/artisans"
-    className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 text-center transition hover:shadow-[var(--shadow-card)] hover:-translate-y-1"
-  >
-    <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-      👤 Artisans
-    </p>
-    <p className="text-sm text-[var(--text-secondary)]">
-      Manage artisans
-    </p>
-  </Link>
-  <Link
-    href="/dashboard-admin/products"
-    className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 text-center transition hover:shadow-[var(--shadow-card)] hover:-translate-y-1"
-  >
-    <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-      🛍️ Products
-    </p>
-    <p className="text-sm text-[var(--text-secondary)]">
-      Manage products
-    </p>
-  </Link>
-  <Link
-    href="/dashboard-admin/commission"
-    className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 text-center transition hover:shadow-[var(--shadow-card)] hover:-translate-y-1"
-  >
-    <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-      💰 Commission
-    </p>
-    <p className="text-sm text-[var(--text-secondary)]">
-      Manage commissions
-    </p>
-  </Link>
-  <Link
-    href="/dashboard-admin/settings"
-    className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 text-center transition hover:shadow-[var(--shadow-card)] hover:-translate-y-1"
-  >
-    <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-      ⚙️ Settings
-    </p>
-    <p className="text-sm text-[var(--text-secondary)]">
-      General settings
-    </p>
-  </Link>
-</div>
-
-        <div className="mt-16">
-          <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
-            Recent Orders
-          </h2>
-          <div className="mt-4 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)]">
-            <div className="grid grid-cols-4 gap-4 border-b border-[var(--border-soft)] bg-[var(--surface-muted)] px-6 py-3 text-xs uppercase tracking-[0.1em] text-[var(--text-muted)]">
-              <span>Order ID</span>
-              <span>Customer</span>
-              <span>Total</span>
-              <span>Status</span>
+        <div className="mt-6 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
+          <p className="text-sm text-[var(--text-muted)]">IRTH commission recorded in the settlement ledger</p>
+          {data.commissionByCurrency.length === 0 ? <p className="mt-2 text-2xl font-semibold text-[var(--color-copper)]">No commission entries yet</p> : (
+            <div className="mt-3 flex flex-wrap gap-4">
+              {data.commissionByCurrency.map((row) => <p key={row.currencyCode} className="text-2xl font-semibold text-[var(--color-copper)]">{row.currencyCode} {row.amount}</p>)}
             </div>
-            {recentOrders.length === 0 ? (
-              <p className="px-6 py-6 text-center text-[var(--text-secondary)]">
-                No orders yet
-              </p>
-            ) : (
-              recentOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="grid grid-cols-4 gap-4 border-b border-[var(--border-soft)] px-6 py-3 text-sm last:border-0"
-                >
-                  <span className="font-mono text-xs">{order.id}</span>
-                  <span>{order.customer.name}</span>
-                  <span>${order.total.toFixed(2)}</span>
-                  <span>
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${
-                        order.status === "تم التسليم"
-                          ? "bg-green-100 text-green-700"
-                          : order.status === "قيد التجهيز"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}
-                    >
-                      {order.status}
-                    </span>
-                  </span>
-                </div>
-              ))
-            )}
-            <Link
-  href="/dashboard-admin/reviews"
-  className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 text-center transition hover:shadow-[var(--shadow-card)] hover:-translate-y-1"
->
-  <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-    📝 Reviews
-  </p>
-  <p className="text-sm text-[var(--text-secondary)]">
-    Review artisan replies
-  </p>
-</Link>
-<Link
-  href="/dashboard-admin/crafts"
-  className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 text-center transition hover:shadow-[var(--shadow-card)] hover:-translate-y-1"
->
-  <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-    🏺 Crafts
-  </p>
-  <p className="text-sm text-[var(--text-secondary)]">
-    Manage crafts
-  </p>
-</Link>
-<Link
-  href="/dashboard-admin/countries"
-  className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 text-center transition hover:shadow-[var(--shadow-card)] hover:-translate-y-1"
->
-  <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-    Countries
-  </p>
-  <p className="text-sm text-[var(--text-secondary)]">
-    Manage countries
-  </p>
-</Link>
-<Link
-  href="/dashboard-admin/promotions"
-  className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 text-center transition hover:shadow-[var(--shadow-card)] hover:-translate-y-1"
->
-  <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-    Promotions
-  </p>
-  <p className="text-sm text-[var(--text-secondary)]">
-    Manage coupons & promotions
-  </p>
-</Link>
-<Link
-  href="/dashboard-admin/artisan-promotions"
-  className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 text-center transition hover:shadow-[var(--shadow-card)] hover:-translate-y-1"
->
-  <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-    Artisan Promotions
-  </p>
-  <p className="text-sm text-[var(--text-secondary)]">
-    Review artisan promotions
-  </p>
-</Link>
-          </div>
+          )}
         </div>
+
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {nav.map(([title, description, href]) => (
+            <Link key={href} href={href} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
+              <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">{title}</p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">{description}</p>
+            </Link>
+          ))}
+        </div>
+
+        <section className="mt-14">
+          <div className="flex items-end justify-between gap-4">
+            <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">Recent Orders</h2>
+            <Link href="/dashboard-admin/orders" className="text-sm font-medium text-[var(--color-copper)] hover:underline">View all →</Link>
+          </div>
+          <div className="mt-4 overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)]">
+            {data.recentOrders.length === 0 ? <p className="px-6 py-8 text-center text-sm text-[var(--text-secondary)]">No orders yet.</p> : (
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-[var(--surface-muted)] text-xs uppercase tracking-[0.1em] text-[var(--text-muted)]"><tr><th className="px-5 py-3">Order</th><th className="px-5 py-3">Items</th><th className="px-5 py-3">Total</th><th className="px-5 py-3">Order status</th><th className="px-5 py-3">Payment</th></tr></thead>
+                <tbody>{data.recentOrders.map((order) => <tr key={order.orderId} className="border-t border-[var(--border-soft)]"><td className="px-5 py-3"><p className="font-mono text-xs text-[var(--color-espresso)]">{order.orderNumber}</p><p className="mt-1 text-xs text-[var(--text-muted)]">{new Date(order.createdAt).toLocaleString("en-GB")}</p></td><td className="px-5 py-3">{order.itemCount}</td><td className="px-5 py-3">{order.currencyCode} {order.finalTotal}</td><td className="px-5 py-3 capitalize">{order.status.replaceAll("_", " ")}</td><td className="px-5 py-3 capitalize">{order.paymentStatus.replaceAll("_", " ")}</td></tr>)}</tbody>
+              </table>
+            )}
+          </div>
+        </section>
       </div>
     </main>
   );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6"><p className="text-sm text-[var(--text-muted)]">{label}</p><p className="mt-2 text-3xl font-bold text-[var(--color-espresso)]">{value}</p></div>;
 }
