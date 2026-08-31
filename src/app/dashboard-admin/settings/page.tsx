@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import ReturnWindowSettings from "./ReturnWindowSettings";
 
 type ShippingMarket = {
   id: string;
@@ -39,7 +40,6 @@ export default function AdminSettingsPage() {
         };
 
         if (controller.signal.aborted) return;
-
         if (!response.ok || !payload.markets) {
           setError(payload.error ?? "Unable to load shipping settings.");
           return;
@@ -110,12 +110,21 @@ export default function AdminSettingsPage() {
       });
 
       const payload = (await response.json()) as {
+        setting?: {
+          flatShippingFee?: string;
+          freeShippingThreshold?: string;
+        };
         flatShippingFee?: string;
         freeShippingThreshold?: string;
         error?: string;
       };
 
-      if (!response.ok || !payload.flatShippingFee || !payload.freeShippingThreshold) {
+      const flatShippingFee =
+        payload.setting?.flatShippingFee ?? payload.flatShippingFee;
+      const freeShippingThreshold =
+        payload.setting?.freeShippingThreshold ?? payload.freeShippingThreshold;
+
+      if (!response.ok || !flatShippingFee || !freeShippingThreshold) {
         setError(payload.error ?? "Unable to save shipping settings.");
         return;
       }
@@ -123,22 +132,13 @@ export default function AdminSettingsPage() {
       setMarkets((current) =>
         current.map((item) =>
           item.id === market.id
-            ? {
-                ...item,
-                flatShippingFee: payload.flatShippingFee ?? item.flatShippingFee,
-                freeShippingThreshold:
-                  payload.freeShippingThreshold ?? item.freeShippingThreshold,
-              }
+            ? { ...item, flatShippingFee, freeShippingThreshold }
             : item
         )
       );
       setDrafts((current) => ({
         ...current,
-        [market.id]: {
-          flatShippingFee: payload.flatShippingFee ?? draft.flatShippingFee,
-          freeShippingThreshold:
-            payload.freeShippingThreshold ?? draft.freeShippingThreshold,
-        },
+        [market.id]: { flatShippingFee, freeShippingThreshold },
       }));
       setMessage(`${market.slug} shipping settings saved.`);
     } catch (requestError) {
@@ -158,10 +158,10 @@ export default function AdminSettingsPage() {
               Admin Panel
             </p>
             <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">
-              Shipping Settings
+              Market Settings
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-              Shipping is configured per Market. These values are read from and written to the trusted database configuration used by Cart and Checkout.
+              Trusted Market-level settings for Shipping and the Return Window.
             </p>
           </div>
           <Link
@@ -172,127 +172,108 @@ export default function AdminSettingsPage() {
           </Link>
         </div>
 
-        {message && (
-          <div className="mt-6 rounded-[var(--radius-md)] bg-green-50 p-4 text-sm text-green-700">
-            {message}
+        <section className="mt-8">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
+              Shipping
+            </p>
+            <h2 className="mt-2 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
+              Shipping Settings
+            </h2>
           </div>
-        )}
 
-        {error && (
-          <div className="mt-6 rounded-[var(--radius-md)] bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+          {message && (
+            <div className="mt-6 rounded-[var(--radius-md)] bg-green-50 p-4 text-sm text-green-700">
+              {message}
+            </div>
+          )}
+          {error && (
+            <div className="mt-6 rounded-[var(--radius-md)] bg-red-50 p-4 text-sm text-red-700">
+              {error}
+            </div>
+          )}
 
-        {loading ? (
-          <div className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <p className="text-sm text-[var(--text-secondary)]">Loading shipping settings…</p>
-          </div>
-        ) : markets.length === 0 ? (
-          <div className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <p className="text-sm text-[var(--text-secondary)]">No active Markets found.</p>
-          </div>
-        ) : (
-          <div className="mt-8 space-y-6">
-            {markets.map((market) => {
-              const draft = drafts[market.id] ?? {
-                flatShippingFee: "",
-                freeShippingThreshold: "",
-              };
-              const isSaving = savingMarketId === market.id;
+          {loading ? (
+            <div className="mt-6 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
+              <p className="text-sm text-[var(--text-secondary)]">Loading shipping settings…</p>
+            </div>
+          ) : markets.length === 0 ? (
+            <div className="mt-6 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
+              <p className="text-sm text-[var(--text-secondary)]">No active Markets found.</p>
+            </div>
+          ) : (
+            <div className="mt-6 space-y-6">
+              {markets.map((market) => {
+                const draft = drafts[market.id] ?? {
+                  flatShippingFee: "",
+                  freeShippingThreshold: "",
+                };
+                const isSaving = savingMarketId === market.id;
 
-              return (
-                <section
-                  key={market.id}
-                  className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6"
-                >
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">
-                        Active Market
-                      </p>
-                      <h2 className="mt-2 font-[var(--font-display)] text-2xl capitalize text-[var(--color-espresso)]">
+                return (
+                  <section
+                    key={market.id}
+                    className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <h3 className="font-[var(--font-display)] text-2xl capitalize text-[var(--color-espresso)]">
                         {market.slug}
-                      </h2>
+                      </h3>
+                      <span className="w-fit rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
+                        {market.currencyCode}
+                      </span>
                     </div>
-                    <span className="w-fit rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
-                      {market.currencyCode}
-                    </span>
-                  </div>
 
-                  <div className="mt-6 grid gap-6 sm:grid-cols-2">
-                    <div>
-                      <label
-                        htmlFor={`shipping-fee-${market.id}`}
-                        className="mb-2 block text-sm text-[var(--text-secondary)]"
+                    <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                      <div>
+                        <label htmlFor={`shipping-fee-${market.id}`} className="mb-2 block text-sm text-[var(--text-secondary)]">
+                          Flat shipping fee ({market.currencyCode})
+                        </label>
+                        <input
+                          id={`shipping-fee-${market.id}`}
+                          inputMode="decimal"
+                          value={draft.flatShippingFee}
+                          onChange={(event) => updateDraft(market.id, "flatShippingFee", event.target.value)}
+                          className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor={`free-shipping-${market.id}`} className="mb-2 block text-sm text-[var(--text-secondary)]">
+                          Free shipping threshold ({market.currencyCode})
+                        </label>
+                        <input
+                          id={`free-shipping-${market.id}`}
+                          inputMode="decimal"
+                          value={draft.freeShippingThreshold}
+                          onChange={(event) => updateDraft(market.id, "freeShippingThreshold", event.target.value)}
+                          className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-6 flex justify-end border-t border-[var(--border-soft)] pt-5">
+                      <button
+                        type="button"
+                        onClick={() => saveShipping(market)}
+                        disabled={Boolean(savingMarketId)}
+                        className="rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-5 py-3 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:opacity-50"
                       >
-                        Flat shipping fee ({market.currencyCode})
-                      </label>
-                      <input
-                        id={`shipping-fee-${market.id}`}
-                        inputMode="decimal"
-                        value={draft.flatShippingFee}
-                        onChange={(event) =>
-                          updateDraft(market.id, "flatShippingFee", event.target.value)
-                        }
-                        className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-                        placeholder="0.00"
-                      />
+                        {isSaving ? "Saving…" : "Save shipping"}
+                      </button>
                     </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
-                    <div>
-                      <label
-                        htmlFor={`free-shipping-${market.id}`}
-                        className="mb-2 block text-sm text-[var(--text-secondary)]"
-                      >
-                        Free shipping threshold ({market.currencyCode})
-                      </label>
-                      <input
-                        id={`free-shipping-${market.id}`}
-                        inputMode="decimal"
-                        value={draft.freeShippingThreshold}
-                        onChange={(event) =>
-                          updateDraft(
-                            market.id,
-                            "freeShippingThreshold",
-                            event.target.value
-                          )
-                        }
-                        className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none focus:border-[var(--color-copper)]"
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
-
-                  {(!market.flatShippingFee || !market.freeShippingThreshold) && (
-                    <p className="mt-4 text-sm text-[var(--color-terracotta)]">
-                      Shipping configuration is incomplete. Checkout will fail closed for this Market until valid values are saved.
-                    </p>
-                  )}
-
-                  <div className="mt-6 flex flex-col gap-3 border-t border-[var(--border-soft)] pt-5 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs leading-5 text-[var(--text-muted)]">
-                      Free shipping is applied when the trusted merchandise subtotal after Promotions and Coupon effects reaches this threshold.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => saveShipping(market)}
-                      disabled={Boolean(savingMarketId)}
-                      className="shrink-0 rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-5 py-3 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-copper)] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isSaving ? "Saving…" : "Save shipping"}
-                    </button>
-                  </div>
-                </section>
-              );
-            })}
-          </div>
-        )}
+        <ReturnWindowSettings />
 
         <div className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface-muted)] p-5">
-          <p className="text-sm font-medium text-[var(--color-espresso)]">Scope note</p>
+          <p className="text-sm font-medium text-[var(--color-espresso)]">Safety note</p>
           <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-            The previous localStorage-based values on this page were prototype-only and are no longer used for Shipping. Commission, payout, return-policy and notification settings will be connected to their own real modules when those modules are implemented.
+            Shipping and Return Window values are trusted server-backed settings. Return Window changes are audited and only affect future Shipment deliveries because each delivered Shipment stores its own snapshot.
           </p>
         </div>
       </div>
