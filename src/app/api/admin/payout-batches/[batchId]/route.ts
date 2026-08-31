@@ -4,6 +4,7 @@ import { decryptPayoutDetails } from "@/lib/payouts/crypto";
 import {
   getPayoutServerContext,
   isSameOriginMutation,
+  isSameOriginSensitiveRead,
   isUuid,
   safeMessage,
 } from "@/lib/payouts/server";
@@ -14,6 +15,7 @@ function jsonNoStore(body: unknown, status = 200) {
     headers: {
       "Cache-Control": "no-store, max-age=0",
       "Referrer-Policy": "no-referrer",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
@@ -47,9 +49,13 @@ async function loadBatchDetail(
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ batchId: string }> }
 ) {
+  if (!isSameOriginSensitiveRead(request)) {
+    return jsonNoStore({ error: "Sensitive payout reads require same-origin access" }, 403);
+  }
+
   const { batchId } = await context.params;
   if (!isUuid(batchId)) return jsonNoStore({ error: "Invalid payout batch" }, 400);
 
