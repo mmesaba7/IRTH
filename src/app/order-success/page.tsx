@@ -15,7 +15,17 @@ function OrderSuccessContent() {
   useEffect(() => {
     const fragment = new URLSearchParams(window.location.hash.slice(1));
     const token = fragment.get("access")?.trim() ?? "";
-    setGuestTrackingToken(/^[A-Za-z0-9_-]{43}$/.test(token) ? token : null);
+    const validToken = /^[A-Za-z0-9_-]{43}$/.test(token) ? token : null;
+
+    setGuestTrackingToken(validToken);
+
+    if (window.location.hash) {
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}`
+      );
+    }
   }, []);
 
   if (!orderNumber) {
