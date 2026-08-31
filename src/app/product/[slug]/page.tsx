@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import Header from "../../components/Header";
@@ -10,6 +10,15 @@ import {
   type PublicCatalogProduct,
 } from "@/lib/publicMarketplace";
 import { useProductQuote } from "@/lib/useProductQuote";
+import {
+  ensureSavedProductsLoaded,
+  getSavedSnapshot,
+  getServerSavedSnapshot,
+  parseSavedSnapshot,
+  subscribeToSaved,
+  toggleSavedProduct,
+} from "@/lib/savedProductsClient";
+import { recordRecentlyViewed } from "@/lib/recentlyViewedClient";
 
 type ProductMedia = {
   id: string;
@@ -26,9 +35,15 @@ export default function ProductPage() {
   const [media, setMedia] = useState<ProductMedia[]>([]);
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const savedSnapshot = useSyncExternalStore(
+    subscribeToSaved,
+    getSavedSnapshot,
+    getServerSavedSnapshot
+  );
+  const savedProducts = useMemo(() => parseSavedSnapshot(savedSnapshot), [savedSnapshot]);
+  const saved = savedProducts.includes(slug);
   const {
     quote,
     item: quoteItem,
@@ -36,6 +51,10 @@ export default function ProductPage() {
     marketRequired,
     error: quoteError,
   } = useProductQuote(slug, quantity);
+
+  useEffect(() => {
+    void ensureSavedProductsLoaded();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,15 +73,7 @@ export default function ProductPage() {
         }
 
         setProduct(publicProduct);
-
-        const savedProducts = JSON.parse(localStorage.getItem("irth-saved-products") || "[]") as string[];
-        setSaved(savedProducts.includes(publicProduct.slug));
-
-        const recentlyViewed = JSON.parse(localStorage.getItem("irth-recently-viewed") || "[]") as string[];
-        localStorage.setItem(
-          "irth-recently-viewed",
-          JSON.stringify([publicProduct.slug, ...recentlyViewed.filter((item) => item !== publicProduct.slug)].slice(0, 20))
-        );
+        recordRecentlyViewed(publicProduct.slug);
 
         try {
           const response = await fetch(`/api/products/${publicProduct.id}/media`, { cache: "no-store" });
@@ -93,13 +104,7 @@ export default function ProductPage() {
 
   const toggleSaved = () => {
     if (!product) return;
-    const savedProducts = JSON.parse(localStorage.getItem("irth-saved-products") || "[]") as string[];
-    const updated = saved
-      ? savedProducts.filter((item) => item !== product.slug)
-      : [...new Set([...savedProducts, product.slug])];
-    localStorage.setItem("irth-saved-products", JSON.stringify(updated));
-    window.dispatchEvent(new Event("irth-saved-updated"));
-    setSaved(!saved);
+    toggleSavedProduct(product.slug);
   };
 
   const canAddToCart = quoteItem?.status === "available";
