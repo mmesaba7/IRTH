@@ -53,7 +53,12 @@ export async function GET() {
       return jsonNoStore({ error: "Unable to load payout administration" }, 500);
     }
 
-    const accountRows = rows(accountsResult.data);
+    // The overview only needs current operational accounts. Historical rejected or
+    // superseded ciphertext is intentionally not decrypted on routine dashboard loads.
+    const accountRows = rows(accountsResult.data).filter(
+      (row) =>
+        row.status === "pending_verification" || row.status === "active"
+    );
     const availabilityRows = rows(availabilityResult.data);
     const batchRows = rows(batchesResult.data);
 
@@ -107,7 +112,8 @@ export async function GET() {
       return {
         id: row.payout_account_id,
         artisanId: row.artisan_id,
-        artisanName: artisan?.name_ar || artisan?.name_en || artisan?.slug || "Artisan",
+        artisanName:
+          artisan?.name_ar || artisan?.name_en || artisan?.slug || "Artisan",
         artisanSlug: artisan?.slug ?? null,
         method: row.method,
         status: row.status,
@@ -131,7 +137,8 @@ export async function GET() {
         orderId: row.order_id,
         orderNumber: orderMap.get(String(row.order_id ?? "")) ?? null,
         artisanId: row.artisan_id,
-        artisanName: artisan?.name_ar || artisan?.name_en || artisan?.slug || "Artisan",
+        artisanName:
+          artisan?.name_ar || artisan?.name_en || artisan?.slug || "Artisan",
         shipmentId: row.shipment_id,
         deliveredAt: row.delivered_at,
         holdEndsAt: row.hold_ends_at,
