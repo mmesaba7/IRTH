@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { quoteCart, type CartQuoteInputItem } from "@/lib/cartQuote";
 import { applyPromotionsToQuote } from "@/lib/promotionQuote";
 import { applyCouponToQuote } from "@/lib/couponQuote";
@@ -9,19 +9,10 @@ import { validateCheckoutCustomer } from "@/lib/checkoutCustomer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createGuestTrackingToken } from "@/lib/guestTrackingToken";
+import { isSameOriginMutation, jsonNoStore } from "@/lib/serverApi";
 
 type PaymentMethod = "cod" | "online";
 type OrderCartInputItem = CartQuoteInputItem & { customizationText: string | null };
-
-function jsonNoStore(body: unknown, status = 200) {
-  return NextResponse.json(body, {
-    status,
-    headers: {
-      "Cache-Control": "no-store",
-      "Referrer-Policy": "no-referrer",
-    },
-  });
-}
 
 function parseItems(body: unknown): OrderCartInputItem[] | null {
   if (typeof body !== "object" || body === null || !("items" in body)) return null;
@@ -132,6 +123,13 @@ function mapOrderError(message: string) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isSameOriginMutation(request)) {
+    return jsonNoStore(
+      { error: "Cross-origin order creation is not allowed." },
+      403
+    );
+  }
+
   const idempotencyKey = request.headers.get("Idempotency-Key")?.trim() ?? "";
 
   if (!/^[A-Za-z0-9._:-]{8,128}$/.test(idempotencyKey)) {
