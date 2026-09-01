@@ -1,9 +1,7 @@
-"use client";
-
+import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { useEffect, useState } from "react";
-import SiteFooter from "./components/SiteFooter";
+import ClientRootShell from "./components/ClientRootShell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,57 +13,32 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  const [locale, setLocale] = useState<"ar" | "en">("ar");
-  const [direction, setDirection] = useState<"rtl" | "ltr">("rtl");
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
-  useEffect(() => {
-    const savedLocale = localStorage.getItem("irth-locale") as "ar" | "en" | null;
-    if (savedLocale) {
-      setLocale(savedLocale);
-      setDirection(savedLocale === "ar" ? "rtl" : "ltr");
-    } else {
-      const browserLang = navigator.language.startsWith("ar") ? "ar" : "en";
-      setLocale(browserLang);
-      setDirection(browserLang === "ar" ? "rtl" : "ltr");
-      localStorage.setItem("irth-locale", browserLang);
-    }
-  }, []);
+export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "IRTH | إرث",
+    template: "%s | IRTH",
+  },
+  description: "IRTH is a marketplace for authentic crafts, artisans, and heritage.",
+  openGraph: {
+    type: "website",
+    siteName: "IRTH",
+    title: "IRTH | إرث",
+    description: "A marketplace for authentic crafts, artisans, and heritage.",
+    images: ["/api/cms/brand/social-image"],
+  },
+  icons: {
+    icon: "/api/cms/brand/favicon",
+  },
+};
 
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch("/api/cms/brand", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        const body = await response.json();
-        const value = body?.assets?.faviconAssetId;
-        return typeof value === "string" ? value : null;
-      })
-      .then((faviconUrl) => {
-        if (cancelled || !faviconUrl) return;
-        let icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-        if (!icon) {
-          icon = document.createElement("link");
-          icon.rel = "icon";
-          document.head.appendChild(icon);
-        }
-        icon.href = faviconUrl;
-      })
-      .catch(() => undefined);
-
-    return () => { cancelled = true; };
-  }, []);
-
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang={locale} dir={direction}>
+    <html lang="ar" dir="rtl">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {children}
-        <SiteFooter />
+        <ClientRootShell>{children}</ClientRootShell>
       </body>
     </html>
   );
