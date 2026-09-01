@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 type BlogPost = {
   key: string;
   publishedAt: string;
+  coverImageUrl?: string | null;
   payload: {
     slug: string;
     titleAr: string;
@@ -43,11 +44,14 @@ export default function BlogHighlightsSection() {
 
         <div className="mt-8 grid gap-5 md:grid-cols-3">
           {posts.map((post) => (
-            <Link key={post.key} href={`/blog/${post.payload.slug}`} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
-              <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-copper)]">{new Date(post.publishedAt).toLocaleDateString("ar-EG")}</p>
-              <h3 className="mt-3 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{post.payload.titleAr}</h3>
-              <p className="mt-2 text-sm text-[var(--text-secondary)]">{post.payload.titleEn}</p>
-              <p className="mt-4 line-clamp-3 text-sm leading-7 text-[var(--text-secondary)]">{post.payload.excerptAr}</p>
+            <Link key={post.key} href={`/blog/${post.payload.slug}`} className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
+              {post.coverImageUrl && <img src={post.coverImageUrl} alt={post.payload.titleAr} className="aspect-[16/10] w-full object-cover" />}
+              <div className="p-6">
+                <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-copper)]">{new Date(post.publishedAt).toLocaleDateString("ar-EG")}</p>
+                <h3 className="mt-3 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{post.payload.titleAr}</h3>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">{post.payload.titleEn}</p>
+                <p className="mt-4 line-clamp-3 text-sm leading-7 text-[var(--text-secondary)]">{post.payload.excerptAr}</p>
+              </div>
             </Link>
           ))}
         </div>
