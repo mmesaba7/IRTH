@@ -73,6 +73,7 @@ export default function DashboardAdminPage() {
     ["📦 Wholesale", `${data.counts.openWholesale} open`, "/dashboard-admin/wholesale"],
     ["🏺 Crafts", "Manage crafts", "/dashboard-admin/crafts"],
     ["🌍 Countries", "Manage countries", "/dashboard-admin/countries"],
+    ["🧭 Content Manager", "Homepage, Blog, Help, Contact, Footer, Campaigns & Preview", "/dashboard-admin/content"],
     ["🏷 Promotions", "Manage promotions", "/dashboard-admin/promotions"],
     ["🤝 Artisan Promotions", "Review artisan offers", "/dashboard-admin/artisan-promotions"],
     ["⚙️ Settings", "Shipping & return settings", "/dashboard-admin/settings"],
