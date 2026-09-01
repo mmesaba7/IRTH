@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../components/Header";
 import { createClient } from "@/lib/supabase/client";
@@ -25,7 +25,7 @@ export default function NotificationsPage() {
   const [error, setError] = useState("");
   const [locale, setLocale] = useState<"ar" | "en">("en");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setError("");
     const { data: userData } = await supabase.auth.getUser();
 
@@ -51,7 +51,7 @@ export default function NotificationsPage() {
 
     setFeed(data as NotificationFeed);
     setLoading(false);
-  };
+  }, [supabase]);
 
   useEffect(() => {
     setLocale(getLocale());
@@ -65,7 +65,7 @@ export default function NotificationsPage() {
       window.removeEventListener("irth-notifications-updated", refresh);
       window.removeEventListener("focus", refresh);
     };
-  }, []);
+  }, [load]);
 
   const markAllRead = async () => {
     const { error: rpcError } = await supabase.rpc("mark_all_my_notifications_read");
