@@ -2,16 +2,21 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import MarketSelector from "./MarketSelector";
 import NotificationBell from "./NotificationBell";
 
+type AccountState = "loading" | "guest" | "customer" | "authenticated";
+
 export default function Header() {
+  const [supabase] = useState(() => createClient());
   const [menuOpen, setMenuOpen] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
   const [cartCount, setCartCount] = useState(0);
   const [locale, setLocale] = useState<"ar" | "en">("ar");
   const [isMounted, setIsMounted] = useState(false);
   const [mainLogoUrl, setMainLogoUrl] = useState<string | null>(null);
+  const [accountState, setAccountState] = useState<AccountState>("loading");
 
   const updateCounts = () => {
     const saved = JSON.parse(localStorage.getItem("irth-saved-products") || "[]");
@@ -32,6 +37,41 @@ export default function Header() {
       window.removeEventListener("irth-saved-updated", updateCounts);
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const classifyAccount = async (userId: string | null) => {
+      if (!userId) {
+        if (!cancelled) setAccountState("guest");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_accounts")
+        .select("user_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (cancelled) return;
+      setAccountState(!error && data ? "customer" : "authenticated");
+    };
+
+    supabase.auth.getUser().then(({ data }) => {
+      void classifyAccount(data.user?.id ?? null);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void classifyAccount(session?.user.id ?? null);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +97,12 @@ export default function Header() {
     localStorage.setItem("irth-locale", newLocale);
     window.location.reload();
   };
+
+  const accountLink = accountState === "guest"
+    ? { href: "/account/login", label: "Login" }
+    : accountState === "customer"
+      ? { href: "/account", label: "Account" }
+      : null;
 
   return (
     <header className="border-b border-[var(--border-soft)] bg-[var(--background)]">
@@ -94,6 +140,14 @@ export default function Header() {
             </Link>
             <MarketSelector />
             {isMounted && <button type="button" onClick={toggleLocale} className="text-sm font-medium text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]">{locale === "ar" ? "🇬🇧 EN" : "🇪🇬 عربي"}</button>}
+            {accountLink && (
+              <Link
+                href={accountLink.href}
+                className="hidden rounded-full border border-[var(--color-copper)] px-4 py-2 text-sm font-medium text-[var(--color-espresso)] transition-colors hover:bg-[var(--color-copper)] hover:text-[var(--color-ivory)] md:inline-flex"
+              >
+                {accountLink.label}
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -108,6 +162,15 @@ export default function Header() {
               <Link href="/countries" onClick={() => setMenuOpen(false)} className="transition-colors hover:text-[var(--color-copper)]">Countries</Link>
               <Link href="/wholesale" onClick={() => setMenuOpen(false)} className="transition-colors hover:text-[var(--color-copper)]">Wholesale</Link>
               <Link href="/account/orders" onClick={() => setMenuOpen(false)} className="transition-colors hover:text-[var(--color-copper)]">My Orders</Link>
+              {accountLink && (
+                <Link
+                  href={accountLink.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="font-medium text-[var(--color-copper)] transition-colors hover:text-[var(--color-espresso)]"
+                >
+                  {accountLink.label}
+                </Link>
+              )}
             </div>
           </nav>
         </div>
