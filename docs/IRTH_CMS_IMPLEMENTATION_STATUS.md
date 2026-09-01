@@ -2,7 +2,7 @@
 
 Last verified: 2026-09-01
 
-This file records the verified implementation state of the IRTH CMS so future work does not rely on assumptions. It is a technical implementation-status companion to `IRTH MVP Specification v0.1`; it does not replace approved product decisions.
+This file records the verified implementation state of the IRTH CMS. It is a technical implementation-status companion to `IRTH MVP Specification v0.1`; it does not replace approved product decisions.
 
 ## CMS core — CLOSED
 
@@ -13,60 +13,42 @@ Live Supabase uses the shared constrained CMS foundation:
 - `private.cms_document_versions`
 - `private.cms_audit_events`
 
-Verified trusted boundaries:
+Core behavior:
 
-- `public.get_published_cms_document(text)` — Published-only read.
-- `public.get_admin_cms_document(text, uuid)` — Super Admin/service-role boundary.
-- `public.get_admin_cms_section_registry(uuid)` — Super Admin/service-role boundary.
-- `public.save_admin_cms_draft(text, text, jsonb, uuid)` — Super Admin/service-role mutation boundary.
-- `public.publish_admin_cms_document(text, uuid)` — Super Admin/service-role mutation boundary.
+- Draft and Published are separate.
+- Ordinary public CMS reads Published only.
+- Super Admin CMS writes and privileged reads go through trusted server/RPC boundaries.
+- No arbitrary HTML, JavaScript, CSS, plugins or free-form Page Builder in MVP.
+- CMS media remains private and public content resolves approved media through controlled URLs.
 
-Admin mutation/read RPCs remain unavailable to `anon` and ordinary `authenticated` callers. Draft content is never exposed through the ordinary public reader.
-
-The generic CMS writer already permits the approved MVP content types, including `homepage`, `static_page`, `blog_post`, `campaign`, `footer`, `help`, `contact`, `brand`, and `country_content`.
-
-## Functionally closed CMS modules
+## Functionally closed / browser-verified CMS modules
 
 ### Homepage CMS
 
 - Approved 14-section registry.
-- Super Admin show/hide and reorder.
+- Show/Hide + reorder.
 - Draft/Published isolation.
-- Public Homepage reads Published only.
-- Header + Search remain global layout, not reorderable Homepage sections.
-- Browser verification passed.
+- Header + Search remain global and non-reorderable.
+- Homepage Country Covers use Published Country CMS covers.
 
 ### New Arrivals
 
 - Uses true product publication chronology via `products.published_at`.
-- First publish sets the timestamp.
-- Non-published products do not retain a fake publication timestamp.
-- Publication chronology behavior verified.
 
 ### Best Sellers
 
-Ranks by gross successfully paid quantity per product.
-
-Counted payment statuses:
-
-- `paid`
-- `partially_refunded`
-- `refunded`
-
-`paid_at` must be present. Refunds do not reduce the ranking score. Tie-break uses latest successful `paid_at`, then product id.
+- Gross successfully-paid quantity ranking.
+- Refund does not reduce score.
 
 ### Blog
 
-- Public route: `/blog`.
-- Separate from Artisan Stories at `/stories`.
-- Arabic/English title, excerpt and body.
-- Slug, cover image, Draft/Published, publish date and SEO basics.
-- Private `cms-media` storage with Signed URL publication.
-- Browser verification passed.
+- Separate `/blog` from Artisan Stories `/stories`.
+- Arabic/English content, slug, cover, publish date and SEO basics.
+- Private cover media with Published-only public resolution.
 
 ### Brand & Site Assets
 
-Managed slots:
+Managed private media slots:
 
 - Main Logo
 - Alternate/Light-Dark Logo
@@ -74,110 +56,143 @@ Managed slots:
 - Default Social Share Image
 - Default Placeholder Image
 
-Assets are stored in private `cms-media`; DB stores Asset IDs rather than arbitrary image URLs. Public Logo + Favicon integration is browser verified.
+Public Logo/Favicon integration is browser verified.
 
 ### Country CMS
 
-- Country remains a structural DB entity and stays separate from Market/Currency/Shipping.
-- Country content owns bilingual display names, cultural summary, cover, ordered cultural images and SEO basics.
-- Public route: `/country/[slug]`.
-- Public reads Published only; a safe legacy fallback remains when no CMS content is published.
-- Number of Cultural Images is intentionally not fixed because no final product decision exists yet.
+- Country remains a structural entity separate from Market/Currency/Shipping.
+- Bilingual display content, cultural summary, cover, ordered cultural images and SEO basics.
+- Public `/country/[slug]` reads Published CMS content only, with safe legacy fallback where applicable.
+- Optional introduction video: MP4, max 3 minutes, max 250MB, private `cms-videos`, TUS upload, server duration validation, Published-only public access.
 
-Country introduction video is browser verified:
+The number of Cultural Images is still not finalized and must not be invented.
 
-- one optional MP4
-- maximum 3 minutes
-- maximum 250MB
-- private `cms-videos`
-- TUS resumable upload
-- server-side duration validation
-- Draft video is not public
-- Published video is resolved through a Signed URL
+### Static Pages
 
-The Storage policy uses direct `user_roles` + `roles.code = 'super_admin'` authorization. The private helper remains postgres-only.
-
-Homepage Explore Country cards now resolve Published Country CMS Cover only. Countries without one retain the intended dark fallback; no fake default image is invented.
-
-### Static Pages — FUNCTIONALLY CLOSED
-
-Admin route:
+Admin:
 
 - `/dashboard-admin/content/static-pages`
 
-Current temporary public route:
+Temporary public routing:
 
 - `/pages/[slug]`
 
-Uses the shared CMS core with:
+Draft isolation and Publish browser tests passed.
 
-- `content_type = 'static_page'`
-- `document_key = 'page:<slug>'`
+Final public URL strategy (`/about` vs `/pages/about`, etc.) is not yet approved.
 
-Fields:
+### Help
 
-- slug
-- Arabic/English title
-- Arabic/English body
-- Arabic/English SEO title
-- Arabic/English meta description
-- canonical URL
-- Draft / Publish
+- Public `/help`.
+- Super Admin `/dashboard-admin/content/help`.
+- Bilingual title/intro and ordered FAQ items.
+- Draft/Publish.
+- No large Knowledge Base complexity.
 
-Security verification:
+Browser verification passed.
 
-- `anon` admin read: denied
-- ordinary `authenticated` admin read: denied
-- service-role admin read: allowed
+### Contact
 
-Controlled DB test passed: Draft -> not public -> Publish -> public -> rollback.
+- Public `/contact`.
+- Super Admin `/dashboard-admin/content/contact`.
+- Public IRTH contact content only.
+- No customer message submission workflow was invented.
+- Draft/Publish.
 
-Browser test passed on 2026-09-01 using `about-irth`:
+Browser verification passed.
 
-1. Save Draft succeeded.
-2. `/pages/about-irth` was not public while Draft-only.
-3. Publish succeeded.
-4. `/pages/about-irth` appeared correctly after Publish.
+### Footer
 
-Therefore Static Pages Foundation is functionally closed.
+- Super Admin `/dashboard-admin/content/footer`.
+- Global Published-only SiteFooter.
+- Bilingual labels, groups, URLs, order, show/hide and same/new tab.
+- Internal CMS links are validated before publish.
+- Legacy duplicate Homepage footer was removed while preserving the Homepage footer section key/schema.
 
-The final public URL strategy (`/about` versus `/pages/about`, etc.) has **not** been approved and must not be silently chosen.
+Browser verification passed.
 
-## Current active module
+### Campaign / Announcement Hero
 
-### Help CMS
+- Fixed MVP document key `campaign:main`.
+- Active/Inactive.
+- Arabic/English title/body.
+- Optional CTA and background image.
+- Start/End schedule.
+- Published campaign can temporarily override the Homepage Hero.
+- Normal Hero returns when inactive or outside the schedule window.
 
-Help is the next approved CMS module.
+Browser verification passed for:
 
-Constraints:
+- Draft hidden from public.
+- Publish appears publicly.
+- Active Off restores normal Hero.
+- Future Start does not appear early.
+- Live schedule appears at the correct time.
 
-- Help remains independent from Contact.
-- MVP Help should stay simple/manageable, not become a large knowledge-base platform.
-- Reuse the shared CMS Draft/Published/history/audit foundation.
-- No arbitrary HTML, scripts, CSS or free-form Page Builder.
+### SEO Basics / Public Metadata
 
-## Next approved module
+Implemented and browser verified:
 
-### Contact CMS
+- global metadata fallback
+- Brand favicon/default social image endpoints
+- Blog metadata
+- Country metadata
+- Static Page metadata
+- canonical support
+- Open Graph fallback
+- Published-only dynamic sitemap
 
-Contact follows Help and remains independent. Public IRTH contact content must be distinguished from any future customer support/contact-submission workflow; no sensitive workflow is implied or approved by the CMS content module itself.
+No AI SEO, scoring, keyword automation or advanced Redirect Manager was added.
 
-## Remaining CMS blueprint after Help + Contact
+### Secure Preview
 
-Inspect actual implementation status before each task, then continue with remaining gaps such as:
+- Super Admin-only Draft preview foundation.
+- Ordinary logged-out/public access does not expose Draft.
+- Supports controlled preview for the CMS modules currently implemented.
 
-- Footer Management
-- Campaign / Announcement Banner
-- SEO/public metadata improvements
-- authenticated Super Admin Preview
-- other verified CMS Blueprint gaps
+Browser verification passed.
 
-## Known security debt outside the closed CMS modules
+## Content History / Audit — IMPLEMENTED, BROWSER VERIFICATION PENDING
 
-Before Production Readiness, re-check:
+The underlying history foundation already existed in:
+
+- `private.cms_document_versions`
+- `private.cms_audit_events`
+
+New read-only Super Admin history surface:
+
+- Admin page: `/dashboard-admin/content/history`
+- API: `/api/admin/cms/history`
+- RPC: `public.get_admin_cms_history(uuid, text, integer)`
+
+The RPC:
+
+- is `SECURITY DEFINER` with fixed empty `search_path`;
+- requires the existing Super Admin authorization helper;
+- is not executable by `anon` or ordinary `authenticated` roles;
+- is executable by `service_role` only;
+- returns recent audit events and version metadata, optionally filtered by CMS document key;
+- does not add automatic Restore/Rollback behavior because that product behavior has not been approved.
+
+DB verification passed on 2026-09-01 against `campaign:main`: 7 audit events and 7 stored versions were returned.
+
+Browser verification is the only remaining closure step for this module.
+
+## CMS Blueprint status
+
+Approved CMS modules from the project blueprint are now implemented or browser-verified, with Content History/Audit awaiting its final browser test.
+
+After History/Audit passes browser verification, the CMS / Content Manager phase can be treated as functionally closed and the project should move to the final MVP Testing / Production Readiness / Polish stage rather than adding unapproved CMS features.
+
+## Known security / production-readiness debt
+
+Before Live, re-check:
 
 - legacy `public.review_product_market_price_request(...)` SECURITY DEFINER exposure to `authenticated`;
-- Supabase Auth Leaked Password Protection currently disabled;
-- existing INFO/RLS performance warnings, distinguishing advisory/performance items from exploitable security problems.
+- Supabase Auth Leaked Password Protection disabled;
+- existing RLS performance / multiple permissive policy warnings;
+- public Published-read SECURITY DEFINER CMS RPCs for least-privilege posture;
+- production email sender domain verification;
+- final Production Readiness / Money Safety Review before real money operations.
 
-Do not reopen previously fixed Return SECURITY DEFINER findings without evidence.
+Do not reopen already-fixed findings without evidence.
