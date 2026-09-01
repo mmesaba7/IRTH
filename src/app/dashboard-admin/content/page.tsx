@@ -11,6 +11,7 @@ const MODULES = [
   ["Campaign", "Scheduled homepage campaign", "/dashboard-admin/content/campaign"],
   ["Brand & Site Assets", "Logo, favicon, social and placeholder images", "/dashboard-admin/content/brand"],
   ["Secure Preview", "Preview Draft content as Super Admin", "/dashboard-admin/content/preview"],
+  ["Content History & Audit", "Read-only CMS saves, publishes and versions", "/dashboard-admin/content/history"],
 ] as const;
 
 export default function ContentManagerPage() {
