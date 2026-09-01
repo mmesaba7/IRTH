@@ -32,7 +32,27 @@ export async function GET(
       return jsonNoStore({ error: "Blog post not found." }, 404);
     }
 
-    return jsonNoStore({ post: data });
+    let coverImageUrl: string | null = null;
+    const payload = record.payload;
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+      const assetId = (payload as Record<string, unknown>).coverImageAssetId;
+      if (typeof assetId === "string") {
+        const { data: asset } = await admin.rpc("get_cms_media_asset_server", {
+          p_asset_id: assetId,
+        });
+        if (asset && typeof asset === "object") {
+          const storagePath = (asset as Record<string, unknown>).storagePath;
+          if (typeof storagePath === "string") {
+            const { data: signed, error: signedError } = await admin.storage
+              .from("cms-media")
+              .createSignedUrl(storagePath, 60 * 60);
+            if (!signedError) coverImageUrl = signed?.signedUrl ?? null;
+          }
+        }
+      }
+    }
+
+    return jsonNoStore({ post: data, coverImageUrl });
   } catch {
     return jsonNoStore({ error: "Blog service is unavailable." }, 503);
   }
