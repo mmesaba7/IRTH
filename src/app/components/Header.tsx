@@ -11,6 +11,7 @@ export default function Header() {
   const [cartCount, setCartCount] = useState(0);
   const [locale, setLocale] = useState<"ar" | "en">("ar");
   const [isMounted, setIsMounted] = useState(false);
+  const [mainLogoUrl, setMainLogoUrl] = useState<string | null>(null);
 
   const updateCounts = () => {
     const saved = JSON.parse(localStorage.getItem("irth-saved-products") || "[]");
@@ -32,6 +33,24 @@ export default function Header() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/cms/brand", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        const body = await response.json();
+        const value = body?.assets?.mainLogoAssetId;
+        return typeof value === "string" ? value : null;
+      })
+      .then((url) => {
+        if (!cancelled) setMainLogoUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setMainLogoUrl(null);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   const toggleLocale = () => {
     const newLocale = locale === "ar" ? "en" : "ar";
     setLocale(newLocale);
@@ -43,7 +62,13 @@ export default function Header() {
     <header className="border-b border-[var(--border-soft)] bg-[var(--background)]">
       <div className="mx-auto max-w-[var(--container-max)] px-6 py-5">
         <div className="flex items-center justify-between">
-          <Link href="/" className="font-[var(--font-display)] text-2xl tracking-[0.08em] text-[var(--color-espresso)]">IRTH</Link>
+          <Link href="/" className="flex min-h-8 items-center font-[var(--font-display)] text-2xl tracking-[0.08em] text-[var(--color-espresso)]">
+            {mainLogoUrl ? (
+              <img src={mainLogoUrl} alt="IRTH" className="h-9 w-auto max-w-[150px] object-contain" />
+            ) : (
+              "IRTH"
+            )}
+          </Link>
 
           <nav className="hidden items-center gap-8 text-sm md:flex">
             <Link href="/crafts" className="transition-colors hover:text-[var(--color-copper)]">Discover</Link>
