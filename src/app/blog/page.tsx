@@ -8,6 +8,7 @@ import Header from "../components/Header";
 type BlogPost = {
   key: string;
   publishedAt: string;
+  coverImageUrl?: string | null;
   payload: {
     slug: string;
     titleAr: string;
@@ -47,12 +48,15 @@ export default function BlogPage() {
         ) : (
           <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {posts.map((post) => (
-              <Link key={post.key} href={`/blog/${post.payload.slug}`} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
-                <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-copper)]">{new Date(post.publishedAt).toLocaleDateString("ar-EG")}</p>
-                <h2 className="mt-3 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{post.payload.titleAr}</h2>
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">{post.payload.titleEn}</p>
-                <p className="mt-5 line-clamp-4 text-sm leading-7 text-[var(--text-secondary)]">{post.payload.excerptAr}</p>
-                <p className="mt-5 text-sm font-medium text-[var(--color-copper)]">اقرأ المقال →</p>
+              <Link key={post.key} href={`/blog/${post.payload.slug}`} className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
+                {post.coverImageUrl && <img src={post.coverImageUrl} alt={post.payload.titleAr} className="aspect-[16/10] w-full object-cover" />}
+                <div className="p-6">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-copper)]">{new Date(post.publishedAt).toLocaleDateString("ar-EG")}</p>
+                  <h2 className="mt-3 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{post.payload.titleAr}</h2>
+                  <p className="mt-2 text-sm text-[var(--text-secondary)]">{post.payload.titleEn}</p>
+                  <p className="mt-5 line-clamp-4 text-sm leading-7 text-[var(--text-secondary)]">{post.payload.excerptAr}</p>
+                  <p className="mt-5 text-sm font-medium text-[var(--color-copper)]">اقرأ المقال →</p>
+                </div>
               </Link>
             ))}
           </div>
