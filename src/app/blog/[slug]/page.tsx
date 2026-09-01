@@ -22,6 +22,7 @@ type BlogDocument = {
 export default function BlogArticlePage() {
   const params = useParams<{ slug: string }>();
   const [post, setPost] = useState<BlogDocument | null>(null);
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,8 +34,14 @@ export default function BlogArticlePage() {
         if (!response.ok) throw new Error();
         return response.json();
       })
-      .then((data) => setPost(data.post ?? null))
-      .catch(() => setPost(null))
+      .then((data) => {
+        setPost(data.post ?? null);
+        setCoverImageUrl(typeof data.coverImageUrl === "string" ? data.coverImageUrl : null);
+      })
+      .catch(() => {
+        setPost(null);
+        setCoverImageUrl(null);
+      })
       .finally(() => setLoading(false));
   }, [params?.slug]);
 
@@ -54,6 +61,10 @@ export default function BlogArticlePage() {
             <h1 className="mt-4 font-[var(--font-display)] text-4xl leading-tight text-[var(--color-espresso)] md:text-6xl" dir="rtl">{post.payload.titleAr}</h1>
             <p className="mt-3 font-[var(--font-display)] text-2xl text-[var(--text-secondary)]">{post.payload.titleEn}</p>
             <p className="mt-7 text-lg leading-9 text-[var(--text-secondary)]" dir="rtl">{post.payload.excerptAr}</p>
+
+            {coverImageUrl && (
+              <img src={coverImageUrl} alt={post.payload.titleAr} className="mt-10 aspect-[16/9] w-full rounded-[var(--radius-xl)] object-cover" />
+            )}
 
             <div className="mt-12 border-t border-[var(--border-soft)] pt-10">
               <div className="whitespace-pre-wrap text-base leading-9 text-[var(--text-primary)]" dir="rtl">{post.payload.bodyAr}</div>
