@@ -38,7 +38,17 @@ async function validateAssets(ctx: Ctx, ids: Array<string | null>) {
   for (const id of ids) {
     if (!id) continue;
     const { data, error } = await ctx.admin.rpc("get_cms_media_asset_server", { p_asset_id: id });
-    if (error || !data || typeof data !== "object" || (data as Record<string, unknown>).status !== "ready") return false;
+    if (error || !data || typeof data !== "object" || Array.isArray(data)) return false;
+
+    const asset = data as Record<string, unknown>;
+    if (
+      asset.id !== id ||
+      typeof asset.storagePath !== "string" ||
+      typeof asset.mimeType !== "string" ||
+      typeof asset.fileSizeBytes !== "number"
+    ) {
+      return false;
+    }
   }
   return true;
 }
