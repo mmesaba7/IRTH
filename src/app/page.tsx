@@ -4,6 +4,7 @@ import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import Header from "./components/Header";
+import HomepageCampaignHero from "./components/HomepageCampaignHero";
 import BestSellersSection from "./components/BestSellersSection";
 import BlogHighlightsSection from "./components/BlogHighlightsSection";
 import NewArrivalsSection from "./components/NewArrivalsSection";
@@ -403,25 +404,7 @@ export default function HomePage() {
 
   function renderHomepageSection(key: string): ReactNode {
     switch (key) {
-      case "hero":
-        return (
-          <section className="relative overflow-hidden bg-[var(--color-espresso)] text-[var(--color-ivory)]">
-            <div className="absolute inset-0 opacity-[0.08]">
-              <div className="absolute left-[8%] top-14 h-28 w-28 rounded-full border border-[var(--color-copper)]" />
-              <div className="absolute bottom-14 right-[8%] h-20 w-20 rotate-45 border border-[var(--color-copper)]" />
-              <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[var(--color-copper)]" />
-            </div>
-            <div className="relative z-10 mx-auto grid max-w-[var(--container-max)] gap-12 px-5 py-16 md:grid-cols-[1.1fr_0.9fr] md:items-center md:px-6 md:py-24 lg:py-28">
-              <div className="max-w-3xl">
-                <p className="section-eyebrow">Heritage · Craft · Human</p>
-                <h1 className="mt-5 max-w-3xl font-[var(--font-display)] text-5xl font-normal leading-[1.02] md:text-6xl lg:text-7xl">Discover the hands<br className="hidden sm:block" /> behind the heritage.</h1>
-                <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--color-ivory)]/70 md:text-lg">Explore authentic handmade work, meet the artisans who preserve traditional knowledge, and discover the places and stories behind every piece.</p>
-                <div className="mt-8 flex flex-wrap gap-3"><Link href="/explore" className="btn-primary">Discover IRTH <span aria-hidden="true">→</span></Link><Link href="/crafts" className="btn-secondary-inverse">Shop crafts</Link></div>
-              </div>
-              <div className="relative mx-auto aspect-[4/5] w-full max-w-[420px]"><div className="absolute inset-0 rotate-3 rounded-[var(--radius-xl)] bg-[var(--color-copper)]/20" /><div className="absolute inset-5 -rotate-2 overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-ivory)]/15 bg-[var(--color-olive)]"><div className="absolute inset-0 flex items-center justify-center"><div className="relative h-48 w-36 rounded-[42%_42%_36%_36%] bg-[var(--color-ivory)]/85 shadow-[var(--shadow-elevated)]"><div className="absolute left-1/2 top-[-18px] h-14 w-16 -translate-x-1/2 rounded-full bg-[var(--color-ivory)]/85" /></div></div><div className="absolute bottom-6 left-6 right-6 rounded-[var(--radius-md)] bg-[var(--color-espresso)]/85 p-4 backdrop-blur-sm"><p className="text-xs uppercase tracking-[0.16em] text-[var(--color-copper)]">Made by hand</p><p className="mt-1 font-[var(--font-display)] text-xl text-[var(--color-ivory)]">Objects shaped by place, memory, and craft.</p></div></div></div>
-            </div>
-          </section>
-        );
+      case "hero": return <HomepageCampaignHero />;
       case "crafts":
         if (crafts.length === 0) return null;
         return <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20"><div className="flex items-end justify-between gap-5"><div><p className="section-eyebrow">Explore by craft</p><h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Begin with the craft.</h2></div><Link href="/crafts" className="text-sm font-medium text-[var(--color-copper)] hover:underline">All crafts →</Link></div><div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">{crafts.map((craft) => <Link key={craft.id} href={`/crafts?category=${encodeURIComponent(craft.filterName)}`} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"><p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">{craft.name}</p><p className="mt-2 text-xs text-[var(--color-copper)]">Explore →</p></Link>)}</div></section>;
