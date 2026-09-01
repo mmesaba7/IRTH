@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import Header from "./components/Header";
@@ -129,11 +129,68 @@ type SecureOfferQuote = {
   }>;
 };
 
+type HomepageSectionConfig = {
+  key: string;
+  visible: boolean;
+  order: number;
+};
+
+const DEFAULT_HOMEPAGE_SECTIONS: HomepageSectionConfig[] = [
+  { key: "hero", visible: true, order: 1 },
+  { key: "crafts", visible: true, order: 2 },
+  { key: "explore_countries", visible: true, order: 3 },
+  { key: "featured_products", visible: true, order: 4 },
+  { key: "best_sellers", visible: true, order: 5 },
+  { key: "new_arrivals", visible: true, order: 6 },
+  { key: "featured_artisans", visible: true, order: 7 },
+  { key: "promotions", visible: true, order: 8 },
+  { key: "recently_viewed", visible: true, order: 9 },
+  { key: "story_brand", visible: true, order: 10 },
+  { key: "wholesale_cta", visible: true, order: 11 },
+  { key: "blog_highlights", visible: true, order: 12 },
+  { key: "trust_value", visible: true, order: 13 },
+  { key: "footer", visible: true, order: 14 },
+];
+
 function formatMoney(value: number | string, currencyCode: string) {
   return new Intl.NumberFormat("ar-EG", {
     style: "currency",
     currency: currencyCode,
   }).format(Number(value));
+}
+
+function parsePublishedHomepageSections(value: unknown): HomepageSectionConfig[] | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const payload = (value as Record<string, unknown>).payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const sections = (payload as Record<string, unknown>).sections;
+  if (!Array.isArray(sections)) return null;
+
+  const allowed = new Set(DEFAULT_HOMEPAGE_SECTIONS.map((section) => section.key));
+  const seen = new Set<string>();
+  const parsed: HomepageSectionConfig[] = [];
+
+  for (const item of sections) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    const record = item as Record<string, unknown>;
+    const { key, visible, order } = record;
+    if (
+      typeof key !== "string" ||
+      !allowed.has(key) ||
+      seen.has(key) ||
+      typeof visible !== "boolean" ||
+      typeof order !== "number" ||
+      !Number.isInteger(order) ||
+      order < 1
+    ) {
+      return null;
+    }
+    seen.add(key);
+    parsed.push({ key, visible, order });
+  }
+
+  if (seen.size !== allowed.size) return null;
+  return parsed.sort((a, b) => a.order - b.order);
 }
 
 export default function HomePage() {
@@ -144,6 +201,9 @@ export default function HomePage() {
   const [crafts, setCrafts] = useState<HomeCraft[]>([]);
   const [artisans, setArtisans] = useState<HomeArtisan[]>([]);
   const [offers, setOffers] = useState<HomeOffer[]>([]);
+  const [homepageSections, setHomepageSections] = useState<HomepageSectionConfig[]>(
+    DEFAULT_HOMEPAGE_SECTIONS
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -181,34 +241,43 @@ export default function HomePage() {
           })
         : Promise.resolve({ data: [], error: null });
 
-      const [countriesResult, craftsResult, artisansResult, productsResult, offersResult] =
-        await Promise.all([
-          supabase
-            .from("countries")
-            .select("id, slug, name_ar, name_en")
-            .eq("is_active", true)
-            .order("name_en", { ascending: true }),
-          supabase
-            .from("crafts")
-            .select("id, name_ar, name_en")
-            .eq("is_active", true)
-            .order("name_en", { ascending: true }),
-          supabase
-            .from("artisan_profiles")
-            .select(
-              "id, slug, name_ar, name_en, country_id, region_ar, region_en, bio_ar, bio_en, story_ar, story_en, primary_craft_id, profile_image_url"
-            )
-            .eq("status", "active")
-            .order("slug", { ascending: true }),
-          supabase
-            .from("products")
-            .select(
-              "slug, artisan_id, primary_craft_id, name_ar, name_en, description_ar, description_en, story_ar, story_en, material_ar, material_en, price, dimensions, weight, made_to_order, preparation_time, one_of_a_kind, customization"
-            )
-            .eq("lifecycle_status", "published")
-            .order("created_at", { ascending: false }),
-          offersPromise,
-        ]);
+      const [
+        countriesResult,
+        craftsResult,
+        artisansResult,
+        productsResult,
+        offersResult,
+        cmsResult,
+      ] = await Promise.all([
+        supabase
+          .from("countries")
+          .select("id, slug, name_ar, name_en")
+          .eq("is_active", true)
+          .order("name_en", { ascending: true }),
+        supabase
+          .from("crafts")
+          .select("id, name_ar, name_en")
+          .eq("is_active", true)
+          .order("name_en", { ascending: true }),
+        supabase
+          .from("artisan_profiles")
+          .select(
+            "id, slug, name_ar, name_en, country_id, region_ar, region_en, bio_ar, bio_en, story_ar, story_en, primary_craft_id, profile_image_url"
+          )
+          .eq("status", "active")
+          .order("slug", { ascending: true }),
+        supabase
+          .from("products")
+          .select(
+            "slug, artisan_id, primary_craft_id, name_ar, name_en, description_ar, description_en, story_ar, story_en, material_ar, material_en, price, dimensions, weight, made_to_order, preparation_time, one_of_a_kind, customization"
+          )
+          .eq("lifecycle_status", "published")
+          .order("created_at", { ascending: false }),
+        offersPromise,
+        supabase.rpc("get_published_cms_document", {
+          p_document_key: "homepage",
+        }),
+      ]);
 
       if (cancelled) return;
 
@@ -231,6 +300,17 @@ export default function HomePage() {
 
       if (offersResult.error) {
         console.error("Could not load active promotions:", offersResult.error);
+      }
+
+      if (cmsResult.error) {
+        console.error("Could not load published homepage CMS; using safe defaults:", cmsResult.error);
+      } else {
+        const publishedSections = parsePublishedHomepageSections(cmsResult.data);
+        if (publishedSections) {
+          setHomepageSections(publishedSections);
+        } else {
+          console.error("Published homepage CMS payload is invalid; using safe defaults.");
+        }
       }
 
       const countryRows = (countriesResult.data ?? []) as DbCountry[];
@@ -287,9 +367,7 @@ export default function HomePage() {
                   `${item.promotion.id}:${item.slug}`
                 );
 
-                if (!rawOffer) {
-                  return [];
-                }
+                if (!rawOffer) return [];
 
                 return [
                   {
@@ -431,6 +509,274 @@ export default function HomePage() {
   const selectedProducts = products.slice(0, 6);
   const featuredArtisan = artisans[0];
 
+  function renderHomepageSection(key: string): ReactNode {
+    switch (key) {
+      case "hero":
+        return (
+          <section className="relative overflow-hidden bg-[var(--color-espresso)] text-[var(--color-ivory)]">
+            <div className="absolute inset-0 opacity-[0.08]">
+              <div className="absolute left-[8%] top-14 h-28 w-28 rounded-full border border-[var(--color-copper)]" />
+              <div className="absolute bottom-14 right-[8%] h-20 w-20 rotate-45 border border-[var(--color-copper)]" />
+              <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[var(--color-copper)]" />
+            </div>
+
+            <div className="relative z-10 mx-auto grid max-w-[var(--container-max)] gap-12 px-5 py-16 md:grid-cols-[1.1fr_0.9fr] md:items-center md:px-6 md:py-24 lg:py-28">
+              <div className="max-w-3xl">
+                <p className="section-eyebrow">Heritage · Craft · Human</p>
+                <h1 className="mt-5 max-w-3xl font-[var(--font-display)] text-5xl font-normal leading-[1.02] md:text-6xl lg:text-7xl">
+                  Discover the hands
+                  <br className="hidden sm:block" /> behind the heritage.
+                </h1>
+                <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--color-ivory)]/70 md:text-lg">
+                  Explore authentic handmade work, meet the artisans who preserve traditional knowledge, and discover the places and stories behind every piece.
+                </p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <Link href="/explore" className="btn-primary">
+                    Discover IRTH <span aria-hidden="true">→</span>
+                  </Link>
+                  <Link href="/crafts" className="btn-secondary-inverse">
+                    Shop crafts
+                  </Link>
+                </div>
+              </div>
+
+              <div className="relative mx-auto aspect-[4/5] w-full max-w-[420px]">
+                <div className="absolute inset-0 rotate-3 rounded-[var(--radius-xl)] bg-[var(--color-copper)]/20" />
+                <div className="absolute inset-5 -rotate-2 overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-ivory)]/15 bg-[var(--color-olive)]">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="relative h-48 w-36 rounded-[42%_42%_36%_36%] bg-[var(--color-ivory)]/85 shadow-[var(--shadow-elevated)]">
+                      <div className="absolute left-1/2 top-[-18px] h-14 w-16 -translate-x-1/2 rounded-full bg-[var(--color-ivory)]/85" />
+                    </div>
+                  </div>
+                  <div className="absolute bottom-6 left-6 right-6 rounded-[var(--radius-md)] bg-[var(--color-espresso)]/85 p-4 backdrop-blur-sm">
+                    <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-copper)]">Made by hand</p>
+                    <p className="mt-1 font-[var(--font-display)] text-xl text-[var(--color-ivory)]">
+                      Objects shaped by place, memory, and craft.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        );
+
+      case "crafts":
+        if (crafts.length === 0) return null;
+        return (
+          <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+            <div className="flex items-end justify-between gap-5">
+              <div>
+                <p className="section-eyebrow">Explore by craft</p>
+                <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Begin with the craft.</h2>
+              </div>
+              <Link href="/crafts" className="text-sm font-medium text-[var(--color-copper)] hover:underline">All crafts →</Link>
+            </div>
+            <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+              {crafts.map((craft) => (
+                <Link key={craft.id} href={`/crafts?category=${encodeURIComponent(craft.filterName)}`} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
+                  <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">{craft.name}</p>
+                  <p className="mt-2 text-xs text-[var(--color-copper)]">Explore →</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        );
+
+      case "explore_countries":
+        if (countries.length === 0) return null;
+        return (
+          <section className="border-y border-[var(--border-soft)] bg-[var(--surface-muted)]">
+            <div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+              <div>
+                <p className="section-eyebrow">Explore by place</p>
+                <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Heritage shaped by place.</h2>
+              </div>
+              <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {countries.map((country) => (
+                  <Link key={country.id} href={`/country/${country.slug}`} className="relative min-h-[230px] overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-espresso)] p-6 text-[var(--color-ivory)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elevated)]">
+                    {country.heroImage && <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{ backgroundImage: `url("${country.heroImage}")` }} />}
+                    <div className="relative z-10 flex h-full flex-col justify-end">
+                      <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-copper)]">Country</p>
+                      <h3 className="mt-2 font-[var(--font-display)] text-3xl">{country.name}</h3>
+                      <p className="mt-1 text-sm text-[var(--color-ivory)]/65">{country.nameEn}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </section>
+        );
+
+      case "featured_products":
+        if (selectedProducts.length === 0) return null;
+        return (
+          <section className="border-t border-[var(--border-soft)]">
+            <div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+              <div className="flex items-end justify-between gap-5">
+                <div>
+                  <p className="section-eyebrow">From the marketplace</p>
+                  <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Stories you can take home.</h2>
+                </div>
+                <Link href="/crafts" className="text-sm font-medium text-[var(--color-copper)] hover:underline">View all →</Link>
+              </div>
+              <div className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
+                {selectedProducts.map((product) => <ProductCard key={product.slug} product={product} />)}
+              </div>
+            </div>
+          </section>
+        );
+
+      case "featured_artisans":
+        if (!featuredArtisan && artisans.length <= 1) return null;
+        return (
+          <Fragment>
+            {featuredArtisan && (
+              <section className="overflow-hidden bg-[var(--color-olive)] text-[var(--color-ivory)]">
+                <div className="mx-auto grid max-w-[var(--container-max)] md:grid-cols-2">
+                  <div className="relative min-h-[340px] overflow-hidden">
+                    {featuredArtisan.profileImage ? (
+                      <img src={featuredArtisan.profileImage} alt={featuredArtisan.name} className="absolute inset-0 h-full w-full object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="flex h-44 w-44 items-center justify-center rounded-full bg-[var(--color-ivory)]/90 p-6 text-center">
+                          <span className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{featuredArtisan.name}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center px-6 py-14 md:px-12">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-antique-gold)]">Meet the maker</p>
+                      <h2 className="mt-4 font-[var(--font-display)] text-4xl md:text-5xl">{featuredArtisan.name}</h2>
+                      <p className="mt-2 text-sm text-[var(--color-ivory)]/65">{featuredArtisan.mainCraft} · {featuredArtisan.country}</p>
+                      <p className="mt-6 text-base leading-8 text-[var(--color-ivory)]/80">{featuredArtisan.bio}</p>
+                      {featuredArtisan.story && <p className="mt-5 line-clamp-4 text-sm leading-7 text-[var(--color-ivory)]/65">{featuredArtisan.story}</p>}
+                      <Link href={`/artisan/${featuredArtisan.slug}`} className="btn-light mt-8">Meet the artisan →</Link>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+            {artisans.length > 1 && (
+              <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+                <p className="section-eyebrow">Makers of IRTH</p>
+                <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Meet more artisans.</h2>
+                <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {artisans.map((artisan) => (
+                    <Link key={artisan.id} href={`/artisan/${artisan.slug}`} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
+                      <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">{artisan.country} · {artisan.region}</p>
+                      <h3 className="mt-2 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{artisan.name}</h3>
+                      <p className="mt-1 text-sm font-medium text-[var(--color-copper)]">{artisan.mainCraft}</p>
+                      {artisan.bio && <p className="mt-4 line-clamp-3 text-sm leading-6 text-[var(--text-secondary)]">{artisan.bio}</p>}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+          </Fragment>
+        );
+
+      case "promotions":
+        if (offers.length === 0) return null;
+        return (
+          <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+            <div className="flex items-end justify-between gap-5">
+              <div>
+                <p className="section-eyebrow">Current offers</p>
+                <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">عروض معتمدة وفعالة.</h2>
+                <p className="mt-3 text-sm text-[var(--text-secondary)]">يظهر هنا العرض الفائز فقط لكل منتج حسب السوق المختار.</p>
+              </div>
+            </div>
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {offers.map((offer) => (
+                <Link key={`${offer.promotion_id}-${offer.product_id}`} href={`/product/${offer.product_slug}`} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium text-[var(--color-espresso)]">{offer.source_type === "irth" ? "IRTH Offer" : "Artisan Offer"}</span>
+                    <span className="text-lg font-semibold text-[var(--color-copper)]">{offer.discount_type === "percentage" ? `${Number(offer.discount_value)}% OFF` : `${formatMoney(offer.promotion_discount, offer.currency_code)} OFF`}</span>
+                  </div>
+                  <h3 className="mt-5 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{offer.product_name_ar || offer.product_name_en}</h3>
+                  <p className="mt-2 text-sm text-[var(--text-secondary)]">{offer.artisan_name_ar || offer.artisan_name_en} · {offer.country_name_ar || offer.country_name_en}</p>
+                  <p className="mt-3 text-sm text-[var(--text-muted)]">السعر الأصلي: {formatMoney(offer.original_line_total, offer.currency_code)}</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--color-copper)]">بعد العرض: {formatMoney(offer.final_line_total, offer.currency_code)}</p>
+                  <p className="mt-4 text-xs text-[var(--text-muted)]">حتى {new Date(offer.end_at).toLocaleString("ar-EG")}</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        );
+
+      case "recently_viewed":
+        if (recentlyViewed.length === 0) return null;
+        return (
+          <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+            <p className="section-eyebrow">Continue exploring</p>
+            <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Recently viewed.</h2>
+            <div className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-4">
+              {recentlyViewed.map((product) => <ProductCard key={product.slug} product={product} />)}
+            </div>
+          </section>
+        );
+
+      case "story_brand":
+        return (
+          <section className="border-y border-[var(--border-soft)] bg-[var(--surface-muted)]">
+            <div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+              <p className="section-eyebrow">Heritage stories</p>
+              <h2 className="mt-3 font-[var(--font-display)] text-4xl text-[var(--color-espresso)] md:text-5xl">More than an object.</h2>
+              <p className="mt-5 max-w-2xl text-base leading-8 text-[var(--text-secondary)]">Explore the people, materials, places, and traditions behind handmade work.</p>
+              <Link href="/stories" className="btn-secondary mt-7">Discover the stories →</Link>
+            </div>
+          </section>
+        );
+
+      case "wholesale_cta":
+        return (
+          <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+            <div className="rounded-[var(--radius-xl)] border border-[var(--border-soft)] bg-[var(--surface)] px-6 py-12 md:px-10">
+              <p className="section-eyebrow">Wholesale · طلب كمية</p>
+              <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Need a larger quantity?</h2>
+              <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--text-secondary)]">Send a wholesale request to IRTH. Your contact information is handled by IRTH and is not shared directly with artisans.</p>
+              <Link href="/wholesale" className="btn-secondary mt-7">Wholesale request →</Link>
+            </div>
+          </section>
+        );
+
+      case "trust_value":
+        return (
+          <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+            <div className="rounded-[var(--radius-xl)] bg-[var(--color-espresso)] px-6 py-12 text-center text-[var(--color-ivory)] md:py-16">
+              <p className="section-eyebrow">Explore IRTH</p>
+              <h2 className="mt-4 font-[var(--font-display)] text-4xl md:text-5xl">Begin anywhere.</h2>
+              <p className="mx-auto mt-4 max-w-xl text-base text-[var(--color-ivory)]/70">Start with a craft, a country, an artisan, or a story.</p>
+              <Link href="/explore" className="btn-primary mt-7">Discover IRTH →</Link>
+            </div>
+          </section>
+        );
+
+      case "footer":
+        return (
+          <footer className="border-t border-[var(--color-ivory)]/10 bg-[var(--color-espresso)] text-[var(--color-ivory)]">
+            <div className="mx-auto max-w-[var(--container-max)] px-5 py-12 md:px-6">
+              <p className="font-[var(--font-display)] text-3xl tracking-[0.08em]">IRTH</p>
+              <p className="mt-4 max-w-xl text-sm leading-7 text-[var(--color-ivory)]/60">A marketplace for authentic handmade crafts, the artisans who make them, and the heritage they carry.</p>
+              <div className="mt-10 border-t border-[var(--color-ivory)]/10 pt-6 text-xs text-[var(--color-ivory)]/40">© 2026 IRTH. All rights reserved.</div>
+            </div>
+          </footer>
+        );
+
+      // These approved CMS slots are intentionally reserved until their own
+      // trusted content/data modules are implemented. They are not faked with
+      // duplicate marketplace content.
+      case "best_sellers":
+      case "new_arrivals":
+      case "blog_highlights":
+        return null;
+
+      default:
+        return null;
+    }
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen bg-[var(--background)]">
@@ -446,57 +792,8 @@ export default function HomePage() {
     <main className="min-h-screen bg-[var(--background)] pb-24 text-[var(--text-primary)] md:pb-0">
       <Header />
 
-      <section className="relative overflow-hidden bg-[var(--color-espresso)] text-[var(--color-ivory)]">
-        <div className="absolute inset-0 opacity-[0.08]">
-          <div className="absolute left-[8%] top-14 h-28 w-28 rounded-full border border-[var(--color-copper)]" />
-          <div className="absolute bottom-14 right-[8%] h-20 w-20 rotate-45 border border-[var(--color-copper)]" />
-          <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[var(--color-copper)]" />
-        </div>
-
-        <div className="relative z-10 mx-auto grid max-w-[var(--container-max)] gap-12 px-5 py-16 md:grid-cols-[1.1fr_0.9fr] md:items-center md:px-6 md:py-24 lg:py-28">
-          <div className="max-w-3xl">
-            <p className="section-eyebrow">Heritage · Craft · Human</p>
-            <h1 className="mt-5 max-w-3xl font-[var(--font-display)] text-5xl font-normal leading-[1.02] md:text-6xl lg:text-7xl">
-              Discover the hands
-              <br className="hidden sm:block" /> behind the heritage.
-            </h1>
-            <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--color-ivory)]/70 md:text-lg">
-              Explore authentic handmade work, meet the artisans who preserve traditional knowledge, and discover the places and stories behind every piece.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/explore" className="btn-primary">
-                Discover IRTH <span aria-hidden="true">→</span>
-              </Link>
-              <Link href="/crafts" className="btn-secondary-inverse">
-                Shop crafts
-              </Link>
-            </div>
-          </div>
-
-          <div className="relative mx-auto aspect-[4/5] w-full max-w-[420px]">
-            <div className="absolute inset-0 rotate-3 rounded-[var(--radius-xl)] bg-[var(--color-copper)]/20" />
-            <div className="absolute inset-5 -rotate-2 overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-ivory)]/15 bg-[var(--color-olive)]">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative h-48 w-36 rounded-[42%_42%_36%_36%] bg-[var(--color-ivory)]/85 shadow-[var(--shadow-elevated)]">
-                  <div className="absolute left-1/2 top-[-18px] h-14 w-16 -translate-x-1/2 rounded-full bg-[var(--color-ivory)]/85" />
-                </div>
-              </div>
-              <div className="absolute bottom-6 left-6 right-6 rounded-[var(--radius-md)] bg-[var(--color-espresso)]/85 p-4 backdrop-blur-sm">
-                <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-copper)]">Made by hand</p>
-                <p className="mt-1 font-[var(--font-display)] text-xl text-[var(--color-ivory)]">
-                  Objects shaped by place, memory, and craft.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section className="mx-auto max-w-[var(--container-max)] px-5 pt-8 md:px-6 md:pt-10">
-        <Link
-          href="/search"
-          className="group flex items-center gap-4 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] px-5 py-4 shadow-[var(--shadow-soft)] transition-all hover:border-[var(--color-copper)] hover:shadow-[var(--shadow-card)]"
-        >
+        <Link href="/search" className="group flex items-center gap-4 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] px-5 py-4 shadow-[var(--shadow-soft)] transition-all hover:border-[var(--color-copper)] hover:shadow-[var(--shadow-card)]">
           <span className="text-xl text-[var(--color-copper)]">🔎</span>
           <div className="flex-1">
             <p className="text-sm font-medium text-[var(--color-espresso)]">Search IRTH</p>
@@ -504,221 +801,15 @@ export default function HomePage() {
           </div>
           <span className="text-[var(--color-copper)]">→</span>
         </Link>
-
-        {error && (
-          <div className="mt-5 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-            {error}
-          </div>
-        )}
+        {error && <div className="mt-5 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-600">{error}</div>}
       </section>
 
-      {crafts.length > 0 && (
-        <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-          <div className="flex items-end justify-between gap-5">
-            <div>
-              <p className="section-eyebrow">Explore by craft</p>
-              <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Begin with the craft.</h2>
-            </div>
-            <Link href="/crafts" className="text-sm font-medium text-[var(--color-copper)] hover:underline">All crafts →</Link>
-          </div>
-
-          <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
-            {crafts.map((craft) => (
-              <Link
-                key={craft.id}
-                href={`/crafts?category=${encodeURIComponent(craft.filterName)}`}
-                className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
-              >
-                <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">{craft.name}</p>
-                <p className="mt-2 text-xs text-[var(--color-copper)]">Explore →</p>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {countries.length > 0 && (
-        <section className="border-y border-[var(--border-soft)] bg-[var(--surface-muted)]">
-          <div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-            <div>
-              <p className="section-eyebrow">Explore by place</p>
-              <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Heritage shaped by place.</h2>
-            </div>
-
-            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {countries.map((country) => (
-                <Link
-                  key={country.id}
-                  href={`/country/${country.slug}`}
-                  className="relative min-h-[230px] overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-espresso)] p-6 text-[var(--color-ivory)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elevated)]"
-                >
-                  {country.heroImage && (
-                    <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{ backgroundImage: `url("${country.heroImage}")` }} />
-                  )}
-                  <div className="relative z-10 flex h-full flex-col justify-end">
-                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-copper)]">Country</p>
-                    <h3 className="mt-2 font-[var(--font-display)] text-3xl">{country.name}</h3>
-                    <p className="mt-1 text-sm text-[var(--color-ivory)]/65">{country.nameEn}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {offers.length > 0 && (
-        <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-          <div className="flex items-end justify-between gap-5">
-            <div>
-              <p className="section-eyebrow">Current offers</p>
-              <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">عروض معتمدة وفعالة.</h2>
-              <p className="mt-3 text-sm text-[var(--text-secondary)]">يظهر هنا العرض الفائز فقط لكل منتج حسب السوق المختار.</p>
-            </div>
-          </div>
-
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {offers.map((offer) => (
-              <Link
-                key={`${offer.promotion_id}-${offer.product_id}`}
-                href={`/product/${offer.product_slug}`}
-                className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium text-[var(--color-espresso)]">
-                    {offer.source_type === "irth" ? "IRTH Offer" : "Artisan Offer"}
-                  </span>
-                  <span className="text-lg font-semibold text-[var(--color-copper)]">
-                    {offer.discount_type === "percentage"
-                      ? `${Number(offer.discount_value)}% OFF`
-                      : `${formatMoney(offer.promotion_discount, offer.currency_code)} OFF`}
-                  </span>
-                </div>
-
-                <h3 className="mt-5 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
-                  {offer.product_name_ar || offer.product_name_en}
-                </h3>
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                  {offer.artisan_name_ar || offer.artisan_name_en} · {offer.country_name_ar || offer.country_name_en}
-                </p>
-                <p className="mt-3 text-sm text-[var(--text-muted)]">
-                  السعر الأصلي: {formatMoney(offer.original_line_total, offer.currency_code)}
-                </p>
-                <p className="mt-1 text-sm font-medium text-[var(--color-copper)]">
-                  بعد العرض: {formatMoney(offer.final_line_total, offer.currency_code)}
-                </p>
-                <p className="mt-4 text-xs text-[var(--text-muted)]">
-                  حتى {new Date(offer.end_at).toLocaleString("ar-EG")}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {selectedProducts.length > 0 && (
-        <section className="border-t border-[var(--border-soft)]">
-          <div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-            <div className="flex items-end justify-between gap-5">
-              <div>
-                <p className="section-eyebrow">From the marketplace</p>
-                <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Stories you can take home.</h2>
-              </div>
-              <Link href="/crafts" className="text-sm font-medium text-[var(--color-copper)] hover:underline">View all →</Link>
-            </div>
-
-            <div className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
-              {selectedProducts.map((product) => (
-                <ProductCard key={product.slug} product={product} />
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {featuredArtisan && (
-        <section className="overflow-hidden bg-[var(--color-olive)] text-[var(--color-ivory)]">
-          <div className="mx-auto grid max-w-[var(--container-max)] md:grid-cols-2">
-            <div className="relative min-h-[340px] overflow-hidden">
-              {featuredArtisan.profileImage ? (
-                <img src={featuredArtisan.profileImage} alt={featuredArtisan.name} className="absolute inset-0 h-full w-full object-cover" />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="flex h-44 w-44 items-center justify-center rounded-full bg-[var(--color-ivory)]/90 p-6 text-center">
-                    <span className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{featuredArtisan.name}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center px-6 py-14 md:px-12">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-antique-gold)]">Meet the maker</p>
-                <h2 className="mt-4 font-[var(--font-display)] text-4xl md:text-5xl">{featuredArtisan.name}</h2>
-                <p className="mt-2 text-sm text-[var(--color-ivory)]/65">{featuredArtisan.mainCraft} · {featuredArtisan.country}</p>
-                <p className="mt-6 text-base leading-8 text-[var(--color-ivory)]/80">{featuredArtisan.bio}</p>
-                {featuredArtisan.story && <p className="mt-5 line-clamp-4 text-sm leading-7 text-[var(--color-ivory)]/65">{featuredArtisan.story}</p>}
-                <Link href={`/artisan/${featuredArtisan.slug}`} className="btn-light mt-8">Meet the artisan →</Link>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {artisans.length > 1 && (
-        <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-          <p className="section-eyebrow">Makers of IRTH</p>
-          <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Meet more artisans.</h2>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {artisans.map((artisan) => (
-              <Link key={artisan.id} href={`/artisan/${artisan.slug}`} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
-                <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">{artisan.country} · {artisan.region}</p>
-                <h3 className="mt-2 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{artisan.name}</h3>
-                <p className="mt-1 text-sm font-medium text-[var(--color-copper)]">{artisan.mainCraft}</p>
-                {artisan.bio && <p className="mt-4 line-clamp-3 text-sm leading-6 text-[var(--text-secondary)]">{artisan.bio}</p>}
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="border-y border-[var(--border-soft)] bg-[var(--surface-muted)]">
-        <div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-          <p className="section-eyebrow">Heritage stories</p>
-          <h2 className="mt-3 font-[var(--font-display)] text-4xl text-[var(--color-espresso)] md:text-5xl">More than an object.</h2>
-          <p className="mt-5 max-w-2xl text-base leading-8 text-[var(--text-secondary)]">Explore the people, materials, places, and traditions behind handmade work.</p>
-          <Link href="/stories" className="btn-secondary mt-7">Discover the stories →</Link>
-        </div>
-      </section>
-
-      {recentlyViewed.length > 0 && (
-        <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-          <p className="section-eyebrow">Continue exploring</p>
-          <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Recently viewed.</h2>
-          <div className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-4">
-            {recentlyViewed.map((product) => (
-              <ProductCard key={product.slug} product={product} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-        <div className="rounded-[var(--radius-xl)] bg-[var(--color-espresso)] px-6 py-12 text-center text-[var(--color-ivory)] md:py-16">
-          <p className="section-eyebrow">Explore IRTH</p>
-          <h2 className="mt-4 font-[var(--font-display)] text-4xl md:text-5xl">Begin anywhere.</h2>
-          <p className="mx-auto mt-4 max-w-xl text-base text-[var(--color-ivory)]/70">Start with a craft, a country, an artisan, or a story.</p>
-          <Link href="/explore" className="btn-primary mt-7">Discover IRTH →</Link>
-        </div>
-      </section>
-
-      <footer className="border-t border-[var(--color-ivory)]/10 bg-[var(--color-espresso)] text-[var(--color-ivory)]">
-        <div className="mx-auto max-w-[var(--container-max)] px-5 py-12 md:px-6">
-          <p className="font-[var(--font-display)] text-3xl tracking-[0.08em]">IRTH</p>
-          <p className="mt-4 max-w-xl text-sm leading-7 text-[var(--color-ivory)]/60">A marketplace for authentic handmade crafts, the artisans who make them, and the heritage they carry.</p>
-          <div className="mt-10 border-t border-[var(--color-ivory)]/10 pt-6 text-xs text-[var(--color-ivory)]/40">© 2026 IRTH. All rights reserved.</div>
-        </div>
-      </footer>
+      {homepageSections
+        .filter((section) => section.visible)
+        .sort((a, b) => a.order - b.order)
+        .map((section) => (
+          <Fragment key={section.key}>{renderHomepageSection(section.key)}</Fragment>
+        ))}
 
       <nav className="bottom-nav md:hidden">
         <Link href="/" className="active"><span>🏠</span> Home</Link>
