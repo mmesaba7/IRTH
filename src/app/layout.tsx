@@ -19,23 +19,45 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // هنا هنخزن اللغة المختارة
-  const [locale, setLocale] = useState<"ar" | "en">("ar"); // العربية هي الافتراضي
+  const [locale, setLocale] = useState<"ar" | "en">("ar");
   const [direction, setDirection] = useState<"rtl" | "ltr">("rtl");
 
   useEffect(() => {
-    // نجيب اللغة المحفوظة في المتصفح (لو فيه)
     const savedLocale = localStorage.getItem("irth-locale") as "ar" | "en" | null;
     if (savedLocale) {
       setLocale(savedLocale);
       setDirection(savedLocale === "ar" ? "rtl" : "ltr");
     } else {
-      // لو مفيش، نشوف لغة المتصفح
       const browserLang = navigator.language.startsWith("ar") ? "ar" : "en";
       setLocale(browserLang);
       setDirection(browserLang === "ar" ? "rtl" : "ltr");
       localStorage.setItem("irth-locale", browserLang);
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/cms/brand", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        const body = await response.json();
+        const value = body?.assets?.faviconAssetId;
+        return typeof value === "string" ? value : null;
+      })
+      .then((faviconUrl) => {
+        if (cancelled || !faviconUrl) return;
+        let icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+        if (!icon) {
+          icon = document.createElement("link");
+          icon.rel = "icon";
+          document.head.appendChild(icon);
+        }
+        icon.href = faviconUrl;
+      })
+      .catch(() => undefined);
+
+    return () => { cancelled = true; };
   }, []);
 
   return (
