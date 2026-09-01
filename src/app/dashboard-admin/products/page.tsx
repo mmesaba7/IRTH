@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -79,7 +79,7 @@ export default function AdminProductsPage() {
     null
   );
 
-  const loadReviewItems = async () => {
+  const loadReviewItems = useCallback(async () => {
     setLoading(true);
     setError("");
 
@@ -181,7 +181,7 @@ export default function AdminProductsPage() {
 
     setItems(reviewItems);
     setLoading(false);
-  };
+  }, [router]);
 
   const loadProductMedia = async (productId: string) => {
     if (mediaByProductId[productId]) {
@@ -314,8 +314,8 @@ export default function AdminProductsPage() {
   };
 
   useEffect(() => {
-    loadReviewItems();
-  }, []);
+    void loadReviewItems();
+  }, [loadReviewItems]);
 
   const filteredItems = items.filter((item) => {
     if (filter === "all") return true;
