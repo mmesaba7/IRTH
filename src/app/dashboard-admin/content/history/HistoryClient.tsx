@@ -42,7 +42,7 @@ export default function HistoryClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async (documentKey = key) => {
+  const load = useCallback(async (documentKey: string) => {
     setLoading(true);
     setError("");
     try {
@@ -58,7 +58,7 @@ export default function HistoryClient() {
     } finally {
       setLoading(false);
     }
-  }, [key]);
+  }, []);
 
   useEffect(() => { void load(""); }, [load]);
 
@@ -83,11 +83,11 @@ export default function HistoryClient() {
           <input
             value={key}
             onChange={(event) => setKey(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") void load(); }}
+            onKeyDown={(event) => { if (event.key === "Enter") void load(key); }}
             placeholder="blog:slug, page:slug, country:slug..."
             className="min-w-0 flex-1 rounded-lg border border-[var(--border-soft)] bg-transparent px-3 py-2"
           />
-          <button type="button" className="btn-primary" disabled={loading} onClick={() => void load()}>
+          <button type="button" className="btn-primary" disabled={loading} onClick={() => void load(key)}>
             {loading ? "Loading…" : "Load history"}
           </button>
         </div>
