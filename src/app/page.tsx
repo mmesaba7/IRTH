@@ -4,6 +4,7 @@ import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import Header from "./components/Header";
+import NewArrivalsSection from "./components/NewArrivalsSection";
 import ProductCard from "./components/ProductCard";
 import type { Product } from "./data/products";
 import { publicCountries } from "./data/countries";
@@ -246,16 +247,12 @@ export default function HomePage() {
       })
         .then(async (response) => {
           if (!response.ok) {
-            return { document: null, error: `HTTP ${response.status}` };
+            return { data: null, error: new Error(`CMS request failed: ${response.status}`) };
           }
-
-          const body = (await response.json()) as { document?: unknown };
-          return { document: body.document ?? null, error: null as string | null };
+          const payload = (await response.json()) as { document?: unknown };
+          return { data: payload.document ?? null, error: null };
         })
-        .catch((cmsError) => ({
-          document: null,
-          error: cmsError instanceof Error ? cmsError.message : "Unknown CMS error",
-        }));
+        .catch((error: unknown) => ({ data: null, error }));
 
       const [
         countriesResult,
@@ -319,7 +316,7 @@ export default function HomePage() {
       if (cmsResult.error) {
         console.error("Could not load published homepage CMS; using safe defaults:", cmsResult.error);
       } else {
-        const publishedSections = parsePublishedHomepageSections(cmsResult.document);
+        const publishedSections = parsePublishedHomepageSections(cmsResult.data);
         if (publishedSections) {
           setHomepageSections(publishedSections);
         } else {
@@ -640,6 +637,9 @@ export default function HomePage() {
           </section>
         );
 
+      case "new_arrivals":
+        return <NewArrivalsSection />;
+
       case "featured_artisans":
         if (!featuredArtisan && artisans.length <= 1) return null;
         return (
@@ -779,7 +779,6 @@ export default function HomePage() {
         );
 
       case "best_sellers":
-      case "new_arrivals":
       case "blog_highlights":
         return null;
 
