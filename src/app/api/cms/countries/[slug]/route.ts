@@ -19,20 +19,20 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ sl
       .eq("is_active", true)
       .maybeSingle();
     if (countryError) return jsonNoStore({ error: "Unable to load country." }, 500);
-    if (!country) return jsonNoStore({ document: null, media: {} });
+    if (!country) return jsonNoStore({ document: null, media: {}, videoUrl: null });
 
     const { data: document, error } = await admin.rpc("get_published_cms_document", {
       p_document_key: countryContentDocumentKey(slug),
     });
     if (error) return jsonNoStore({ error: "Unable to load Country content." }, 500);
     if (!document || typeof document !== "object" || Array.isArray(document)) {
-      return jsonNoStore({ document: null, media: {} });
+      return jsonNoStore({ document: null, media: {}, videoUrl: null });
     }
 
     const record = document as Record<string, unknown>;
     const payload = parseCountryContentPayload(record.payload);
     if (!payload || payload.countryId !== country.id || payload.slug !== slug) {
-      return jsonNoStore({ document: null, media: {} });
+      return jsonNoStore({ document: null, media: {}, videoUrl: null });
     }
 
     const ids = Array.from(new Set([
@@ -63,7 +63,23 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ sl
       media[assetId] = signedError ? null : signed?.signedUrl ?? null;
     }
 
-    return jsonNoStore({ document: { ...record, payload }, media });
+    let videoUrl: string | null = null;
+    if (payload.introVideoAssetId) {
+      const { data: videoAsset, error: videoError } = await admin.rpc("get_cms_video_asset_server", {
+        p_asset_id: payload.introVideoAssetId,
+      });
+      if (!videoError && videoAsset && typeof videoAsset === "object" && !Array.isArray(videoAsset)) {
+        const storagePath = (videoAsset as Record<string, unknown>).storagePath;
+        if (typeof storagePath === "string" && storagePath) {
+          const { data: signedVideo, error: signedVideoError } = await admin.storage
+            .from("cms-videos")
+            .createSignedUrl(storagePath, 60 * 60);
+          if (!signedVideoError) videoUrl = signedVideo?.signedUrl ?? null;
+        }
+      }
+    }
+
+    return jsonNoStore({ document: { ...record, payload }, media, videoUrl });
   } catch {
     return jsonNoStore({ error: "Country content service is unavailable." }, 503);
   }
