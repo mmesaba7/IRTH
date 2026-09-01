@@ -3,12 +3,21 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import * as tus from "tus-js-client";
 import { createClient } from "@/lib/supabase/client";
 
 type Asset = {
   id: string;
   mimeType: string;
   fileSizeBytes: number;
+  previewUrl: string | null;
+};
+
+type VideoAsset = {
+  id: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  durationSeconds: number;
   previewUrl: string | null;
 };
 
@@ -30,6 +39,7 @@ type CountryForm = {
   summaryEn: string;
   coverImageAssetId: string | null;
   culturalImageAssetIds: string[];
+  introVideoAssetId: string | null;
   seo: {
     titleAr: string;
     titleEn: string;
@@ -50,6 +60,7 @@ function makeEmpty(country: Country): CountryForm {
     summaryEn: "",
     coverImageAssetId: null,
     culturalImageAssetIds: [],
+    introVideoAssetId: null,
     seo: {
       titleAr: country.name_ar,
       titleEn: country.name_en,
@@ -60,20 +71,42 @@ function makeEmpty(country: Country): CountryForm {
   };
 }
 
+function readVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      const duration = video.duration;
+      URL.revokeObjectURL(url);
+      if (!Number.isFinite(duration) || duration <= 0) reject(new Error("Unable to read video duration."));
+      else resolve(duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Unable to read video metadata."));
+    };
+    video.src = url;
+  });
+}
+
 export default function CountryContentPage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug ?? "";
   const [country, setCountry] = useState<Country | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [videos, setVideos] = useState<VideoAsset[]>([]);
   const [form, setForm] = useState<CountryForm | null>(null);
   const [draftRevision, setDraftRevision] = useState<number | null>(null);
   const [publishedRevision, setPublishedRevision] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const assetMap = useMemo(() => new Map(assets.map((asset) => [asset.id, asset])), [assets]);
+  const videoMap = useMemo(() => new Map(videos.map((video) => [video.id, video])), [videos]);
 
   const load = useCallback(async () => {
     if (!slug) return;
@@ -87,10 +120,17 @@ export default function CountryContentPage() {
       const nextCountry = body.country as Country;
       setCountry(nextCountry);
       setAssets(Array.isArray(body.assets) ? body.assets : []);
+      setVideos(Array.isArray(body.videos) ? body.videos : []);
 
       const draftPayload = body.document?.draftPayload;
       if (draftPayload && typeof draftPayload === "object") {
-        setForm(draftPayload as CountryForm);
+        const draft = draftPayload as Partial<CountryForm>;
+        setForm({
+          ...makeEmpty(nextCountry),
+          ...draft,
+          introVideoAssetId: typeof draft.introVideoAssetId === "string" ? draft.introVideoAssetId : null,
+          seo: { ...makeEmpty(nextCountry).seo, ...(draft.seo ?? {}) },
+        });
       } else {
         setForm(makeEmpty(nextCountry));
       }
@@ -105,11 +145,12 @@ export default function CountryContentPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function refreshAssetsOnly() {
+  async function refreshMediaOnly() {
     const response = await fetch(`/api/admin/cms/countries/${encodeURIComponent(slug)}`, { cache: "no-store" });
     const body = await response.json();
     if (!response.ok) throw new Error(body?.error || "Unable to refresh Country media.");
     setAssets(Array.isArray(body.assets) ? body.assets : []);
+    setVideos(Array.isArray(body.videos) ? body.videos : []);
   }
 
   async function upload(file: File) {
@@ -138,11 +179,74 @@ export default function CountryContentPage() {
       const finalized = await finalizeResponse.json();
       if (!finalizeResponse.ok) throw new Error(finalized?.error || "Unable to finalize upload.");
 
-      await refreshAssetsOnly();
+      await refreshMediaOnly();
       setMessage("New image uploaded from your device and verified. Your unsaved Country text was preserved; the image is now available below.");
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
     } finally { setWorking(false); }
+  }
+
+  async function uploadVideo(file: File) {
+    if (working || !form) return;
+    setWorking(true); setVideoProgress(0); setMessage(""); setError("");
+    try {
+      if (file.type !== "video/mp4") throw new Error("Country introduction video must be MP4.");
+      if (file.size > 250 * 1024 * 1024) throw new Error("Country introduction video must be 250 MB or smaller.");
+
+      const localDuration = await readVideoDuration(file);
+      if (localDuration > 180.25) throw new Error("Country introduction video must be 3 minutes or shorter.");
+
+      const intentResponse = await fetch("/api/admin/cms/video/upload-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mimeType: file.type, fileSize: file.size }),
+      });
+      const intent = await intentResponse.json();
+      if (!intentResponse.ok) throw new Error(intent?.error || "Unable to prepare video upload.");
+
+      const supabase = createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Authentication session is required for video upload.");
+
+      await new Promise<void>((resolve, reject) => {
+        const uploader = new tus.Upload(file, {
+          endpoint: intent.resumableEndpoint,
+          headers: { authorization: `Bearer ${accessToken}` },
+          uploadDataDuringCreation: true,
+          removeFingerprintOnSuccess: true,
+          chunkSize: 6 * 1024 * 1024,
+          retryDelays: [0, 1000, 3000, 5000],
+          metadata: {
+            bucketName: intent.bucketName,
+            objectName: intent.storagePath,
+            contentType: "video/mp4",
+            cacheControl: "3600",
+          },
+          onProgress: (uploaded, total) => setVideoProgress(total > 0 ? Math.round((uploaded / total) * 100) : 0),
+          onError: reject,
+          onSuccess: () => resolve(),
+        });
+        uploader.start();
+      });
+
+      const finalizeResponse = await fetch("/api/admin/cms/video/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assetId: intent.assetId }),
+      });
+      const finalized = await finalizeResponse.json();
+      if (!finalizeResponse.ok) throw new Error(finalized?.error || "Unable to verify video.");
+
+      await refreshMediaOnly();
+      setForm((current) => current ? { ...current, introVideoAssetId: intent.assetId } : current);
+      setMessage("Country introduction video uploaded, verified, and selected. Save Draft, then Publish when ready.");
+    } catch (videoError) {
+      setError(videoError instanceof Error ? videoError.message : "Video upload failed.");
+    } finally {
+      setVideoProgress(null);
+      setWorking(false);
+    }
   }
 
   async function saveDraft() {
@@ -194,6 +298,8 @@ export default function CountryContentPage() {
     return <main className="min-h-screen bg-[var(--background)]"><div className="mx-auto max-w-6xl px-6 py-16 text-sm text-[var(--text-secondary)]">Loading Country CMS…</div></main>;
   }
 
+  const selectedVideo = form.introVideoAssetId ? videoMap.get(form.introVideoAssetId) : null;
+
   return (
     <main className="min-h-screen bg-[var(--background)] pb-24 text-[var(--text-primary)]">
       <section className="mx-auto max-w-6xl px-5 py-10 md:px-6 md:py-16">
@@ -221,7 +327,25 @@ export default function CountryContentPage() {
         </section>
 
         <section className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 md:p-7">
-          <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">Media</h2>
+          <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">Country introduction video</h2>
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">One optional MP4 video · maximum 3 minutes · maximum 250 MB · private resumable upload. It stays private until the Country Draft is published.</p>
+          <label className="mt-5 block rounded-[var(--radius-md)] border border-dashed border-[var(--border-soft)] bg-[var(--surface-muted)] p-5 text-sm">
+            <span className="font-medium text-[var(--color-espresso)]">Upload introduction video from your device</span>
+            <input type="file" accept="video/mp4" disabled={working} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadVideo(file); event.currentTarget.value = ""; }} className="mt-3 block w-full text-sm" />
+            {videoProgress !== null && <p className="mt-3 text-xs text-[var(--color-copper)]">Uploading… {videoProgress}%</p>}
+          </label>
+
+          <label className="mt-5 block text-sm">Selected introduction video
+            <select value={form.introVideoAssetId ?? ""} onChange={(e) => setForm({ ...form, introVideoAssetId: e.target.value || null })} className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3">
+              <option value="">None</option>
+              {videos.map((video) => <option key={video.id} value={video.id}>MP4 · {Math.round(video.durationSeconds)}s · {(video.fileSizeBytes / 1024 / 1024).toFixed(1)} MB</option>)}
+            </select>
+          </label>
+          {selectedVideo?.previewUrl && <video src={selectedVideo.previewUrl} controls preload="metadata" className="mt-5 w-full max-w-3xl rounded-[var(--radius-lg)] bg-black" />}
+        </section>
+
+        <section className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 md:p-7">
+          <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">Images</h2>
           <p className="mt-2 text-sm text-[var(--text-secondary)]">Upload a new image directly from your device, or reuse an existing CMS image. JPEG / PNG / WebP · 5 MB per image. The editorial maximum number of cultural images has not been fixed yet.</p>
           <label className="mt-5 block rounded-[var(--radius-md)] border border-dashed border-[var(--border-soft)] bg-[var(--surface-muted)] p-5 text-sm">
             <span className="font-medium text-[var(--color-espresso)]">Upload new image from your device</span>
