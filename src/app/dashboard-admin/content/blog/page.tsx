@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 type BlogPayload = {
   slug: string;
@@ -11,13 +12,14 @@ type BlogPayload = {
   excerptEn: string;
   bodyAr: string;
   bodyEn: string;
-  coverImagePath: string | null;
+  coverImageAssetId: string | null;
   seo?: {
     titleAr?: string;
     titleEn?: string;
     metaDescriptionAr?: string;
     metaDescriptionEn?: string;
     canonicalUrl?: string | null;
+    ogImageAssetId?: string | null;
   };
 };
 
@@ -25,7 +27,7 @@ type BlogDocument = {
   key: string;
   draftRevision: number;
   publishedRevision: number | null;
-  draftPayload: BlogPayload;
+  draftPayload: BlogPayload & { coverImagePath?: string | null };
   publishedAt: string | null;
 };
 
@@ -37,7 +39,7 @@ const EMPTY: BlogPayload = {
   excerptEn: "",
   bodyAr: "",
   bodyEn: "",
-  coverImagePath: null,
+  coverImageAssetId: null,
   seo: {},
 };
 
@@ -45,6 +47,7 @@ export default function AdminBlogPage() {
   const [posts, setPosts] = useState<BlogDocument[]>([]);
   const [form, setForm] = useState<BlogPayload>(EMPTY);
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -77,6 +80,7 @@ export default function AdminBlogPage() {
   function startNew() {
     setEditingKey(null);
     setForm(EMPTY);
+    setCoverPreviewUrl(null);
     setMessage("");
     setError("");
   }
@@ -86,11 +90,54 @@ export default function AdminBlogPage() {
     setForm({
       ...EMPTY,
       ...post.draftPayload,
+      coverImageAssetId:
+        typeof post.draftPayload.coverImageAssetId === "string"
+          ? post.draftPayload.coverImageAssetId
+          : null,
       seo: { ...post.draftPayload.seo },
     });
+    setCoverPreviewUrl(null);
     setMessage("");
     setError("");
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function uploadCover(file: File) {
+    if (saving) return;
+    setSaving(true);
+    setMessage("");
+    setError("");
+    try {
+      const intentResponse = await fetch("/api/admin/cms/media/upload-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mimeType: file.type, fileSize: file.size }),
+      });
+      const intent = await intentResponse.json();
+      if (!intentResponse.ok) throw new Error(intent?.error || "Unable to prepare cover upload.");
+
+      const supabase = createClient();
+      const { error: uploadError } = await supabase.storage
+        .from("cms-media")
+        .uploadToSignedUrl(intent.storagePath, intent.token, file, { contentType: file.type });
+      if (uploadError) throw new Error(uploadError.message || "Cover upload failed.");
+
+      const finalizeResponse = await fetch("/api/admin/cms/media/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assetId: intent.assetId }),
+      });
+      const finalized = await finalizeResponse.json();
+      if (!finalizeResponse.ok) throw new Error(finalized?.error || "Unable to verify cover image.");
+
+      setForm((current) => ({ ...current, coverImageAssetId: intent.assetId }));
+      setCoverPreviewUrl(typeof finalized.previewUrl === "string" ? finalized.previewUrl : null);
+      setMessage("Cover image uploaded and verified. Save Draft to attach it to this article.");
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Cover upload failed.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function saveDraft() {
@@ -159,7 +206,7 @@ export default function AdminBlogPage() {
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">Content Manager</p>
             <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">Blog</h1>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">Bilingual articles with Draft → Publish workflow and CMS audit history.</p>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">Bilingual articles with controlled CMS media and Draft → Publish workflow.</p>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={startNew} className="btn-secondary">New article</button>
@@ -177,6 +224,29 @@ export default function AdminBlogPage() {
               <h2 className="mt-2 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">Article content</h2>
             </div>
             {editing && <span className="text-xs text-[var(--text-muted)]">Draft r{editing.draftRevision} · Published {editing.publishedRevision ?? "—"}</span>}
+          </div>
+
+          <div className="mt-6 rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-5">
+            <label className="text-sm font-medium text-[var(--color-espresso)]">Cover image</label>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">JPEG / PNG / WebP · max 5 MB · private until the article is published.</p>
+            {coverPreviewUrl && <img src={coverPreviewUrl} alt="Blog cover preview" className="mt-4 aspect-[16/9] w-full max-w-lg rounded-[var(--radius-md)] object-cover" />}
+            {form.coverImageAssetId && !coverPreviewUrl && <p className="mt-3 text-xs text-[var(--text-muted)]">A verified cover asset is already attached to this draft.</p>}
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={saving}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void uploadCover(file);
+                  event.currentTarget.value = "";
+                }}
+                className="text-sm"
+              />
+              {form.coverImageAssetId && (
+                <button type="button" onClick={() => { field("coverImageAssetId", null); setCoverPreviewUrl(null); }} className="text-sm text-red-700">Remove cover</button>
+              )}
+            </div>
           </div>
 
           <div className="mt-6 grid gap-5 md:grid-cols-2">
@@ -219,7 +289,6 @@ export default function AdminBlogPage() {
             <button type="button" disabled={saving} onClick={saveDraft} className="btn-secondary">{saving ? "Saving..." : "Save Draft"}</button>
             <button type="button" disabled={saving || !editingKey} onClick={publish} className="btn-primary">Publish</button>
           </div>
-          <p className="mt-3 text-xs text-[var(--text-muted)]">Cover/OG image upload will use the controlled CMS Storage step; no arbitrary public image URLs are accepted here.</p>
         </section>
 
         <section className="mt-8">
