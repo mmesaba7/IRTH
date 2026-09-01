@@ -8,6 +8,7 @@ export type CountryContentPayload = {
   summaryEn: string;
   coverImageAssetId: string | null;
   culturalImageAssetIds: string[];
+  introVideoAssetId: string | null;
   seo: {
     titleAr: string;
     titleEn: string;
@@ -54,8 +55,19 @@ export function parseCountryContentPayload(value: unknown): CountryContentPayloa
   const summaryAr = requiredText(record.summaryAr, 4000);
   const summaryEn = requiredText(record.summaryEn, 4000);
   const coverImageAssetId = optionalAssetId(record.coverImageAssetId);
+  const introVideoAssetId = optionalAssetId(record.introVideoAssetId);
 
-  if (!countryId || !slug || !SLUG_RE.test(slug) || !nameAr || !nameEn || !summaryAr || !summaryEn || coverImageAssetId === undefined) {
+  if (
+    !countryId ||
+    !slug ||
+    !SLUG_RE.test(slug) ||
+    !nameAr ||
+    !nameEn ||
+    !summaryAr ||
+    !summaryEn ||
+    coverImageAssetId === undefined ||
+    introVideoAssetId === undefined
+  ) {
     return null;
   }
 
@@ -98,6 +110,7 @@ export function parseCountryContentPayload(value: unknown): CountryContentPayloa
     summaryEn,
     coverImageAssetId,
     culturalImageAssetIds,
+    introVideoAssetId,
     seo: {
       titleAr: optionalSeoTitleAr ?? nameAr,
       titleEn: optionalSeoTitleEn ?? nameEn,
