@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import Header from "../components/Header";
 
@@ -112,6 +113,7 @@ function inputClass(hasError = false) {
 }
 
 export default function CheckoutPage() {
+  const router = useRouter();
   const cartSnapshot = useSyncExternalStore(subscribeToCart, getCartSnapshot, getServerCartSnapshot);
   const cartItems = useMemo(() => parseCart(cartSnapshot), [cartSnapshot]);
   const quoteItems = useMemo(() => groupCart(cartItems), [cartItems]);
@@ -237,7 +239,7 @@ export default function CheckoutPage() {
       const guestFragment = payload.order.guestTrackingToken
         ? `#access=${encodeURIComponent(payload.order.guestTrackingToken)}`
         : "";
-      window.location.assign(`/order-success?${params.toString()}${guestFragment}`);
+      router.push(`/order-success?${params.toString()}${guestFragment}`);
     } catch {
       setOrderError("Unable to create order. Check your connection and try again.");
     } finally {
@@ -264,7 +266,7 @@ export default function CheckoutPage() {
             <form id="checkout-customer-form" onSubmit={placeOrder} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-7">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div><p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-olive)]">Contact & delivery</p><h2 className="mt-3 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">Where should we deliver?</h2></div>
-                {!contextLoading && checkoutContext && !checkoutContext.authenticated && <p className="text-sm text-[var(--text-secondary)]">Guest checkout · <button type="button" onClick={() => window.location.assign("/account/login?returnTo=%2Fcheckout")} className="cursor-pointer bg-transparent p-0 font-medium text-[var(--color-copper)] hover:underline">Sign in</button></p>}
+                {!contextLoading && checkoutContext && !checkoutContext.authenticated && <p className="text-sm text-[var(--text-secondary)]">Guest checkout · <button type="button" onClick={() => router.push("/account/login?returnTo=%2Fcheckout")} className="cursor-pointer bg-transparent p-0 font-medium text-[var(--color-copper)] hover:underline">Sign in</button></p>}
                 {!contextLoading && checkoutContext?.authenticated && <p className="text-sm text-[var(--color-olive)]">Signed in</p>}
               </div>
               {contextError && <p className="mt-5 text-sm text-[var(--color-terracotta)]">{contextError}</p>}
