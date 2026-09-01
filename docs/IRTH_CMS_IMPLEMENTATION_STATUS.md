@@ -152,14 +152,14 @@ No AI SEO, scoring, keyword automation or advanced Redirect Manager was added.
 
 Browser verification passed.
 
-## Content History / Audit — IMPLEMENTED, BROWSER VERIFICATION PENDING
+### Content History / Audit — FUNCTIONALLY CLOSED
 
-The underlying history foundation already existed in:
+The underlying history foundation uses:
 
 - `private.cms_document_versions`
 - `private.cms_audit_events`
 
-New read-only Super Admin history surface:
+Read-only Super Admin history surface:
 
 - Admin page: `/dashboard-admin/content/history`
 - API: `/api/admin/cms/history`
@@ -176,13 +176,16 @@ The RPC:
 
 DB verification passed on 2026-09-01 against `campaign:main`: 7 audit events and 7 stored versions were returned.
 
-Browser verification is the only remaining closure step for this module.
+Browser verification passed on 2026-09-01:
 
-## CMS Blueprint status
+- History page loaded real audit events and saved versions.
+- document-key filtering worked.
+- All CMS filtering worked.
+- logged-out access did not expose the protected history API.
 
-Approved CMS modules from the project blueprint are now implemented or browser-verified, with Content History/Audit awaiting its final browser test.
+## CMS Blueprint status — FUNCTIONALLY CLOSED
 
-After History/Audit passes browser verification, the CMS / Content Manager phase can be treated as functionally closed and the project should move to the final MVP Testing / Production Readiness / Polish stage rather than adding unapproved CMS features.
+The approved constrained MVP CMS / Content Manager modules are implemented and browser verified. The project should now move to final MVP Testing / Production Readiness / Polish rather than adding unapproved CMS features.
 
 ## Known security / production-readiness debt
 
