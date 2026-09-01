@@ -19,11 +19,13 @@ type CountryCmsPayload = {
   summaryEn: string;
   coverImageAssetId: string | null;
   culturalImageAssetIds: string[];
+  introVideoAssetId: string | null;
 };
 
 type CountryCms = {
   payload: CountryCmsPayload;
   media: Record<string, string | null>;
+  videoUrl: string | null;
 };
 
 export default function CountryPage() {
@@ -61,6 +63,7 @@ export default function CountryPage() {
             setCountryCms({
               payload: document.payload as CountryCmsPayload,
               media: cmsBody?.media && typeof cmsBody.media === "object" ? cmsBody.media : {},
+              videoUrl: typeof cmsBody?.videoUrl === "string" ? cmsBody.videoUrl : null,
             });
           } else {
             setCountryCms(null);
@@ -130,6 +133,7 @@ export default function CountryPage() {
         .map((id) => countryCms.media[id])
         .filter((url): url is string => Boolean(url))
     : [];
+  const introVideoUrl = countryCms?.videoUrl ?? null;
   const countryFilter = encodeURIComponent(country.nameEn);
 
   return (
@@ -155,7 +159,7 @@ export default function CountryPage() {
             </p>
           )}
 
-          {country.culturalVideo && (
+          {!introVideoUrl && country.culturalVideo && (
             <a
               href={country.culturalVideo}
               target="_blank"
@@ -173,6 +177,17 @@ export default function CountryPage() {
           </div>
         </div>
       </section>
+
+      {introVideoUrl && (
+        <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+          <div className="max-w-3xl">
+            <p className="section-eyebrow">Introduction film</p>
+            <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">اكتشف {displayNameAr}</h2>
+            <p className="mt-4 text-base leading-8 text-[var(--text-secondary)]">فيديو تعريفي قصير عن البلد، ثقافتها، وحرفها.</p>
+          </div>
+          <video src={introVideoUrl} controls preload="metadata" playsInline className="mt-8 w-full max-w-5xl rounded-[var(--radius-xl)] bg-black shadow-[var(--shadow-card)]" />
+        </section>
+      )}
 
       {culturalImages.length > 0 && (
         <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
