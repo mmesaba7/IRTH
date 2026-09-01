@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import Header from "../components/Header";
 import ProductCard from "../components/ProductCard";
 import { products } from "../data/products";
@@ -25,12 +26,12 @@ export default function ArtisanPage() {
       {/* Hero */}
       <section className="border-b border-[var(--border-soft)]">
         <div className="mx-auto max-w-[var(--container-max)] px-6 py-12 md:py-20">
-          <a
+          <Link
             href="/"
             className="text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--color-copper)]"
           >
             ← Back to crafts
-          </a>
+          </Link>
 
           <div className="mt-10 grid gap-12 lg:grid-cols-[320px_1fr] lg:items-center">
             {/* Artisan image */}
@@ -213,4 +214,3 @@ export default function ArtisanPage() {
     </main>
   );
 }
-
