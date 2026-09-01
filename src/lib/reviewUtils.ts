@@ -1,4 +1,4 @@
-import { Review, Rating, ReviewSummary } from "@/types/review";
+import { Review, ReviewSummary } from "@/types/review";
 import { Order } from "@/types/order";
 
 export const saveReview = (review: Review): void => {
