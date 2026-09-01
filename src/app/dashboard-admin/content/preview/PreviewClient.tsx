@@ -55,7 +55,8 @@ function renderPreview(document: PreviewDocument, media: Record<string, string |
   }
 
   if (document.contentType === "contact") {
-    return <section className="grid gap-8 md:grid-cols-2"><div dir="rtl"><h2 className="font-[var(--font-display)] text-4xl">{str(p, "titleAr")}</h2><p className="mt-4 text-[var(--text-secondary)]">{str(p, "introAr")}</p><div className="mt-6 space-y-2 text-sm"><p>{str(p, "email")}</p><p>{str(p, "phone")}</p><p>{str(p, "whatsapp")}</p><p>{str(p, "addressAr")}</p></div></div><div><h2 className="font-[var(--font-display)] text-4xl">{str(p, "titleEn")}</h2><p className="mt-4 text-[var(--text-secondary)]">{str(p, "introEn")}</p><div className="mt-6 space-y-2 text-sm"><p>{str(p, "email")}</p><p>{str(p, "phone")}</p><p>{str(p, "whatsapp")}</p><p>{str(p, "addressEn")}</p></div></div></section>;
+    const items = Array.isArray(p.items) ? p.items as Array<Record<string, unknown>> : [];
+    return <section><div className="grid gap-8 md:grid-cols-2"><div dir="rtl"><h2 className="font-[var(--font-display)] text-4xl">{str(p, "titleAr")}</h2><p className="mt-4 text-[var(--text-secondary)]">{str(p, "introAr")}</p></div><div><h2 className="font-[var(--font-display)] text-4xl">{str(p, "titleEn")}</h2><p className="mt-4 text-[var(--text-secondary)]">{str(p, "introEn")}</p></div></div><div className="mt-8 grid gap-4 sm:grid-cols-2">{items.map((item, index) => <div key={str(item, "id") || index} className="rounded-lg border border-[var(--border-soft)] p-4"><p dir="rtl" className="text-sm font-semibold">{str(item, "labelAr")}</p><p className="mt-1 text-sm font-semibold">{str(item, "labelEn")}</p><p className="mt-3 break-words text-[var(--text-secondary)]">{str(item, "value")}</p>{str(item, "url") ? <p className="mt-2 break-all text-xs text-[var(--color-copper)]">{str(item, "url")}</p> : null}</div>)}</div></section>;
   }
 
   if (document.contentType === "footer") {
