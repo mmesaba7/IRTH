@@ -7,7 +7,7 @@ export type BlogPayload = {
   excerptEn: string;
   bodyAr: string;
   bodyEn: string;
-  coverImagePath: string | null;
+  coverImageAssetId: string | null;
   seo: {
     titleAr: string;
     titleEn: string;
@@ -18,11 +18,12 @@ export type BlogPayload = {
     ogTitleEn: string;
     ogDescriptionAr: string;
     ogDescriptionEn: string;
-    ogImagePath: string | null;
+    ogImageAssetId: string | null;
   };
 };
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function cleanRequired(value: unknown, max: number): string | null {
   if (typeof value !== "string") return null;
@@ -40,6 +41,14 @@ function cleanOptional(value: unknown, max: number): string | null | undefined {
   return cleaned;
 }
 
+function cleanAssetId(value: unknown): string | null | undefined {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") return undefined;
+  const cleaned = value.trim();
+  if (!UUID_RE.test(cleaned)) return undefined;
+  return cleaned;
+}
+
 export function parseBlogPayload(value: unknown): BlogPayload | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -51,7 +60,7 @@ export function parseBlogPayload(value: unknown): BlogPayload | null {
   const excerptEn = cleanRequired(record.excerptEn, 500);
   const bodyAr = cleanRequired(record.bodyAr, 20000);
   const bodyEn = cleanRequired(record.bodyEn, 20000);
-  const coverImagePath = cleanOptional(record.coverImagePath, 500);
+  const coverImageAssetId = cleanAssetId(record.coverImageAssetId);
 
   if (
     !slug ||
@@ -62,7 +71,7 @@ export function parseBlogPayload(value: unknown): BlogPayload | null {
     !excerptEn ||
     !bodyAr ||
     !bodyEn ||
-    coverImagePath === undefined
+    coverImageAssetId === undefined
   ) {
     return null;
   }
@@ -81,7 +90,7 @@ export function parseBlogPayload(value: unknown): BlogPayload | null {
   const ogTitleEn = cleanOptional(seoRecord.ogTitleEn, 180);
   const ogDescriptionAr = cleanOptional(seoRecord.ogDescriptionAr, 320);
   const ogDescriptionEn = cleanOptional(seoRecord.ogDescriptionEn, 320);
-  const ogImagePath = cleanOptional(seoRecord.ogImagePath, 500);
+  const ogImageAssetId = cleanAssetId(seoRecord.ogImageAssetId);
 
   if (
     seoTitleAr === undefined ||
@@ -93,7 +102,7 @@ export function parseBlogPayload(value: unknown): BlogPayload | null {
     ogTitleEn === undefined ||
     ogDescriptionAr === undefined ||
     ogDescriptionEn === undefined ||
-    ogImagePath === undefined
+    ogImageAssetId === undefined
   ) {
     return null;
   }
@@ -107,7 +116,7 @@ export function parseBlogPayload(value: unknown): BlogPayload | null {
     excerptEn,
     bodyAr,
     bodyEn,
-    coverImagePath,
+    coverImageAssetId,
     seo: {
       titleAr: seoTitleAr ?? titleAr,
       titleEn: seoTitleEn ?? titleEn,
@@ -118,8 +127,28 @@ export function parseBlogPayload(value: unknown): BlogPayload | null {
       ogTitleEn: ogTitleEn ?? titleEn,
       ogDescriptionAr: ogDescriptionAr ?? excerptAr,
       ogDescriptionEn: ogDescriptionEn ?? excerptEn,
-      ogImagePath,
+      ogImageAssetId,
     },
+  };
+}
+
+export function normalizeStoredBlogPayload(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  return {
+    ...record,
+    coverImageAssetId:
+      typeof record.coverImageAssetId === "string" ? record.coverImageAssetId : null,
+    seo:
+      record.seo && typeof record.seo === "object" && !Array.isArray(record.seo)
+        ? {
+            ...(record.seo as Record<string, unknown>),
+            ogImageAssetId:
+              typeof (record.seo as Record<string, unknown>).ogImageAssetId === "string"
+                ? (record.seo as Record<string, unknown>).ogImageAssetId
+                : null,
+          }
+        : {},
   };
 }
 
