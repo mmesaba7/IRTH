@@ -12,8 +12,8 @@ export default function ArtisanDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-  setLoading(false);
-}, []);
+    setLoading(false);
+  }, []);
 
   if (loading) {
     return (
@@ -55,10 +55,10 @@ export default function ArtisanDashboardPage() {
             <button
               type="button"
               onClick={async () => {
-  await supabase.auth.signOut({ scope: "local" });
-  router.replace("/artisan/login");
-  router.refresh();
-}}
+                await supabase.auth.signOut({ scope: "local" });
+                router.replace("/artisan/login");
+                router.refresh();
+              }}
               className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
             >
               تسجيل خروج
@@ -88,7 +88,7 @@ export default function ArtisanDashboardPage() {
 
         {/* روابط الأقسام */}
         <div className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <a
+          <Link
             href="/artisan/orders"
             className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
           >
@@ -99,9 +99,9 @@ export default function ArtisanDashboardPage() {
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
               شوف الطلبات الجديدة وغير حالتها
             </p>
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/artisan/products"
             className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
           >
@@ -112,9 +112,9 @@ export default function ArtisanDashboardPage() {
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
               شوف منتجاتك، أضف جديدة، أو عدل الموجودة
             </p>
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/artisan/payouts"
             className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
           >
@@ -125,10 +125,10 @@ export default function ArtisanDashboardPage() {
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
               تابع المبيعات والمستحقات المالية
             </p>
-          </a>
+          </Link>
 
           {/* ✅ الرابط الجديد لردود على التقييمات */}
-          <a
+          <Link
             href="/artisan/reviews"
             className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
           >
@@ -139,22 +139,22 @@ export default function ArtisanDashboardPage() {
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
               شوف تقييمات منتجاتك وأضف ردود
             </p>
-          </a>
-          <a
-  href="/artisan/promotions"
-  className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
->
-  <div className="text-3xl">🎯</div>
-  <h3 className="mt-3 font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-    العروض والخصومات
-  </h3>
-  <p className="mt-2 text-sm text-[var(--text-secondary)]">
-    أنشئ عروض على منتجاتك
-  </p>
-</a>
+          </Link>
+
+          <Link
+            href="/artisan/promotions"
+            className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
+          >
+            <div className="text-3xl">🎯</div>
+            <h3 className="mt-3 font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
+              العروض والخصومات
+            </h3>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              أنشئ عروض على منتجاتك
+            </p>
+          </Link>
         </div>
       </section>
     </main>
   );
 }
-
