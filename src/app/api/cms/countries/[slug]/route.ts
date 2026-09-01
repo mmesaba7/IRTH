@@ -46,13 +46,13 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ sl
       const { data: asset, error: assetError } = await admin.rpc("get_cms_media_asset_server", {
         p_asset_id: assetId,
       });
-      if (assetError || !asset || typeof asset !== "object" || (asset as Record<string, unknown>).status !== "ready") {
+      if (assetError || !asset || typeof asset !== "object") {
         media[assetId] = null;
         continue;
       }
 
       const storagePath = (asset as Record<string, unknown>).storagePath;
-      if (typeof storagePath !== "string") {
+      if (typeof storagePath !== "string" || !storagePath) {
         media[assetId] = null;
         continue;
       }
