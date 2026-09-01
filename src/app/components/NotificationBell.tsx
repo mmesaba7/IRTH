@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -30,7 +30,7 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [locale, setLocale] = useState<"ar" | "en">("en");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) {
       setFeed(EMPTY_NOTIFICATION_FEED);
@@ -48,7 +48,7 @@ export default function NotificationBell() {
     }
 
     setFeed(data as NotificationFeed);
-  };
+  }, [supabase]);
 
   useEffect(() => {
     setLocale(getLocale());
@@ -62,7 +62,7 @@ export default function NotificationBell() {
       window.removeEventListener("irth-notifications-updated", refresh);
       window.removeEventListener("focus", refresh);
     };
-  }, []);
+  }, [load]);
 
   const markAllRead = async () => {
     await supabase.rpc("mark_all_my_notifications_read");
