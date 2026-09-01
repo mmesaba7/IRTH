@@ -26,6 +26,14 @@ function requiredText(value: unknown, max: number) {
   return text && text.length <= max ? text : null;
 }
 
+function optionalText(value: unknown, max: number): string | null | undefined {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  if (!text) return null;
+  return text.length <= max ? text : undefined;
+}
+
 function optionalAssetId(value: unknown): string | null | undefined {
   if (value === null || value === undefined || value === "") return null;
   return typeof value === "string" && UUID_RE.test(value) ? value : undefined;
@@ -63,13 +71,22 @@ export function parseCountryContentPayload(value: unknown): CountryContentPayloa
   const seoRecord = record.seo && typeof record.seo === "object" && !Array.isArray(record.seo)
     ? record.seo as Record<string, unknown>
     : {};
-  const seoTitleAr = requiredText(seoRecord.titleAr ?? nameAr, 180);
-  const seoTitleEn = requiredText(seoRecord.titleEn ?? nameEn, 180);
-  const metaDescriptionAr = requiredText(seoRecord.metaDescriptionAr ?? summaryAr.slice(0, 320), 320);
-  const metaDescriptionEn = requiredText(seoRecord.metaDescriptionEn ?? summaryEn.slice(0, 320), 320);
+
+  const optionalSeoTitleAr = optionalText(seoRecord.titleAr, 180);
+  const optionalSeoTitleEn = optionalText(seoRecord.titleEn, 180);
+  const optionalMetaDescriptionAr = optionalText(seoRecord.metaDescriptionAr, 320);
+  const optionalMetaDescriptionEn = optionalText(seoRecord.metaDescriptionEn, 320);
   const ogImageAssetId = optionalAssetId(seoRecord.ogImageAssetId);
 
-  if (!seoTitleAr || !seoTitleEn || !metaDescriptionAr || !metaDescriptionEn || ogImageAssetId === undefined) return null;
+  if (
+    optionalSeoTitleAr === undefined ||
+    optionalSeoTitleEn === undefined ||
+    optionalMetaDescriptionAr === undefined ||
+    optionalMetaDescriptionEn === undefined ||
+    ogImageAssetId === undefined
+  ) {
+    return null;
+  }
 
   return {
     schemaVersion: 1,
@@ -82,10 +99,10 @@ export function parseCountryContentPayload(value: unknown): CountryContentPayloa
     coverImageAssetId,
     culturalImageAssetIds,
     seo: {
-      titleAr: seoTitleAr,
-      titleEn: seoTitleEn,
-      metaDescriptionAr,
-      metaDescriptionEn,
+      titleAr: optionalSeoTitleAr ?? nameAr,
+      titleEn: optionalSeoTitleEn ?? nameEn,
+      metaDescriptionAr: optionalMetaDescriptionAr ?? summaryAr.slice(0, 320),
+      metaDescriptionEn: optionalMetaDescriptionEn ?? summaryEn.slice(0, 320),
       ogImageAssetId,
     },
   };
