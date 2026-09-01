@@ -105,6 +105,13 @@ export default function CountryContentPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  async function refreshAssetsOnly() {
+    const response = await fetch(`/api/admin/cms/countries/${encodeURIComponent(slug)}`, { cache: "no-store" });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body?.error || "Unable to refresh Country media.");
+    setAssets(Array.isArray(body.assets) ? body.assets : []);
+  }
+
   async function upload(file: File) {
     if (working) return;
     setWorking(true); setMessage(""); setError("");
@@ -131,8 +138,8 @@ export default function CountryContentPage() {
       const finalized = await finalizeResponse.json();
       if (!finalizeResponse.ok) throw new Error(finalized?.error || "Unable to finalize upload.");
 
-      setMessage("Image uploaded and verified. You can now assign it to the Country content.");
-      await load();
+      await refreshAssetsOnly();
+      setMessage("New image uploaded from your device and verified. Your unsaved Country text was preserved; the image is now available below.");
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
     } finally { setWorking(false); }
@@ -215,8 +222,11 @@ export default function CountryContentPage() {
 
         <section className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 md:p-7">
           <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">Media</h2>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">JPEG / PNG / WebP · 5 MB per image. The editorial maximum number of cultural images has not been fixed yet.</p>
-          <input type="file" accept="image/jpeg,image/png,image/webp" disabled={working} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.currentTarget.value = ""; }} className="mt-4 block w-full text-sm" />
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">Upload a new image directly from your device, or reuse an existing CMS image. JPEG / PNG / WebP · 5 MB per image. The editorial maximum number of cultural images has not been fixed yet.</p>
+          <label className="mt-5 block rounded-[var(--radius-md)] border border-dashed border-[var(--border-soft)] bg-[var(--surface-muted)] p-5 text-sm">
+            <span className="font-medium text-[var(--color-espresso)]">Upload new image from your device</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" disabled={working} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.currentTarget.value = ""; }} className="mt-3 block w-full text-sm" />
+          </label>
 
           <div className="mt-6 grid gap-5 md:grid-cols-2">
             <label className="text-sm">Cover Image<select value={form.coverImageAssetId ?? ""} onChange={(e) => setForm({ ...form, coverImageAssetId: e.target.value || null })} className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3"><option value="">None</option>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.mimeType} · {asset.id.slice(0, 8)}</option>)}</select></label>
@@ -233,6 +243,7 @@ export default function CountryContentPage() {
 
         <section className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 md:p-7">
           <h2 className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">SEO Basics</h2>
+          <p className="mt-2 text-xs text-[var(--text-muted)]">SEO fields are optional. If left empty, IRTH uses the Country display name and cultural summary automatically.</p>
           <div className="mt-5 grid gap-5 md:grid-cols-2">
             <label className="text-sm">SEO title Arabic<input value={form.seo.titleAr} onChange={(e) => setForm({ ...form, seo: { ...form.seo, titleAr: e.target.value } })} className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3" /></label>
             <label className="text-sm">SEO title English<input value={form.seo.titleEn} onChange={(e) => setForm({ ...form, seo: { ...form.seo, titleEn: e.target.value } })} className="mt-2 w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3" /></label>
