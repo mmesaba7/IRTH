@@ -46,25 +46,39 @@ async function validateAssets(ctx: Ctx, ids: Array<string | null>) {
       typeof asset.storagePath !== "string" ||
       typeof asset.mimeType !== "string" ||
       typeof asset.fileSizeBytes !== "number"
-    ) {
-      return false;
-    }
+    ) return false;
   }
   return true;
 }
 
+async function validateVideo(ctx: Ctx, id: string | null) {
+  if (!id) return true;
+  const { data, error } = await ctx.admin.rpc("get_cms_video_asset_server", { p_asset_id: id });
+  if (error || !data || typeof data !== "object" || Array.isArray(data)) return false;
+  const asset = data as Record<string, unknown>;
+  return asset.id === id && asset.mimeType === "video/mp4" && typeof asset.storagePath === "string" && typeof asset.durationSeconds === "number" && asset.durationSeconds <= 180;
+}
+
 async function assetsWithPreview(ctx: Ctx) {
-  const { data, error } = await ctx.admin.rpc("get_admin_cms_media_assets", {
-    p_admin_user_id: ctx.user.id,
-  });
+  const { data, error } = await ctx.admin.rpc("get_admin_cms_media_assets", { p_admin_user_id: ctx.user.id });
   if (error) throw error;
-  const ready = Array.isArray(data)
-    ? (data as Array<Record<string, unknown>>).filter((asset) => asset.status === "ready")
-    : [];
+  const ready = Array.isArray(data) ? (data as Array<Record<string, unknown>>).filter((asset) => asset.status === "ready") : [];
 
   return Promise.all(ready.map(async (asset) => {
     const storagePath = typeof asset.storagePath === "string" ? asset.storagePath : "";
     const { data: signed } = await ctx.admin.storage.from("cms-media").createSignedUrl(storagePath, 60 * 60);
+    return { ...asset, previewUrl: signed?.signedUrl ?? null };
+  }));
+}
+
+async function videosWithPreview(ctx: Ctx) {
+  const { data, error } = await ctx.admin.rpc("get_admin_cms_video_assets", { p_admin_user_id: ctx.user.id });
+  if (error) throw error;
+  const ready = Array.isArray(data) ? (data as Array<Record<string, unknown>>).filter((asset) => asset.status === "ready") : [];
+
+  return Promise.all(ready.map(async (asset) => {
+    const storagePath = typeof asset.storagePath === "string" ? asset.storagePath : "";
+    const { data: signed } = await ctx.admin.storage.from("cms-videos").createSignedUrl(storagePath, 60 * 60);
     return { ...asset, previewUrl: signed?.signedUrl ?? null };
   }));
 }
@@ -75,16 +89,17 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ sl
     const result = await loadContext(slug);
     if ("response" in result) return result.response;
 
-    const [{ data: document, error: documentError }, assets] = await Promise.all([
+    const [{ data: document, error: documentError }, assets, videos] = await Promise.all([
       result.ctx.admin.rpc("get_admin_cms_document", {
         p_document_key: countryContentDocumentKey(slug),
         p_admin_user_id: result.ctx.user.id,
       }),
       assetsWithPreview(result.ctx),
+      videosWithPreview(result.ctx),
     ]);
 
     if (documentError) return jsonNoStore({ error: "Unable to load Country CMS." }, 500);
-    return jsonNoStore({ country: result.country, document, assets });
+    return jsonNoStore({ country: result.country, document, assets, videos });
   } catch {
     return jsonNoStore({ error: "Country CMS service is unavailable." }, 503);
   }
@@ -108,6 +123,9 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ s
     const mediaIds = [payload.coverImageAssetId, payload.seo.ogImageAssetId, ...payload.culturalImageAssetIds];
     if (!(await validateAssets(result.ctx, mediaIds))) {
       return jsonNoStore({ error: "One or more Country media assets are invalid or not finalized." }, 422);
+    }
+    if (!(await validateVideo(result.ctx, payload.introVideoAssetId))) {
+      return jsonNoStore({ error: "Country introduction video is invalid, too long, or not finalized." }, 422);
     }
 
     const { data, error } = await result.ctx.admin.rpc("save_admin_cms_draft", {
@@ -153,9 +171,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ sl
     }
 
     const mediaIds = [payload.coverImageAssetId, payload.seo.ogImageAssetId, ...payload.culturalImageAssetIds];
-    if (!(await validateAssets(result.ctx, mediaIds))) {
-      return jsonNoStore({ error: "Country draft contains invalid media assets." }, 422);
-    }
+    if (!(await validateAssets(result.ctx, mediaIds))) return jsonNoStore({ error: "Country draft contains invalid media assets." }, 422);
+    if (!(await validateVideo(result.ctx, payload.introVideoAssetId))) return jsonNoStore({ error: "Country draft contains an invalid or unfinalized introduction video." }, 422);
 
     const { data, error } = await result.ctx.admin.rpc("publish_admin_cms_document", {
       p_document_key: countryContentDocumentKey(slug),
