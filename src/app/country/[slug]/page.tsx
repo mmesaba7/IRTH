@@ -12,11 +12,26 @@ import {
   type PublicCatalogProduct,
 } from "@/lib/publicMarketplace";
 
+type CountryCmsPayload = {
+  nameAr: string;
+  nameEn: string;
+  summaryAr: string;
+  summaryEn: string;
+  coverImageAssetId: string | null;
+  culturalImageAssetIds: string[];
+};
+
+type CountryCms = {
+  payload: CountryCmsPayload;
+  media: Record<string, string | null>;
+};
+
 export default function CountryPage() {
   const params = useParams();
   const slug = params.slug as string;
 
   const [country, setCountry] = useState<PublicCatalogCountry | null>(null);
+  const [countryCms, setCountryCms] = useState<CountryCms | null>(null);
   const [artisans, setArtisans] = useState<PublicCatalogArtisan[]>([]);
   const [products, setProducts] = useState<PublicCatalogProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,11 +45,29 @@ export default function CountryPage() {
       setError("");
 
       try {
-        const catalog = await loadPublicMarketplaceCatalog();
+        const [catalog, cmsResponse] = await Promise.all([
+          loadPublicMarketplaceCatalog(),
+          fetch(`/api/cms/countries/${encodeURIComponent(slug)}`, { cache: "no-store" }).catch(() => null),
+        ]);
         if (cancelled) return;
 
         const publicCountry = catalog.countries.find((item) => item.slug === slug) ?? null;
         setCountry(publicCountry);
+
+        if (cmsResponse?.ok) {
+          const cmsBody = await cmsResponse.json();
+          const document = cmsBody?.document;
+          if (document?.payload && typeof document.payload === "object") {
+            setCountryCms({
+              payload: document.payload as CountryCmsPayload,
+              media: cmsBody?.media && typeof cmsBody.media === "object" ? cmsBody.media : {},
+            });
+          } else {
+            setCountryCms(null);
+          }
+        } else {
+          setCountryCms(null);
+        }
 
         if (!publicCountry) {
           setArtisans([]);
@@ -86,6 +119,17 @@ export default function CountryPage() {
     );
   }
 
+  const displayNameAr = countryCms?.payload.nameAr || country.name;
+  const displayNameEn = countryCms?.payload.nameEn || country.nameEn;
+  const culturalDescription = countryCms?.payload.summaryAr || country.culturalDescription;
+  const coverImage = countryCms?.payload.coverImageAssetId
+    ? countryCms.media[countryCms.payload.coverImageAssetId] ?? country.heroImage
+    : country.heroImage;
+  const culturalImages = countryCms
+    ? countryCms.payload.culturalImageAssetIds
+        .map((id) => countryCms.media[id])
+        .filter((url): url is string => Boolean(url))
+    : [];
   const countryFilter = encodeURIComponent(country.nameEn);
 
   return (
@@ -93,8 +137,8 @@ export default function CountryPage() {
       <Header />
 
       <section className="relative overflow-hidden bg-[var(--color-espresso)] text-[var(--color-ivory)]">
-        {country.heroImage ? (
-          <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{ backgroundImage: `url("${country.heroImage}")` }} />
+        {coverImage ? (
+          <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{ backgroundImage: `url("${coverImage}")` }} />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-b from-[var(--color-espresso)] to-[var(--color-copper)] opacity-20" />
         )}
@@ -102,12 +146,12 @@ export default function CountryPage() {
 
         <div className="relative z-10 mx-auto max-w-[var(--container-max)] px-5 py-16 md:px-6 md:py-24">
           <p className="text-sm font-medium uppercase tracking-[0.24em] text-[var(--color-copper)]">Explore</p>
-          <h1 className="mt-4 font-[var(--font-display)] text-5xl md:text-7xl">{country.name}</h1>
-          <p className="mt-2 text-lg text-[var(--color-ivory)]/60">{country.nameEn}</p>
+          <h1 className="mt-4 font-[var(--font-display)] text-5xl md:text-7xl">{displayNameAr}</h1>
+          <p className="mt-2 text-lg text-[var(--color-ivory)]/60">{displayNameEn}</p>
 
-          {country.culturalDescription && (
+          {culturalDescription && (
             <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--color-ivory)]/80 md:text-lg">
-              {country.culturalDescription}
+              {culturalDescription}
             </p>
           )}
 
@@ -130,12 +174,29 @@ export default function CountryPage() {
         </div>
       </section>
 
+      {culturalImages.length > 0 && (
+        <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
+          <div className="max-w-3xl">
+            <p className="section-eyebrow">Culture & place</p>
+            <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">ملامح من {displayNameAr}</h2>
+            {countryCms?.payload.summaryEn && <p className="mt-4 text-base leading-8 text-[var(--text-secondary)]">{countryCms.payload.summaryEn}</p>}
+          </div>
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {culturalImages.map((url, index) => (
+              <div key={`${url}-${index}`} className="overflow-hidden rounded-[var(--radius-xl)] bg-[var(--surface-muted)]">
+                <img src={url} alt={`${displayNameEn} cultural image ${index + 1}`} className="aspect-[4/3] h-full w-full object-cover" />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {country.craftOptions.length > 0 && (
         <section className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="section-eyebrow">Crafts</p>
-              <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">حرف {country.name}</h2>
+              <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">حرف {displayNameAr}</h2>
             </div>
             <Link href={`/crafts?country=${countryFilter}`} className="text-sm font-medium text-[var(--color-copper)] hover:underline">View all →</Link>
           </div>
@@ -159,7 +220,7 @@ export default function CountryPage() {
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="section-eyebrow">Artisans</p>
-              <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Makers of {country.name}</h2>
+              <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Makers of {displayNameEn}</h2>
             </div>
             <Link href="/artisans" className="text-sm font-medium text-[var(--color-copper)] hover:underline">All artisans →</Link>
           </div>
@@ -185,7 +246,7 @@ export default function CountryPage() {
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="section-eyebrow">Marketplace</p>
-            <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Pieces from {country.name}</h2>
+            <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Pieces from {displayNameEn}</h2>
           </div>
           <Link href={`/crafts?country=${countryFilter}`} className="text-sm font-medium text-[var(--color-copper)] hover:underline">View all →</Link>
         </div>
