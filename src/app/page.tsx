@@ -241,6 +241,22 @@ export default function HomePage() {
           })
         : Promise.resolve({ data: [], error: null });
 
+      const cmsPromise = fetch("/api/cms/homepage", {
+        cache: "no-store",
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            return { document: null, error: `HTTP ${response.status}` };
+          }
+
+          const body = (await response.json()) as { document?: unknown };
+          return { document: body.document ?? null, error: null as string | null };
+        })
+        .catch((cmsError) => ({
+          document: null,
+          error: cmsError instanceof Error ? cmsError.message : "Unknown CMS error",
+        }));
+
       const [
         countriesResult,
         craftsResult,
@@ -274,9 +290,7 @@ export default function HomePage() {
           .eq("lifecycle_status", "published")
           .order("created_at", { ascending: false }),
         offersPromise,
-        supabase.rpc("get_published_cms_document", {
-          p_document_key: "homepage",
-        }),
+        cmsPromise,
       ]);
 
       if (cancelled) return;
@@ -305,7 +319,7 @@ export default function HomePage() {
       if (cmsResult.error) {
         console.error("Could not load published homepage CMS; using safe defaults:", cmsResult.error);
       } else {
-        const publishedSections = parsePublishedHomepageSections(cmsResult.data);
+        const publishedSections = parsePublishedHomepageSections(cmsResult.document);
         if (publishedSections) {
           setHomepageSections(publishedSections);
         } else {
@@ -764,9 +778,6 @@ export default function HomePage() {
           </footer>
         );
 
-      // These approved CMS slots are intentionally reserved until their own
-      // trusted content/data modules are implemented. They are not faked with
-      // duplicate marketplace content.
       case "best_sellers":
       case "new_arrivals":
       case "blog_highlights":
