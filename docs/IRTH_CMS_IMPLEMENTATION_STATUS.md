@@ -2,133 +2,182 @@
 
 Last verified: 2026-09-01
 
-This file records the verified implementation state of the IRTH CMS so future work does not rely on assumptions.
+This file records the verified implementation state of the IRTH CMS so future work does not rely on assumptions. It is a technical implementation-status companion to `IRTH MVP Specification v0.1`; it does not replace approved product decisions.
 
-## Verified implemented
+## CMS core — CLOSED
 
-### CMS database foundation
-
-Live Supabase contains:
+Live Supabase uses the shared constrained CMS foundation:
 
 - `private.cms_section_registry`
 - `private.cms_documents`
 - `private.cms_document_versions`
 - `private.cms_audit_events`
 
-The Homepage document is seeded with the approved 14-section registry.
+Verified trusted boundaries:
 
-### CMS server boundaries
+- `public.get_published_cms_document(text)` — Published-only read.
+- `public.get_admin_cms_document(text, uuid)` — Super Admin/service-role boundary.
+- `public.get_admin_cms_section_registry(uuid)` — Super Admin/service-role boundary.
+- `public.save_admin_cms_draft(text, text, jsonb, uuid)` — Super Admin/service-role mutation boundary.
+- `public.publish_admin_cms_document(text, uuid)` — Super Admin/service-role mutation boundary.
 
-Verified functions include:
+Admin mutation/read RPCs remain unavailable to `anon` and ordinary `authenticated` callers. Draft content is never exposed through the ordinary public reader.
 
-- `public.get_published_cms_document(text)` — public read of Published content only.
-- `public.get_admin_cms_document(text, uuid)` — service-role/Super Admin boundary.
-- `public.get_admin_cms_section_registry(uuid)` — service-role/Super Admin boundary.
-- `public.save_admin_cms_draft(text, text, jsonb, uuid)` — service-role/Super Admin boundary.
-- `public.publish_admin_cms_document(text, uuid)` — service-role/Super Admin boundary.
+The generic CMS writer already permits the approved MVP content types, including `homepage`, `static_page`, `blog_post`, `campaign`, `footer`, `help`, `contact`, `brand`, and `country_content`.
 
-Admin mutation RPCs are not exposed directly to `anon` or `authenticated`.
+## Functionally closed CMS modules
 
-### Homepage CMS Admin API
+### Homepage CMS
 
-Implemented path:
+- Approved 14-section registry.
+- Super Admin show/hide and reorder.
+- Draft/Published isolation.
+- Public Homepage reads Published only.
+- Header + Search remain global layout, not reorderable Homepage sections.
+- Browser verification passed.
 
-`src/app/api/admin/cms/homepage/route.ts`
+### New Arrivals
 
-Route:
+- Uses true product publication chronology via `products.published_at`.
+- First publish sets the timestamp.
+- Non-published products do not retain a fake publication timestamp.
+- Publication chronology behavior verified.
 
-`/api/admin/cms/homepage`
+### Best Sellers
 
-It supports:
+Ranks by gross successfully paid quantity per product.
 
-- GET: load current Homepage CMS document + section registry.
-- PATCH: validate and save a Draft section configuration.
-- POST: Publish the current Draft.
-- Same-origin mutation protection.
-- Super Admin enforcement through server-only privileged Supabase access.
+Counted payment statuses:
 
-### Homepage CMS Dashboard
+- `paid`
+- `partially_refunded`
+- `refunded`
 
-Implemented path:
+`paid_at` must be present. Refunds do not reduce the ranking score. Tie-break uses latest successful `paid_at`, then product id.
 
-`src/app/dashboard-admin/content/homepage/page.tsx`
+### Blog
 
-Route:
+- Public route: `/blog`.
+- Separate from Artisan Stories at `/stories`.
+- Arabic/English title, excerpt and body.
+- Slug, cover image, Draft/Published, publish date and SEO basics.
+- Private `cms-media` storage with Signed URL publication.
+- Browser verification passed.
 
-`/dashboard-admin/content/homepage`
+### Brand & Site Assets
 
-It supports:
+Managed slots:
 
-- section reorder
-- section show/hide
-- Save Draft
-- Publish
-- display of Draft revision / Published revision / visible section count
+- Main Logo
+- Alternate/Light-Dark Logo
+- Favicon
+- Default Social Share Image
+- Default Placeholder Image
 
-### Public Homepage Published integration
+Assets are stored in private `cms-media`; DB stores Asset IDs rather than arbitrary image URLs. Public Logo + Favicon integration is browser verified.
 
-Implemented in:
+### Country CMS
 
-`src/app/page.tsx`
+- Country remains a structural DB entity and stays separate from Market/Currency/Shipping.
+- Country content owns bilingual display names, cultural summary, cover, ordered cultural images and SEO basics.
+- Public route: `/country/[slug]`.
+- Public reads Published only; a safe legacy fallback remains when no CMS content is published.
+- Number of Cultural Images is intentionally not fixed because no final product decision exists yet.
 
-The public Homepage now:
+Country introduction video is browser verified:
 
-- reads `public.get_published_cms_document('homepage')` only;
-- never reads the Draft payload;
-- applies Published `visible` flags;
-- applies Published section ordering;
-- validates the Published section payload before using it;
-- falls back to the approved default section order if the CMS read/payload is unavailable or invalid, so a CMS fault does not take down the marketplace Homepage.
+- one optional MP4
+- maximum 3 minutes
+- maximum 250MB
+- private `cms-videos`
+- TUS resumable upload
+- server-side duration validation
+- Draft video is not public
+- Published video is resolved through a Signed URL
 
-Currently wired visitor-facing section keys:
+The Storage policy uses direct `user_roles` + `roles.code = 'super_admin'` authorization. The private helper remains postgres-only.
 
-- `hero`
-- `crafts`
-- `explore_countries`
-- `featured_products`
-- `featured_artisans`
-- `promotions`
-- `recently_viewed`
-- `story_brand`
-- `wholesale_cta`
-- `trust_value`
-- `footer`
+Homepage Explore Country cards now resolve Published Country CMS Cover only. Countries without one retain the intended dark fallback; no fake default image is invented.
 
-The following approved slots intentionally remain without fake/duplicated content until their trusted modules are implemented:
+### Static Pages — FUNCTIONALLY CLOSED
 
-- `best_sellers`
-- `new_arrivals`
-- `blog_highlights`
+Admin route:
 
-Search and Header remain global Homepage layout elements rather than reorderable CMS sections.
+- `/dashboard-admin/content/static-pages`
 
-## Verified current live state
+Current temporary public route:
 
-At verification time:
+- `/pages/[slug]`
 
-- Homepage Draft revision: `2`
-- Homepage Published revision: `1`
-- Draft and Published are correctly separate.
-- A Draft reorder exists while Published remains unchanged, proving the Draft isolation flow.
-- Public published RPC returns Published revision 1.
+Uses the shared CMS core with:
 
-The application-code integration commit still requires local build/browser verification before this Homepage CMS integration is considered functionally closed.
+- `content_type = 'static_page'`
+- `document_key = 'page:<slug>'`
 
-## Correction note
+Fields:
 
-A previous review incorrectly stated that the Homepage CMS API and Dashboard page were missing. The review searched the wrong API path (`/api/admin/content/homepage`). The actual implemented API path is `/api/admin/cms/homepage`.
+- slug
+- Arabic/English title
+- Arabic/English body
+- Arabic/English SEO title
+- Arabic/English meta description
+- canonical URL
+- Draft / Publish
 
-No CMS implementation was lost; the statement was the error.
+Security verification:
 
-## Next verification
+- `anon` admin read: denied
+- ordinary `authenticated` admin read: denied
+- service-role admin read: allowed
 
-Run the local build, then perform a controlled browser test:
+Controlled DB test passed: Draft -> not public -> Publish -> public -> rollback.
 
-1. Confirm current public Homepage follows Published revision 1, not Draft revision 2.
-2. In the CMS Dashboard, change a section order or visibility and Save Draft only.
-3. Confirm public Homepage remains unchanged.
-4. Publish.
-5. Confirm public Homepage now reflects the published change.
-6. Restore the intended published configuration after the test if the test change was temporary.
+Browser test passed on 2026-09-01 using `about-irth`:
 
-After that, continue with the next CMS content/data modules rather than duplicating placeholder content.
+1. Save Draft succeeded.
+2. `/pages/about-irth` was not public while Draft-only.
+3. Publish succeeded.
+4. `/pages/about-irth` appeared correctly after Publish.
+
+Therefore Static Pages Foundation is functionally closed.
+
+The final public URL strategy (`/about` versus `/pages/about`, etc.) has **not** been approved and must not be silently chosen.
+
+## Current active module
+
+### Help CMS
+
+Help is the next approved CMS module.
+
+Constraints:
+
+- Help remains independent from Contact.
+- MVP Help should stay simple/manageable, not become a large knowledge-base platform.
+- Reuse the shared CMS Draft/Published/history/audit foundation.
+- No arbitrary HTML, scripts, CSS or free-form Page Builder.
+
+## Next approved module
+
+### Contact CMS
+
+Contact follows Help and remains independent. Public IRTH contact content must be distinguished from any future customer support/contact-submission workflow; no sensitive workflow is implied or approved by the CMS content module itself.
+
+## Remaining CMS blueprint after Help + Contact
+
+Inspect actual implementation status before each task, then continue with remaining gaps such as:
+
+- Footer Management
+- Campaign / Announcement Banner
+- SEO/public metadata improvements
+- authenticated Super Admin Preview
+- other verified CMS Blueprint gaps
+
+## Known security debt outside the closed CMS modules
+
+Before Production Readiness, re-check:
+
+- legacy `public.review_product_market_price_request(...)` SECURITY DEFINER exposure to `authenticated`;
+- Supabase Auth Leaked Password Protection currently disabled;
+- existing INFO/RLS performance warnings, distinguishing advisory/performance items from exploitable security problems.
+
+Do not reopen previously fixed Return SECURITY DEFINER findings without evidence.
