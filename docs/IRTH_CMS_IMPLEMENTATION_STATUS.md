@@ -65,6 +65,43 @@ It supports:
 - Publish
 - display of Draft revision / Published revision / visible section count
 
+### Public Homepage Published integration
+
+Implemented in:
+
+`src/app/page.tsx`
+
+The public Homepage now:
+
+- reads `public.get_published_cms_document('homepage')` only;
+- never reads the Draft payload;
+- applies Published `visible` flags;
+- applies Published section ordering;
+- validates the Published section payload before using it;
+- falls back to the approved default section order if the CMS read/payload is unavailable or invalid, so a CMS fault does not take down the marketplace Homepage.
+
+Currently wired visitor-facing section keys:
+
+- `hero`
+- `crafts`
+- `explore_countries`
+- `featured_products`
+- `featured_artisans`
+- `promotions`
+- `recently_viewed`
+- `story_brand`
+- `wholesale_cta`
+- `trust_value`
+- `footer`
+
+The following approved slots intentionally remain without fake/duplicated content until their trusted modules are implemented:
+
+- `best_sellers`
+- `new_arrivals`
+- `blog_highlights`
+
+Search and Header remain global Homepage layout elements rather than reorderable CMS sections.
+
 ## Verified current live state
 
 At verification time:
@@ -75,22 +112,23 @@ At verification time:
 - A Draft reorder exists while Published remains unchanged, proving the Draft isolation flow.
 - Public published RPC returns Published revision 1.
 
+The application-code integration commit still requires local build/browser verification before this Homepage CMS integration is considered functionally closed.
+
 ## Correction note
 
 A previous review incorrectly stated that the Homepage CMS API and Dashboard page were missing. The review searched the wrong API path (`/api/admin/content/homepage`). The actual implemented API path is `/api/admin/cms/homepage`.
 
 No CMS implementation was lost; the statement was the error.
 
-## Actual next gap
+## Next verification
 
-The real remaining Homepage CMS integration gap is:
+Run the local build, then perform a controlled browser test:
 
-**The public Homepage (`src/app/page.tsx`) does not yet consume `public.get_published_cms_document('homepage')` to control the public section visibility/order.**
+1. Confirm current public Homepage follows Published revision 1, not Draft revision 2.
+2. In the CMS Dashboard, change a section order or visibility and Save Draft only.
+3. Confirm public Homepage remains unchanged.
+4. Publish.
+5. Confirm public Homepage now reflects the published change.
+6. Restore the intended published configuration after the test if the test change was temporary.
 
-Therefore:
-
-- Save Draft works and remains private.
-- Publish works at the CMS data layer.
-- The public Homepage still needs to render from the Published section configuration before CMS reorder/show-hide can affect the visitor-facing page.
-
-This is the next implementation task.
+After that, continue with the next CMS content/data modules rather than duplicating placeholder content.
