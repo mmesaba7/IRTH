@@ -4,6 +4,7 @@ import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import Header from "./components/Header";
+import BestSellersSection from "./components/BestSellersSection";
 import NewArrivalsSection from "./components/NewArrivalsSection";
 import ProductCard from "./components/ProductCard";
 import type { Product } from "./data/products";
@@ -637,6 +638,9 @@ export default function HomePage() {
           </section>
         );
 
+      case "best_sellers":
+        return <BestSellersSection />;
+
       case "new_arrivals":
         return <NewArrivalsSection />;
 
@@ -778,7 +782,6 @@ export default function HomePage() {
           </footer>
         );
 
-      case "best_sellers":
       case "blog_highlights":
         return null;
 
