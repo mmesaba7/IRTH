@@ -96,8 +96,14 @@ requireMarkers("Admin", "src/app/dashboard-admin/product-price-reviews/page.tsx"
   "Approve Price",
   "Reject Price",
 ]);
+requireMarkers("Admin", "src/app/dashboard-admin/product-management/page.tsx", [
+  "admin_archive_product",
+  "سبب الإزالة",
+  "إزالة المنتج",
+]);
 requireMarkers("Admin", "src/app/dashboard-admin/dashboard/page.tsx", [
   "/dashboard-admin/product-price-reviews",
+  "/dashboard-admin/product-management",
 ]);
 requireFile("Admin", "src/app/dashboard-admin/returns/page.tsx");
 requireFile("Admin", "src/app/dashboard-admin/payouts/page.tsx");
@@ -135,6 +141,12 @@ requireMarkers("Product pricing boundary", "supabase/migrations/20260902155218_e
   "apply_product_moderation_decision",
   "product_market_prices",
   "No active market exists for artisan country",
+]);
+requireMarkers("Admin product archive boundary", "supabase/migrations/20260902160520_add_super_admin_product_archive.sql", [
+  "admin_archive_product",
+  "private.is_super_admin",
+  "private.emit_notification",
+  "admin_archive",
 ]);
 
 if (failures.length > 0) {
