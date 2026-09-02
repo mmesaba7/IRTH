@@ -12,6 +12,7 @@
     "test:coupon-e2e": "node scripts/test-coupon-e2e.mjs",
     "test:security-smoke": "node scripts/test-security-smoke.mjs",
     "test:order-foundation-e2e": "node scripts/test-order-foundation-e2e.mjs",
+    "test:fulfillment-returns-reviews-e2e": "node scripts/test-fulfillment-returns-reviews-e2e.mjs",
     "check:production-env": "node scripts/check-production-env.mjs"
   },
   "dependencies": {
