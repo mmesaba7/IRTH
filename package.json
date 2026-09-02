@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:coupon-e2e": "node scripts/test-coupon-e2e.mjs"
+    "test:coupon-e2e": "node scripts/test-coupon-e2e.mjs",
+    "test:security-smoke": "node scripts/test-security-smoke.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
