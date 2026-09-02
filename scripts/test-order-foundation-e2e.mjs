@@ -3,7 +3,7 @@ import { spawn, spawnSync } from "node:child_process";
 
 const isWindows = process.platform === "win32";
 const port = process.env.IRTH_ORDER_E2E_PORT ?? "3102";
-const appUrl = `http://127.0.0.1:${port}`;
+const appUrl = `http://localhost:${port}`;
 
 function fail(message) {
   throw new Error(message);
