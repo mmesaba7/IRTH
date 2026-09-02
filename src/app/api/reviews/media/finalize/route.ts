@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
 
     return jsonNoStore({ mediaId, status: "pending_review" }, 201);
   } catch {
+    await admin.storage.from("review-media").remove([storagePath]);
     return jsonNoStore({ error: "Review image service is unavailable." }, 503);
   }
 }
