@@ -36,7 +36,6 @@ begin
     set lifecycle_status = 'published',
         updated_at = pg_catalog.now()
     where p.id = new.subject_id
-      and p.archived_at is null
       and p.lifecycle_status = 'draft'
     returning p.price into approved_product_price;
 
@@ -107,7 +106,6 @@ join lateral (
   limit 1
 ) m on true
 where p.lifecycle_status = 'published'
-  and p.archived_at is null
   and not exists (
     select 1
     from public.product_market_prices pmp
