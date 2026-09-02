@@ -85,6 +85,15 @@ requireMarkers("Admin", "src/app/dashboard-admin/orders/page.tsx", [
   "TrackingMetadataForm",
 ]);
 requireFile("Admin", "src/app/dashboard-admin/products/page.tsx");
+requireMarkers("Admin", "src/app/dashboard-admin/product-price-reviews/page.tsx", [
+  "product_market_price",
+  "review_product_market_price_request",
+  "Approve Price",
+  "Reject Price",
+]);
+requireMarkers("Admin", "src/app/dashboard-admin/dashboard/page.tsx", [
+  "/dashboard-admin/product-price-reviews",
+]);
 requireFile("Admin", "src/app/dashboard-admin/returns/page.tsx");
 requireFile("Admin", "src/app/dashboard-admin/payouts/page.tsx");
 requireFile("Admin", "src/app/dashboard-admin/reviews/page.tsx");
