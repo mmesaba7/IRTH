@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import ReturnWindowSettings from "./ReturnWindowSettings";
+import TaxSettings from "./TaxSettings";
 
 type ShippingMarket = {
   id: string;
@@ -161,7 +162,7 @@ export default function AdminSettingsPage() {
               Market Settings
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-              Trusted Market-level settings for Shipping and the Return Window.
+              Trusted Market-level settings for Shipping, Tax, and the Return Window.
             </p>
           </div>
           <Link
@@ -268,12 +269,13 @@ export default function AdminSettingsPage() {
           )}
         </section>
 
+        <TaxSettings />
         <ReturnWindowSettings />
 
         <div className="mt-8 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface-muted)] p-5">
           <p className="text-sm font-medium text-[var(--color-espresso)]">Safety note</p>
           <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-            Shipping and Return Window values are trusted server-backed settings. Return Window changes are audited and only affect future Shipment deliveries because each delivered Shipment stores its own snapshot.
+            Shipping, Tax, and Return Window values are trusted server-backed settings. Tax changes only affect future Order Items; Return Window changes only affect future Shipment deliveries because each flow stores its own historical snapshot.
           </p>
         </div>
       </div>
