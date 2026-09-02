@@ -32,33 +32,21 @@ export async function POST(
 ) {
   try {
     const { productId } = await context.params;
-
     const body = await request.json();
 
     const mediaType = body.mediaType as "image" | "video";
     const mimeType = body.mimeType as string;
     const fileSize = Number(body.fileSize);
 
-    if (
-      mediaType !== "image" &&
-      mediaType !== "video"
-    ) {
-      return NextResponse.json(
-        { error: "Invalid media type" },
-        { status: 400 }
-      );
+    if (mediaType !== "image" && mediaType !== "video") {
+      return NextResponse.json({ error: "Invalid media type" }, { status: 400 });
     }
 
     if (!(mimeType in allowedMimeTypes)) {
-      return NextResponse.json(
-        { error: "Unsupported file type" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
     }
 
-    const mimeConfig =
-      allowedMimeTypes[mimeType as AllowedMimeType];
-
+    const mimeConfig = allowedMimeTypes[mimeType as AllowedMimeType];
     if (mimeConfig.mediaType !== mediaType) {
       return NextResponse.json(
         { error: "Media type does not match file type" },
@@ -67,26 +55,17 @@ export async function POST(
     }
 
     if (!Number.isFinite(fileSize) || fileSize <= 0) {
-      return NextResponse.json(
-        { error: "Invalid file size" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid file size" }, { status: 400 });
     }
 
-    if (
-      mediaType === "image" &&
-      fileSize > IMAGE_MAX_SIZE
-    ) {
+    if (mediaType === "image" && fileSize > IMAGE_MAX_SIZE) {
       return NextResponse.json(
         { error: "Image must be 8 MB or smaller" },
         { status: 400 }
       );
     }
 
-    if (
-      mediaType === "video" &&
-      fileSize > VIDEO_MAX_SIZE
-    ) {
+    if (mediaType === "video" && fileSize > VIDEO_MAX_SIZE) {
       return NextResponse.json(
         { error: "Video must be 50 MB or smaller" },
         { status: 400 }
@@ -94,77 +73,65 @@ export async function POST(
     }
 
     const supabase = await createClient();
-
-    const {
-      data: claimsData,
-      error: claimsError,
-    } = await supabase.auth.getClaims();
-
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
     const userId = claimsData?.claims?.sub;
 
     if (claimsError || !userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const {
-      data: artisan,
-      error: artisanError,
-    } = await supabase
+    const { data: artisan, error: artisanError } = await supabase
       .from("artisan_profiles")
       .select("id")
       .eq("auth_user_id", userId)
       .maybeSingle();
 
     if (artisanError) {
-      return NextResponse.json(
-        { error: "Could not verify artisan" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Could not verify artisan" }, { status: 500 });
     }
-
     if (!artisan) {
-      return NextResponse.json(
-        { error: "Artisan profile not found" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Artisan profile not found" }, { status: 403 });
     }
 
-    const {
-      data: product,
-      error: productError,
-    } = await supabase
+    const { data: product, error: productError } = await supabase
       .from("products")
-      .select("id, artisan_id")
+      .select("id, artisan_id, lifecycle_status")
       .eq("id", productId)
       .eq("artisan_id", artisan.id)
       .maybeSingle();
 
     if (productError) {
+      return NextResponse.json({ error: "Could not verify product" }, { status: 500 });
+    }
+    if (!product) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+
+    const { data: pendingReview, error: pendingReviewError } = await supabase
+      .from("moderation_requests")
+      .select("id")
+      .eq("subject_type", "product")
+      .eq("subject_id", productId)
+      .eq("action", "publish")
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (pendingReviewError) {
       return NextResponse.json(
-        { error: "Could not verify product" },
+        { error: "Could not verify product review status" },
         { status: 500 }
       );
     }
-
-    if (!product) {
+    if (pendingReview) {
       return NextResponse.json(
-        { error: "Product not found" },
-        { status: 404 }
+        { error: "Product media cannot change while review is pending" },
+        { status: 409 }
       );
     }
 
-    const {
-      count: mediaCount,
-      error: mediaCountError,
-    } = await supabase
+    const { count: mediaCount, error: mediaCountError } = await supabase
       .from("product_media")
-      .select("id", {
-        count: "exact",
-        head: true,
-      })
+      .select("id", { count: "exact", head: true })
       .eq("product_id", productId)
       .eq("media_type", mediaType);
 
@@ -175,20 +142,13 @@ export async function POST(
       );
     }
 
-    if (
-      mediaType === "image" &&
-      (mediaCount ?? 0) >= 8
-    ) {
+    if (mediaType === "image" && (mediaCount ?? 0) >= 8) {
       return NextResponse.json(
         { error: "Product already has 8 images" },
         { status: 409 }
       );
     }
-
-    if (
-      mediaType === "video" &&
-      (mediaCount ?? 0) >= 1
-    ) {
+    if (mediaType === "video" && (mediaCount ?? 0) >= 1) {
       return NextResponse.json(
         { error: "Product already has a video" },
         { status: 409 }
@@ -196,14 +156,9 @@ export async function POST(
     }
 
     const fileId = randomUUID();
+    const storagePath = `${artisan.id}/${product.id}/${fileId}.${mimeConfig.extension}`;
 
-    const storagePath =
-      `${artisan.id}/${product.id}/${fileId}.${mimeConfig.extension}`;
-
-    const {
-      data: signedUpload,
-      error: signedUploadError,
-    } = await supabase.storage
+    const { data: signedUpload, error: signedUploadError } = await supabase.storage
       .from("product-media")
       .createSignedUploadUrl(storagePath);
 
@@ -219,13 +174,11 @@ export async function POST(
       token: signedUpload.token,
       mediaType,
       mimeType,
+      bucketName: "product-media",
+      resumableEndpoint: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/upload/resumable`,
+      productLifecycle: product.lifecycle_status,
     });
-  } catch (error) {
-    console.error("Media upload intent error:", error);
-
-    return NextResponse.json(
-      { error: "Unexpected server error" },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({ error: "Unexpected server error" }, { status: 500 });
   }
 }
