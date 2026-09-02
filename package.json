@@ -14,6 +14,7 @@
     "test:order-foundation-e2e": "node scripts/test-order-foundation-e2e.mjs",
     "test:fulfillment-returns-reviews-e2e": "node scripts/test-fulfillment-returns-reviews-e2e.mjs",
     "test:money-payout-e2e": "node scripts/test-money-payout-e2e.mjs",
+    "test:refund-money-e2e": "node scripts/test-refund-money-e2e.mjs",
     "check:production-env": "node scripts/check-production-env.mjs"
   },
   "dependencies": {
