@@ -218,22 +218,20 @@ export default function ProductMediaManager({
       const supabase = createClient();
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
+      const resumableEndpoint = intent.resumableEndpoint;
+      const bucketName = intent.bucketName;
 
-      if (
-        accessToken &&
-        intent.resumableEndpoint &&
-        intent.bucketName
-      ) {
+      if (accessToken && resumableEndpoint && bucketName) {
         await new Promise<void>((resolve, reject) => {
           const uploader = new tus.Upload(file, {
-            endpoint: intent.resumableEndpoint,
+            endpoint: resumableEndpoint,
             headers: { authorization: `Bearer ${accessToken}` },
             uploadDataDuringCreation: true,
             removeFingerprintOnSuccess: true,
             chunkSize: 6 * 1024 * 1024,
             retryDelays: [0, 1000, 3000, 5000],
             metadata: {
-              bucketName: intent.bucketName,
+              bucketName,
               objectName: intent.storagePath,
               contentType: "video/mp4",
               cacheControl: "3600",
