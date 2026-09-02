@@ -28,7 +28,7 @@ function parseEnvOutput(output) {
   return values;
 }
 
-function runCommandSync(command, args) {
+function runCommandSync(command, args, options = {}) {
   if (isWindows) {
     const quoted = [command, ...args]
       .map((part) => (/\s/.test(part) ? `"${part.replaceAll('"', '\\"')}"` : part))
@@ -37,12 +37,14 @@ function runCommandSync(command, args) {
       cwd: process.cwd(),
       encoding: "utf8",
       shell: false,
+      ...options,
     });
   }
   return spawnSync(command, args, {
     cwd: process.cwd(),
     encoding: "utf8",
     shell: false,
+    ...options,
   });
 }
 
@@ -80,6 +82,7 @@ function getLocalSupabaseEnv() {
   const apiUrl = values.API_URL || values.SUPABASE_URL;
   const anonKey = values.ANON_KEY || values.PUBLISHABLE_KEY;
   const serviceKey = values.SERVICE_ROLE_KEY || values.SECRET_KEY;
+  const dbUrl = values.DB_URL || values.DATABASE_URL;
 
   if (!apiUrl || !anonKey || !serviceKey) {
     fail("Supabase status must return API_URL, ANON_KEY/PUBLISHABLE_KEY, and SERVICE_ROLE_KEY/SECRET_KEY.");
@@ -89,15 +92,16 @@ function getLocalSupabaseEnv() {
     fail(`Refusing to run Order E2E against a non-local Supabase URL: ${apiUrl}`);
   }
 
-  return { apiUrl, anonKey, serviceKey };
+  const localDbUrl = dbUrl || "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+  if (!/^postgres(?:ql)?:\/\/(?:[^@/]+@)?(?:127\.0\.0\.1|localhost):/.test(localDbUrl)) {
+    fail(`Refusing to run Order E2E against a non-local Postgres URL: ${localDbUrl}`);
+  }
+
+  return { apiUrl, anonKey, serviceKey, dbUrl: localDbUrl };
 }
 
 async function rest(apiUrl, key, path) {
   const headers = { apikey: key };
-  // Legacy anon/service_role keys are JWTs and may be used as Bearer tokens.
-  // New sb_publishable_/sb_secret_ keys are API keys, not user JWTs; sending a
-  // secret key as Authorization: Bearer makes the local gateway treat it as a
-  // session token instead of applying the service_role key privileges.
   if (!key.startsWith("sb_")) {
     headers.Authorization = `Bearer ${key}`;
   }
@@ -105,6 +109,26 @@ async function rest(apiUrl, key, path) {
   const response = await fetch(`${apiUrl}/rest/v1/${path}`, { headers });
   if (!response.ok) fail(`Supabase REST ${response.status}: ${await response.text()}`);
   return response.json();
+}
+
+function sqlJson(dbUrl, sql) {
+  const query = `select coalesce(json_agg(row_to_json(q)), '[]'::json)::text from (${sql}) q;`;
+  const result = runCommandSync("psql", [dbUrl, "-t", "-A", "-v", "ON_ERROR_STOP=1", "-c", query]);
+
+  if (result.error) {
+    fail(`Unable to query local Postgres with psql: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    fail(`Local Postgres query failed:\n${result.stderr || result.stdout}`);
+  }
+
+  const output = result.stdout.trim();
+  if (!output) return [];
+  try {
+    return JSON.parse(output);
+  } catch {
+    fail(`Unable to parse local Postgres JSON output: ${output}`);
+  }
 }
 
 async function waitForServer(server, logs) {
@@ -157,7 +181,7 @@ async function postJson(path, marketId, body, extraHeaders = {}) {
 }
 
 async function main() {
-  const { apiUrl, anonKey, serviceKey } = getLocalSupabaseEnv();
+  const { apiUrl, anonKey, serviceKey, dbUrl } = getLocalSupabaseEnv();
 
   const markets = await rest(
     apiUrl,
@@ -168,10 +192,13 @@ async function main() {
   const market = markets[0];
 
   const slugs = ["clay-vessel", "heritage-textile", "copper-piece"];
-  const before = await rest(
-    apiUrl,
-    serviceKey,
-    `products?select=id,slug,artisan_id,quantity,lifecycle_status,made_to_order&slug=in.(${slugs.join(",")})&order=slug.asc`
+  const slugSql = slugs.map((slug) => `'${slug.replaceAll("'", "''")}'`).join(",");
+  const before = sqlJson(
+    dbUrl,
+    `select id, slug, artisan_id, quantity, lifecycle_status, made_to_order
+     from public.products
+     where slug in (${slugSql})
+     order by slug asc`
   );
   assert.equal(before.length, 3, "Expected the three core local fixture products");
   assert.equal(new Set(before.map((item) => item.artisan_id)).size, 3, "Core fixtures must belong to three artisans");
@@ -242,13 +269,33 @@ async function main() {
     assert.equal(second.payload?.order?.orderNumber, orderNumber);
     assert.equal(second.payload?.order?.reused, true);
 
-    const [orders, groups, items, redemptions, after] = await Promise.all([
-      rest(apiUrl, serviceKey, `orders?select=id,order_number,status,payment_status,promotion_discount_total,coupon_discount_total,merchandise_subtotal,shipping_fee,final_total&id=eq.${orderId}`),
-      rest(apiUrl, serviceKey, `order_artisan_groups?select=id,artisan_id,merchandise_subtotal&order_id=eq.${orderId}`),
-      rest(apiUrl, serviceKey, `order_items?select=product_id,artisan_id,commission_rate_percent,promotion_discount,coupon_discount,line_total&order_id=eq.${orderId}`),
-      rest(apiUrl, serviceKey, `coupon_redemptions?select=id,coupon_id,order_id&order_id=eq.${orderId}`),
-      rest(apiUrl, serviceKey, `products?select=id,slug,quantity&slug=in.(${slugs.join(",")})&order=slug.asc`),
-    ]);
+    const orders = sqlJson(
+      dbUrl,
+      `select id, order_number, status, payment_status, promotion_discount_total,
+              coupon_discount_total, merchandise_subtotal, shipping_fee, final_total
+       from public.orders where id = '${orderId}'::uuid`
+    );
+    const groups = sqlJson(
+      dbUrl,
+      `select id, artisan_id, merchandise_subtotal
+       from public.order_artisan_groups where order_id = '${orderId}'::uuid`
+    );
+    const items = sqlJson(
+      dbUrl,
+      `select product_id, artisan_id, commission_rate_percent, promotion_discount,
+              coupon_discount, line_total
+       from public.order_items where order_id = '${orderId}'::uuid`
+    );
+    const redemptions = sqlJson(
+      dbUrl,
+      `select id, coupon_id, order_id
+       from public.coupon_redemptions where order_id = '${orderId}'::uuid`
+    );
+    const after = sqlJson(
+      dbUrl,
+      `select id, slug, quantity
+       from public.products where slug in (${slugSql}) order by slug asc`
+    );
 
     assert.equal(orders.length, 1);
     assert.equal(orders[0].status, "received");
