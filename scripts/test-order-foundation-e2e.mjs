@@ -93,12 +93,16 @@ function getLocalSupabaseEnv() {
 }
 
 async function rest(apiUrl, key, path) {
-  const response = await fetch(`${apiUrl}/rest/v1/${path}`, {
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-    },
-  });
+  const headers = { apikey: key };
+  // Legacy anon/service_role keys are JWTs and may be used as Bearer tokens.
+  // New sb_publishable_/sb_secret_ keys are API keys, not user JWTs; sending a
+  // secret key as Authorization: Bearer makes the local gateway treat it as a
+  // session token instead of applying the service_role key privileges.
+  if (!key.startsWith("sb_")) {
+    headers.Authorization = `Bearer ${key}`;
+  }
+
+  const response = await fetch(`${apiUrl}/rest/v1/${path}`, { headers });
   if (!response.ok) fail(`Supabase REST ${response.status}: ${await response.text()}`);
   return response.json();
 }
@@ -185,6 +189,7 @@ async function main() {
       IRTH_E2E_DIST_DIR: ".next-e2e",
       NEXT_PUBLIC_SUPABASE_URL: apiUrl,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: anonKey,
+      SUPABASE_SECRET_KEY: serviceKey,
       SUPABASE_SERVICE_ROLE_KEY: serviceKey,
       IRTH_GUEST_TRACKING_SECRET: "irth-local-order-e2e-secret-0123456789abcdef0123456789abcdef",
     },
