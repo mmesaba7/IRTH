@@ -273,7 +273,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
-      console.error("Order transaction failed:", error.message);
+      console.error("Order transaction failed.");
       const mapped = mapOrderError(error.message);
       return jsonNoStore({ error: mapped.error, code: mapped.code }, mapped.status);
     }
@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
       result.reused ? 200 : 201
     );
   } catch (error) {
-    console.error("Unable to create order:", error);
+    console.error("Unable to create order.");
 
     if (
       error instanceof Error &&
