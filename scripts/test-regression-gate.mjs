@@ -112,6 +112,15 @@ requireFile("Admin", "src/app/dashboard-admin/customers/page.tsx");
 requireFile("Admin", "src/app/dashboard-admin/commission/page.tsx");
 requireFile("Admin", "src/app/dashboard-admin/content/page.tsx");
 requireFile("Admin", "src/app/dashboard-admin/content/history/page.tsx");
+requireMarkers("Admin Tax", "src/app/dashboard-admin/settings/page.tsx", [
+  "TaxSettings",
+  "Shipping, Tax, and the Return Window",
+]);
+requireMarkers("Admin Tax", "src/app/dashboard-admin/settings/TaxSettings.tsx", [
+  "/api/admin/tax-settings",
+  "tax-inclusive",
+  "Save Tax Rate",
+]);
 
 // Compatibility + security boundaries that must not silently disappear
 requireMarkers("Compatibility", "src/app/product/new/page.tsx", [
@@ -130,6 +139,20 @@ requireMarkers("Security", "src/app/api/orders/route.ts", [
 requireMarkers("Security", "src/app/api/admin/shipping-settings/route.ts", [
   "isSameOriginMutation",
   "jsonNoStore",
+]);
+requireMarkers("Tax Security", "src/app/api/admin/tax-settings/route.ts", [
+  "isSameOriginMutation",
+  "get_market_tax_settings",
+  "set_market_tax_rate",
+  "jsonNoStore",
+]);
+requireMarkers("Tax DB boundary", "supabase/migrations/20260902225000_add_dynamic_tax_foundation.sql", [
+  "tax_rate_percent",
+  "snapshot_order_item_tax",
+  "tax_withheld",
+  "refund_tax_reversal",
+  "tax_configuration_history",
+  "set_market_tax_rate",
 ]);
 requireMarkers("Product DB boundary", "supabase/migrations/20260902160000_restore_artisan_product_management.sql", [
   "update_own_product_content",
