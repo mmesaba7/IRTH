@@ -21,7 +21,7 @@ type ArtisanProduct = {
   material_ar: string | null;
   price: number;
   lifecycle_status: string;
-  quantity: number;
+  quantity: number | null;
   made_to_order: boolean;
   one_of_a_kind: boolean;
   customization: boolean;
@@ -50,6 +50,7 @@ export default function ArtisanProductsPage() {
   const [mediaByProductId, setMediaByProductId] = useState<Record<string, ProductMedia[]>>({});
   const [mediaLoadingProductId, setMediaLoadingProductId] = useState<string | null>(null);
   const [submittingProductId, setSubmittingProductId] = useState<string | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -87,6 +88,7 @@ export default function ArtisanProductsPage() {
         "id, slug, name_en, name_ar, description_en, description_ar, story_en, story_ar, material_en, material_ar, price, lifecycle_status, quantity, made_to_order, one_of_a_kind, customization"
       )
       .eq("artisan_id", artisan.id)
+      .is("archived_at", null)
       .order("created_at", { ascending: false });
 
     if (productError) {
@@ -119,11 +121,8 @@ export default function ArtisanProductsPage() {
     }
 
     const latest: Record<string, ModerationRequest> = {};
-
     for (const row of (reviewRows ?? []) as ModerationRequest[]) {
-      if (!latest[row.subject_id]) {
-        latest[row.subject_id] = row;
-      }
+      if (!latest[row.subject_id]) latest[row.subject_id] = row;
     }
 
     setReviews(latest);
@@ -132,21 +131,19 @@ export default function ArtisanProductsPage() {
 
   const loadProductMedia = async (productId: string) => {
     if (mediaByProductId[productId]) return;
-
     setMediaLoadingProductId(productId);
 
     try {
-      const response = await fetch(`/api/products/${productId}/media`);
-
+      const response = await fetch(`/api/products/${productId}/media`, {
+        cache: "no-store",
+      });
       if (!response.ok) throw new Error("Could not load media");
-
       const result = await response.json();
       setMediaByProductId((current) => ({
         ...current,
         [productId]: result.media ?? [],
       }));
-    } catch (mediaError) {
-      console.error(mediaError);
+    } catch {
       setError("تعذر تحميل صور وفيديو المنتج.");
     } finally {
       setMediaLoadingProductId(null);
@@ -158,14 +155,12 @@ export default function ArtisanProductsPage() {
       setExpandedProductId(null);
       return;
     }
-
     setExpandedProductId(productId);
     await loadProductMedia(productId);
   };
 
   const submitForReview = async (productId: string) => {
     const currentReview = reviews[productId];
-
     if (currentReview?.status === "pending") return;
 
     setSubmittingProductId(productId);
@@ -202,7 +197,6 @@ export default function ArtisanProductsPage() {
       } else {
         setError("تعذر إرسال المنتج للمراجعة.");
       }
-
       setSubmittingProductId(null);
       return;
     }
@@ -219,8 +213,46 @@ export default function ArtisanProductsPage() {
     setSubmittingProductId(null);
   };
 
+  const archiveProduct = async (product: ArtisanProduct) => {
+    const review = reviews[product.id];
+    if (review?.status === "pending" || deletingProductId) return;
+
+    const confirmed = window.confirm(
+      "هل أنت متأكد من حذف هذا المنتج؟ سيتم إخفاؤه من المتجر ومن قائمة منتجاتك، مع الاحتفاظ بالسجل التاريخي للطلبات والمراجعات."
+    );
+    if (!confirmed) return;
+
+    setDeletingProductId(product.id);
+    setError("");
+    setSuccessMessage("");
+
+    const supabase = createClient();
+    const { error: archiveError } = await supabase.rpc("archive_own_product", {
+      target_product_id: product.id,
+    });
+
+    if (archiveError) {
+      setError(
+        archiveError.message.includes("pending review")
+          ? "لا يمكن حذف المنتج وهو قيد المراجعة."
+          : "تعذر حذف المنتج."
+      );
+      setDeletingProductId(null);
+      return;
+    }
+
+    setProducts((current) => current.filter((item) => item.id !== product.id));
+    setReviews((current) => {
+      const next = { ...current };
+      delete next[product.id];
+      return next;
+    });
+    setSuccessMessage("تم حذف المنتج من المتجر مع الاحتفاظ بسجله التاريخي بأمان.");
+    setDeletingProductId(null);
+  };
+
   useEffect(() => {
-    loadProducts();
+    void loadProducts();
   }, []);
 
   if (loading) {
@@ -239,16 +271,24 @@ export default function ArtisanProductsPage() {
       <Header />
 
       <section className="mx-auto max-w-[var(--container-max)] px-4 py-10 sm:px-6 md:py-16">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
-            Artisan Panel
-          </p>
-          <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">
-            إدارة المنتجات
-          </h1>
-          <p className="text-[var(--text-secondary)]">
-            منتجاتك وحالة مراجعتها على IRTH
-          </p>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
+              Artisan Panel
+            </p>
+            <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">
+              إدارة المنتجات
+            </h1>
+            <p className="text-[var(--text-secondary)]">
+              منتجاتك وحالة مراجعتها على IRTH
+            </p>
+          </div>
+          <Link
+            href="/artisan/products/new"
+            className="rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-5 py-3 text-center text-sm font-medium text-[var(--color-ivory)]"
+          >
+            إضافة منتج جديد
+          </Link>
         </div>
 
         {successMessage && (
@@ -256,7 +296,6 @@ export default function ArtisanProductsPage() {
             {successMessage}
           </div>
         )}
-
         {error && (
           <div className="mt-6 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-600">
             {error}
@@ -265,7 +304,13 @@ export default function ArtisanProductsPage() {
 
         {products.length === 0 ? (
           <div className="mt-10 rounded-[var(--radius-lg)] bg-[var(--surface-muted)] p-10 text-center text-[var(--text-secondary)]">
-            لا توجد منتجات حالياً.
+            <p>لا توجد منتجات حالياً.</p>
+            <Link
+              href="/artisan/products/new"
+              className="mt-4 inline-block text-sm font-medium text-[var(--color-copper)]"
+            >
+              أضف أول منتج لك →
+            </Link>
           </div>
         ) : (
           <div className="mt-8 space-y-5">
@@ -274,9 +319,10 @@ export default function ArtisanProductsPage() {
               const isPending = review?.status === "pending";
               const isRejected = review?.status === "rejected";
               const isPublished = product.lifecycle_status === "published";
-              const canEdit = product.lifecycle_status === "draft" && !isPending;
+              const canEdit = !isPending;
               const isExpanded = expandedProductId === product.id;
               const isSubmitting = submittingProductId === product.id;
+              const isDeleting = deletingProductId === product.id;
               const media = mediaByProductId[product.id] ?? [];
 
               return (
@@ -304,8 +350,12 @@ export default function ArtisanProductsPage() {
                       )}
 
                       <div className="mt-3 flex flex-wrap gap-4 text-sm text-[var(--text-secondary)]">
-                        <span>السعر: ${product.price}</span>
-                        <span>الكمية: {product.quantity}</span>
+                        <span>السعر الأساسي: {product.price}</span>
+                        <span>
+                          {product.made_to_order
+                            ? "يصنع حسب الطلب"
+                            : `الكمية: ${product.quantity ?? 0}`}
+                        </span>
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--text-muted)]">
@@ -318,7 +368,7 @@ export default function ArtisanProductsPage() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => toggleDetails(product.id)}
+                        onClick={() => void toggleDetails(product.id)}
                         className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-4 py-2 text-sm text-[var(--text-secondary)]"
                       >
                         {isExpanded ? "إغلاق التفاصيل" : "عرض التفاصيل"}
@@ -332,8 +382,23 @@ export default function ArtisanProductsPage() {
                           تعديل المنتج
                         </Link>
                       )}
+
+                      <button
+                        type="button"
+                        disabled={isPending || isDeleting}
+                        onClick={() => void archiveProduct(product)}
+                        className="rounded-[var(--radius-md)] border border-red-200 px-4 py-2 text-sm text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {isDeleting ? "جاري الحذف..." : "حذف المنتج"}
+                      </button>
                     </div>
                   </div>
+
+                  {isPublished && (
+                    <p className="mt-4 text-xs text-[var(--text-muted)]">
+                      تعديل المحتوى أو الصور سيعيد المنتج لمسودة حتى يراجعه IRTH من جديد. السعر والمخزون لهما مسارات مستقلة داخل صفحة التعديل.
+                    </p>
+                  )}
 
                   {isRejected && review?.admin_note && (
                     <div className="mt-5 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -356,7 +421,7 @@ export default function ArtisanProductsPage() {
                         <button
                           type="button"
                           disabled={isSubmitting}
-                          onClick={() => submitForReview(product.id)}
+                          onClick={() => void submitForReview(product.id)}
                           className="rounded-[var(--radius-md)] bg-[var(--color-espresso)] px-5 py-3 text-sm font-medium text-[var(--color-ivory)] disabled:opacity-60"
                         >
                           {isSubmitting
@@ -388,7 +453,6 @@ export default function ArtisanProductsPage() {
                           <h3 className="font-medium text-[var(--color-espresso)]">
                             الصور والفيديو
                           </h3>
-
                           {mediaLoadingProductId === product.id ? (
                             <p className="mt-3 text-sm text-[var(--text-secondary)]">
                               جاري تحميل الوسائط...
