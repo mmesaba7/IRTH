@@ -186,7 +186,11 @@ BEGIN
   select * into v_return from public.create_guest_return_request(
     v_order_id,
     (select o.guest_access_token_hash from public.orders o where o.id=v_order_id),
-    pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('orderItemId',v_order_item.id,'quantity',1))
+    pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+      'orderItemId',v_order_item.id,
+      'quantity',1,
+      'reason','Local refund E2E return reason'
+    ))
   );
 
   perform public.admin_review_return_request(v_return.return_request_id,v_admin_user_id,'approved','Refund Money E2E');
