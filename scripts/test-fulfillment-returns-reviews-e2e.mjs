@@ -100,6 +100,7 @@ DECLARE
   v_guest_hash text := ${literal(fixture.guest_access_token_hash)};
   v_admin_user_id uuid := pg_catalog.gen_random_uuid();
   v_super_admin_role_id uuid;
+  v_artisan_role_id uuid;
   v_group record;
   v_artisan_user_id uuid;
   v_shipment record;
@@ -119,6 +120,12 @@ BEGIN
   where r.code='super_admin'
   limit 1;
   if v_super_admin_role_id is null then raise exception 'super_admin_role_missing'; end if;
+
+  select r.id into v_artisan_role_id
+  from public.roles r
+  where r.code='artisan'
+  limit 1;
+  if v_artisan_role_id is null then raise exception 'artisan_role_missing'; end if;
 
   insert into auth.users (
     instance_id,
@@ -199,6 +206,10 @@ BEGIN
       where ap.id = v_group.artisan_id
         and ap.auth_user_id is null;
     end if;
+
+    insert into public.user_roles(user_id,role_id)
+    values(v_artisan_user_id,v_artisan_role_id)
+    on conflict do nothing;
 
     perform pg_catalog.set_config('request.jwt.claim.sub', v_artisan_user_id::text, true);
     perform pg_catalog.set_config('request.jwt.claims', pg_catalog.json_build_object('sub',v_artisan_user_id,'role','authenticated')::text, true);
@@ -308,6 +319,7 @@ runTransactionalSql(sql);
 
 console.log(`PASS Temporary Super Admin fixture created inside transaction`);
 console.log(`PASS Missing Artisan auth fixtures were created inside transaction`);
+console.log(`PASS Artisan role fixtures were ensured inside transaction`);
 console.log(`PASS Admin confirmed Order: ${fixture.order_number}`);
 console.log("PASS 3 artisans moved fulfillment to ready-for-courier pickup");
 console.log("PASS 3 shipments progressed pickup -> transit -> delivered");
