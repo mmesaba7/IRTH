@@ -107,21 +107,29 @@ async function rest(apiUrl, key, path) {
 
 function sqlJson(sql) {
   const query = `select coalesce(json_agg(row_to_json(q)), '[]'::json)::text from (${sql}) q;`;
-  const result = runCommandSync("docker", [
-    "exec",
-    "supabase_db_irth",
-    "psql",
-    "-U",
-    "postgres",
-    "-d",
-    "postgres",
-    "-t",
-    "-A",
-    "-v",
-    "ON_ERROR_STOP=1",
-    "-c",
-    query,
-  ]);
+  const result = spawnSync(
+    "docker",
+    [
+      "exec",
+      "-i",
+      "supabase_db_irth",
+      "psql",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+      "-t",
+      "-A",
+      "-v",
+      "ON_ERROR_STOP=1",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      shell: false,
+      input: `${query}\n`,
+    }
+  );
 
   if (result.error) {
     fail(`Unable to query local Postgres through Docker: ${result.error.message}`);
