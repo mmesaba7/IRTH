@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function LegacyNewProductPage() {
-  redirect("/artisan/products");
+  redirect("/artisan/products/new");
 }
