@@ -72,6 +72,22 @@ function hashIdentity(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function safeErrorLog(error: unknown) {
+  if (error instanceof Error) return { message: error.message };
+  if (typeof error !== "object" || error === null) return { message: String(error) };
+
+  const source = error as Record<string, unknown>;
+  const pick = (key: string) =>
+    typeof source[key] === "string" ? source[key] : undefined;
+
+  return {
+    message: pick("message"),
+    code: pick("code"),
+    details: pick("details"),
+    hint: pick("hint"),
+  };
+}
+
 function mapOrderError(message: string) {
   if (message.includes("commission_not_configured")) {
     return {
@@ -273,7 +289,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
-      console.error("Order transaction failed:", error.message);
+      console.error("Order transaction failed:", safeErrorLog(error));
       const mapped = mapOrderError(error.message);
       return jsonNoStore({ error: mapped.error, code: mapped.code }, mapped.status);
     }
@@ -298,10 +314,7 @@ export async function POST(request: NextRequest) {
       result.reused ? 200 : 201
     );
   } catch (error) {
-    console.error(
-      "Unable to create order:",
-      error instanceof Error ? error.message : String(error)
-    );
+    console.error("Unable to create order:", safeErrorLog(error));
 
     if (
       error instanceof Error &&
