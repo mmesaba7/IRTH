@@ -99,7 +99,7 @@ DECLARE
   v_artisan_user_id uuid;
   v_shipment record;
   v_order_item record;
-  v_return record;
+  v_return_request_id uuid;
   v_return_item_id uuid;
   v_refund record;
   v_success record;
@@ -183,7 +183,7 @@ BEGIN
 
   select p.quantity into v_product_qty_before from public.products p where p.id=v_order_item.product_id;
 
-  select * into v_return from public.create_guest_return_request(
+  select public.create_guest_return_request(
     v_order_id,
     (select o.guest_access_token_hash from public.orders o where o.id=v_order_id),
     pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
@@ -191,29 +191,29 @@ BEGIN
       'quantity',1,
       'reason','Local refund E2E return reason'
     ))
-  );
+  ) into v_return_request_id;
 
-  perform public.admin_review_return_request(v_return.return_request_id,v_admin_user_id,'approved','Refund Money E2E');
-  perform public.admin_mark_return_received(v_return.return_request_id,v_admin_user_id);
+  perform public.admin_review_return_request(v_return_request_id,v_admin_user_id,'approved','Refund Money E2E');
+  perform public.admin_mark_return_received(v_return_request_id,v_admin_user_id);
 
   select ri.id into v_return_item_id
   from private.return_request_items ri
-  where ri.return_request_id=v_return.return_request_id and ri.order_item_id=v_order_item.id;
+  where ri.return_request_id=v_return_request_id and ri.order_item_id=v_order_item.id;
   if v_return_item_id is null then raise exception 'return_item_missing'; end if;
 
   perform public.admin_inspect_return_request(
-    v_return.return_request_id,
+    v_return_request_id,
     v_admin_user_id,
     pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('returnItemId',v_return_item_id,'restockableQuantity',1)),
     'Restockable local E2E item'
   );
 
-  select * into v_refund from public.admin_prepare_return_refund(v_return.return_request_id,v_admin_user_id);
+  select * into v_refund from public.admin_prepare_return_refund(v_return_request_id,v_admin_user_id);
   if not v_refund.changed or v_refund.total_amount<=0 or v_refund.shipping_amount<>0 then
     raise exception 'refund_preparation_invalid';
   end if;
 
-  select rr.status into v_return_status from private.return_requests rr where rr.id=v_return.return_request_id;
+  select rr.status into v_return_status from private.return_requests rr where rr.id=v_return_request_id;
   if v_return_status<>'refund_pending' then raise exception 'expected_refund_pending_got_%',v_return_status; end if;
 
   select * into v_success from private.record_return_refund_succeeded(
@@ -232,7 +232,7 @@ BEGIN
   );
   if v_retry.changed or v_retry.refund_status<>'succeeded' then raise exception 'refund_success_idempotency_failed'; end if;
 
-  select rr.status into v_return_status from private.return_requests rr where rr.id=v_return.return_request_id;
+  select rr.status into v_return_status from private.return_requests rr where rr.id=v_return_request_id;
   select r.status into v_refund_status from private.refunds r where r.id=v_refund.refund_id;
   select o.payment_status into v_payment_status from public.orders o where o.id=v_order_id;
   if v_return_status<>'refunded' then raise exception 'expected_return_refunded_got_%',v_return_status; end if;
