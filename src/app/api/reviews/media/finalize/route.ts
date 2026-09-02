@@ -51,6 +51,21 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
   try {
+    const { data: context, error: contextError } = await admin.rpc("get_review_media_context", {
+      p_review_id: body.reviewId,
+      p_customer_user_id: auth.userId,
+      p_guest_access_token_hash: auth.guestHash,
+    });
+    if (contextError) {
+      if (contextError.message.includes("review_access_denied")) return jsonNoStore({ error: "Review access denied." }, 403);
+      if (contextError.message.includes("review_not_found")) return jsonNoStore({ error: "Review not found." }, 404);
+      return jsonNoStore({ error: "Unable to verify review media." }, 500);
+    }
+
+    const media = Array.isArray(context?.media) ? context.media : [];
+    if (context?.reviewStatus !== "pending_review") return jsonNoStore({ error: "Images can only be changed while the review is pending IRTH review." }, 409);
+    if (media.length >= 4) return jsonNoStore({ error: "This review already has the maximum 4 images." }, 409);
+
     const { data: fileInfo, error: infoError } = await admin.storage.from("review-media").info(storagePath);
     if (infoError || !fileInfo) return jsonNoStore({ error: "Uploaded image was not found." }, 404);
 
@@ -91,7 +106,6 @@ export async function POST(request: NextRequest) {
 
     return jsonNoStore({ mediaId, status: "pending_review" }, 201);
   } catch {
-    await admin.storage.from("review-media").remove([storagePath]);
     return jsonNoStore({ error: "Review image service is unavailable." }, 503);
   }
 }
