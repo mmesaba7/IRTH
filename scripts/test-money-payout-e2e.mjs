@@ -176,6 +176,10 @@ BEGIN
   select o.status into v_order_status from public.orders o where o.id=v_order_id;
   if v_order_status<>'delivered' then raise exception 'expected_delivered_order_got_%',v_order_status; end if;
 
+  perform public.record_admin_cod_collected(v_order_id);
+  select o.payment_status into v_payment_status from public.orders o where o.id=v_order_id;
+  if v_payment_status<>'paid' then raise exception 'cod_payment_not_collected'; end if;
+
   select count(*) into v_not_eligible_count
   from private.artisan_payout_eligibility e
   where e.order_id=v_order_id and e.eligibility_status='hold_active';
@@ -192,10 +196,6 @@ BEGIN
   update public.shipments s
   set delivered_at=pg_catalog.now()-interval '15 days', updated_at=pg_catalog.now()
   where s.order_id=v_order_id;
-
-  perform public.record_admin_cod_collected(v_order_id);
-  select o.payment_status into v_payment_status from public.orders o where o.id=v_order_id;
-  if v_payment_status<>'paid' then raise exception 'cod_payment_not_collected'; end if;
 
   for v_group in
     select distinct g.artisan_id,ap.auth_user_id
@@ -254,9 +254,9 @@ ROLLBACK;
 runTransactionalSql(sql);
 
 console.log(`PASS Admin delivered COD Order: ${fixture.order_number}`);
+console.log("PASS Trusted Admin COD collection moved Payment to paid");
 console.log("PASS Payout blocked during active 14-day Return Window");
 console.log("PASS Local time-travel fixture simulated Return Window expiry");
-console.log("PASS Trusted Admin COD collection moved Payment to paid");
 console.log("PASS Bank Transfer payout accounts submitted and approved through trusted boundaries");
 console.log("PASS 3 Order Items became payout eligible");
 console.log("PASS Manual Payout Batch created for 3 items");
