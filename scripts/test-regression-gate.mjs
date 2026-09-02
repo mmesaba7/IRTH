@@ -172,6 +172,38 @@ requireMarkers("Admin product archive boundary", "supabase/migrations/2026090216
   "admin_archive",
 ]);
 
+// Launch-readiness boundaries
+requireMarkers("CI", ".github/workflows/ci.yml", [
+  "npm ci",
+  "npm run test:regression",
+  "npm run build",
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+]);
+requireMarkers("Production environment", "scripts/check-production-env.mjs", [
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "SUPABASE_SECRET_KEY",
+  "NEXT_PUBLIC_SITE_URL",
+  "IRTH_APP_URL",
+  "IRTH_GUEST_TRACKING_SECRET",
+  "IRTH_PAYOUT_DATA_ENCRYPTION_KEY_V1",
+  "RESEND_API_KEY",
+  "IRTH_EMAIL_FROM",
+  "IRTH_EMAIL_PROCESSOR_SECRET",
+]);
+requireMarkers("Email worker", "src/app/api/internal/notifications/email/process/route.ts", [
+  "IRTH_EMAIL_PROCESSOR_SECRET",
+  "timingSafeEqual",
+  "processNotificationEmailOutbox",
+]);
+requireMarkers("Email worker", "src/lib/notifications/processEmailOutbox.ts", [
+  "claim_notification_email_outbox",
+  "mark_notification_email_failed",
+  "mark_notification_email_sent",
+  "sendEmailWithResend",
+]);
+
 if (failures.length > 0) {
   console.error("\nREGRESSION GATE FAILED");
   for (const failure of failures) console.error(`- ${failure}`);
