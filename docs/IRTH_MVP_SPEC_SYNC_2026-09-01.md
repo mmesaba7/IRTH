@@ -29,6 +29,20 @@ The architecture remains extensible for multiple payment gateways, couriers, cou
 - Draft CMS content must not be exposed through ordinary public APIs.
 - Sensitive CMS media remains private and is exposed publicly only through controlled Signed URLs when content is Published.
 
+## Approved Product editing / re-review rule — 2026-09-02
+
+The owner explicitly approved the following rule for Artisan Product management:
+
+- Any Artisan change to the **content of an already Published Product** must return that Product to the Product Approval flow before the changed version can be public again.
+- Product content includes names, descriptions, story, material, craft, dimensions, weight, preparation details, product-mode flags/customization, and Product images/video.
+- The MVP implementation uses the simple safe behavior: when Published content/media is changed by the Artisan, the Product becomes **Draft** and is temporarily unavailable publicly until the Artisan submits it again and IRTH approves it.
+- Product media cannot be changed by the Artisan while a Product publish review is Pending.
+- Inventory quantity remains a separate trusted operational update and does not by itself trigger content re-review.
+- Published market-price changes continue through the existing Product Market Price Review workflow; the currently approved price remains public until the new price is approved.
+- "Delete Product" is implemented as a safe archive/soft-delete boundary so the Product disappears from the Artisan active list and public marketplace while historical Orders, Reviews and financial/audit references remain intact.
+
+This rule is an approved Product/Security decision and must not be silently weakened later.
+
 ## Current money decisions
 
 - Artisan sets the customer-facing product price.
