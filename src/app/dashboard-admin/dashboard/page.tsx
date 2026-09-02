@@ -67,6 +67,7 @@ export default function DashboardAdminPage() {
     ["✍️ Customization Requests", "Order customization snapshots", "/dashboard-admin/customizations"],
     ["👤 Artisans", "Manage artisans", "/dashboard-admin/artisans"],
     ["🛍️ Products", "Manage products", "/dashboard-admin/products"],
+    ["🛡️ Product Management", "Remove any product with an audited reason", "/dashboard-admin/product-management"],
     ["💵 Price Reviews", "Review artisan market price changes", "/dashboard-admin/product-price-reviews"],
     ["💰 Commission", "Craft defaults & overrides", "/dashboard-admin/commission"],
     ["💳 Payouts", "Payout operations", "/dashboard-admin/payouts"],
