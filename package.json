@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/test-regression-gate.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:regression": "node scripts/test-regression-gate.mjs",
     "test:coupon-e2e": "node scripts/test-coupon-e2e.mjs",
     "test:security-smoke": "node scripts/test-security-smoke.mjs",
     "test:order-foundation-e2e": "node scripts/test-order-foundation-e2e.mjs",
