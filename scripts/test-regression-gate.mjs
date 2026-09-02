@@ -61,6 +61,11 @@ requireMarkers("Artisan", "src/app/artisan/products/edit/[slug]/page.tsx", [
   "product_market_price",
   "ProductMediaManager",
 ]);
+requireMarkers("Artisan", "src/app/artisan/products/edit/[slug]/layout.tsx", [
+  "archive_own_product",
+  "حذف المنتج",
+  "pendingReview",
+]);
 requireMarkers("Artisan", "src/app/artisan/products/ProductMediaManager.tsx", [
   "/media/upload-intent",
   "/media/finalize",
@@ -125,6 +130,11 @@ requireMarkers("Product DB boundary", "supabase/migrations/20260902160000_restor
   "archive_own_product",
   "product_media_artisan_change_requires_review",
   "product is pending review",
+]);
+requireMarkers("Product pricing boundary", "supabase/migrations/20260902155218_ensure_initial_market_price_on_product_approval.sql", [
+  "apply_product_moderation_decision",
+  "product_market_prices",
+  "No active market exists for artisan country",
 ]);
 
 if (failures.length > 0) {
