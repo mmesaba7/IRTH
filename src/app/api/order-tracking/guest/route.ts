@@ -1,18 +1,8 @@
 import { createHash } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CustomerOrderTracking } from "@/lib/customerOrderTracking";
-
-function jsonNoStore(body: unknown, status = 200) {
-  return NextResponse.json(body, {
-    status,
-    headers: {
-      "Cache-Control": "no-store, private",
-      "Referrer-Policy": "no-referrer",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
-}
+import { jsonNoStore } from "@/lib/serverApi";
 
 function hashToken(value: string) {
   return createHash("sha256").update(value).digest("hex");
@@ -57,7 +47,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
-      console.error("Guest tracking lookup failed:", error.message);
+      console.error("Guest tracking lookup failed.");
       return jsonNoStore({ error: "Unable to load tracking right now." }, 500);
     }
 
