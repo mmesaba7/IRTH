@@ -88,17 +88,7 @@ if (fixtures.length !== 1) {
   fail("Expected the latest Guest Order Foundation E2E fixture in received/pending state. Run test:order-foundation-e2e first.");
 }
 
-const admins = sqlJson(`
-  select ur.user_id
-  from public.user_roles ur
-  join public.roles r on r.id = ur.role_id
-  where r.code = 'super_admin'
-  limit 1
-`);
-if (admins.length !== 1) fail("Expected one local Super Admin fixture");
-
 const fixture = fixtures[0];
-const adminUserId = admins[0].user_id;
 
 const sql = `
 BEGIN;
@@ -108,7 +98,8 @@ DECLARE
   v_order_id uuid := ${literal(fixture.order_id)}::uuid;
   v_order_item_id uuid := ${literal(fixture.order_item_id)}::uuid;
   v_guest_hash text := ${literal(fixture.guest_access_token_hash)};
-  v_admin_user_id uuid := ${literal(adminUserId)}::uuid;
+  v_admin_user_id uuid := pg_catalog.gen_random_uuid();
+  v_super_admin_role_id uuid;
   v_group record;
   v_shipment record;
   v_order_status text;
@@ -122,6 +113,41 @@ DECLARE
   v_return_status text;
   v_refund_guard_seen boolean := false;
 BEGIN
+  select r.id into v_super_admin_role_id
+  from public.roles r
+  where r.code='super_admin'
+  limit 1;
+  if v_super_admin_role_id is null then raise exception 'super_admin_role_missing'; end if;
+
+  insert into auth.users (
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  ) values (
+    '00000000-0000-0000-0000-000000000000'::uuid,
+    v_admin_user_id,
+    'authenticated',
+    'authenticated',
+    'irth-e2e-super-admin@example.com',
+    '',
+    pg_catalog.now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{}'::jsonb,
+    pg_catalog.now(),
+    pg_catalog.now()
+  );
+
+  insert into public.user_roles(user_id,role_id)
+  values(v_admin_user_id,v_super_admin_role_id);
+
   perform pg_catalog.set_config('request.jwt.claim.sub', v_admin_user_id::text, true);
   perform pg_catalog.set_config('request.jwt.claims', pg_catalog.json_build_object('sub',v_admin_user_id,'role','authenticated')::text, true);
 
@@ -229,6 +255,7 @@ ROLLBACK;
 
 runTransactionalSql(sql);
 
+console.log(`PASS Temporary Super Admin fixture created inside transaction`);
 console.log(`PASS Admin confirmed Order: ${fixture.order_number}`);
 console.log("PASS 3 artisans moved fulfillment to ready-for-courier pickup");
 console.log("PASS 3 shipments progressed pickup -> transit -> delivered");
