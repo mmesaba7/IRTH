@@ -266,7 +266,13 @@ async function main() {
     const first = await postJson("/api/orders", market.id, orderBody, {
       "Idempotency-Key": idempotencyKey,
     });
-    assert.equal(first.response.status, 201, `First Order creation failed: ${JSON.stringify(first.payload)}`);
+    if (first.response.status !== 201) {
+      fail(
+        `First Order creation failed: ${JSON.stringify(first.payload)}\n\nLast Next.js server logs:\n${logs
+          .slice(-40)
+          .join("\n")}`
+      );
+    }
     assert.equal(first.payload?.order?.paymentMethod, "cod");
     assert.equal(first.payload?.order?.paymentStatus, "pending");
     assert.equal(first.payload?.order?.status, "received");
@@ -279,7 +285,13 @@ async function main() {
     const second = await postJson("/api/orders", market.id, orderBody, {
       "Idempotency-Key": idempotencyKey,
     });
-    assert.equal(second.response.status, 200, `Idempotent retry failed: ${JSON.stringify(second.payload)}`);
+    if (second.response.status !== 200) {
+      fail(
+        `Idempotent retry failed: ${JSON.stringify(second.payload)}\n\nLast Next.js server logs:\n${logs
+          .slice(-40)
+          .join("\n")}`
+      );
+    }
     assert.equal(second.payload?.order?.id, orderId);
     assert.equal(second.payload?.order?.orderNumber, orderNumber);
     assert.equal(second.payload?.order?.reused, true);
