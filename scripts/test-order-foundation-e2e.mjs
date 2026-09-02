@@ -82,7 +82,6 @@ function getLocalSupabaseEnv() {
   const apiUrl = values.API_URL || values.SUPABASE_URL;
   const anonKey = values.ANON_KEY || values.PUBLISHABLE_KEY;
   const serviceKey = values.SERVICE_ROLE_KEY || values.SECRET_KEY;
-  const dbUrl = values.DB_URL || values.DATABASE_URL;
 
   if (!apiUrl || !anonKey || !serviceKey) {
     fail("Supabase status must return API_URL, ANON_KEY/PUBLISHABLE_KEY, and SERVICE_ROLE_KEY/SECRET_KEY.");
@@ -92,12 +91,7 @@ function getLocalSupabaseEnv() {
     fail(`Refusing to run Order E2E against a non-local Supabase URL: ${apiUrl}`);
   }
 
-  const localDbUrl = dbUrl || "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
-  if (!/^postgres(?:ql)?:\/\/(?:[^@/]+@)?(?:127\.0\.0\.1|localhost):/.test(localDbUrl)) {
-    fail(`Refusing to run Order E2E against a non-local Postgres URL: ${localDbUrl}`);
-  }
-
-  return { apiUrl, anonKey, serviceKey, dbUrl: localDbUrl };
+  return { apiUrl, anonKey, serviceKey };
 }
 
 async function rest(apiUrl, key, path) {
@@ -111,12 +105,26 @@ async function rest(apiUrl, key, path) {
   return response.json();
 }
 
-function sqlJson(dbUrl, sql) {
+function sqlJson(sql) {
   const query = `select coalesce(json_agg(row_to_json(q)), '[]'::json)::text from (${sql}) q;`;
-  const result = runCommandSync("psql", [dbUrl, "-t", "-A", "-v", "ON_ERROR_STOP=1", "-c", query]);
+  const result = runCommandSync("docker", [
+    "exec",
+    "supabase_db_irth",
+    "psql",
+    "-U",
+    "postgres",
+    "-d",
+    "postgres",
+    "-t",
+    "-A",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-c",
+    query,
+  ]);
 
   if (result.error) {
-    fail(`Unable to query local Postgres with psql: ${result.error.message}`);
+    fail(`Unable to query local Postgres through Docker: ${result.error.message}`);
   }
   if (result.status !== 0) {
     fail(`Local Postgres query failed:\n${result.stderr || result.stdout}`);
@@ -181,7 +189,7 @@ async function postJson(path, marketId, body, extraHeaders = {}) {
 }
 
 async function main() {
-  const { apiUrl, anonKey, serviceKey, dbUrl } = getLocalSupabaseEnv();
+  const { apiUrl, anonKey, serviceKey } = getLocalSupabaseEnv();
 
   const markets = await rest(
     apiUrl,
@@ -194,7 +202,6 @@ async function main() {
   const slugs = ["clay-vessel", "heritage-textile", "copper-piece"];
   const slugSql = slugs.map((slug) => `'${slug.replaceAll("'", "''")}'`).join(",");
   const before = sqlJson(
-    dbUrl,
     `select id, slug, artisan_id, quantity, lifecycle_status, made_to_order
      from public.products
      where slug in (${slugSql})
@@ -270,29 +277,24 @@ async function main() {
     assert.equal(second.payload?.order?.reused, true);
 
     const orders = sqlJson(
-      dbUrl,
       `select id, order_number, status, payment_status, promotion_discount_total,
               coupon_discount_total, merchandise_subtotal, shipping_fee, final_total
        from public.orders where id = '${orderId}'::uuid`
     );
     const groups = sqlJson(
-      dbUrl,
       `select id, artisan_id, merchandise_subtotal
        from public.order_artisan_groups where order_id = '${orderId}'::uuid`
     );
     const items = sqlJson(
-      dbUrl,
       `select product_id, artisan_id, commission_rate_percent, promotion_discount,
               coupon_discount, line_total
        from public.order_items where order_id = '${orderId}'::uuid`
     );
     const redemptions = sqlJson(
-      dbUrl,
       `select id, coupon_id, order_id
        from public.coupon_redemptions where order_id = '${orderId}'::uuid`
     );
     const after = sqlJson(
-      dbUrl,
       `select id, slug, quantity
        from public.products where slug in (${slugSql}) order by slug asc`
     );
