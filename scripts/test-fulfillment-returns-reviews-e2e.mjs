@@ -231,12 +231,19 @@ BEGIN
     raise exception 'return_window_snapshot_invalid';
   end if;
 
-  v_review_id := public.create_verified_purchase_review(v_order_item_id,null,v_guest_hash,5,5,'Local delivered purchase E2E review');
+  v_review_id := public.create_verified_purchase_review(
+    v_order_item_id,
+    null::uuid,
+    v_guest_hash,
+    5::smallint,
+    5::smallint,
+    'Local delivered purchase E2E review'::text
+  );
   if not exists (select 1 from private.customer_reviews r where r.id=v_review_id and r.status='pending_review') then
     raise exception 'review_not_pending_moderation';
   end if;
 
-  perform public.review_customer_review(v_review_id,v_admin_user_id,'approved',null);
+  perform public.review_customer_review(v_review_id,v_admin_user_id,'approved'::text,null::text);
   if not exists (select 1 from private.customer_reviews r where r.id=v_review_id and r.status='published') then
     raise exception 'review_not_published_after_approval';
   end if;
@@ -247,11 +254,16 @@ BEGIN
 
   if v_item_artisan_user_id is null then raise exception 'review_artisan_auth_fixture_missing'; end if;
 
-  v_reply_id := public.submit_artisan_review_reply(v_review_id,v_item_artisan_id,v_item_artisan_user_id,'Thank you from the artisan E2E fixture');
+  v_reply_id := public.submit_artisan_review_reply(
+    v_review_id,
+    v_item_artisan_id,
+    v_item_artisan_user_id,
+    'Thank you from the artisan E2E fixture'::text
+  );
   if not exists (select 1 from private.review_artisan_replies ar where ar.id=v_reply_id and ar.status='pending_review') then
     raise exception 'artisan_reply_not_pending_moderation';
   end if;
-  perform public.review_artisan_reply(v_reply_id,v_admin_user_id,'approved',null);
+  perform public.review_artisan_reply(v_reply_id,v_admin_user_id,'approved'::text,null::text);
   if not exists (select 1 from private.review_artisan_replies ar where ar.id=v_reply_id and ar.status='approved') then
     raise exception 'artisan_reply_not_approved';
   end if;
