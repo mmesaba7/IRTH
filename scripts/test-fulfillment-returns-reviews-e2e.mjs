@@ -101,6 +101,7 @@ DECLARE
   v_admin_user_id uuid := pg_catalog.gen_random_uuid();
   v_super_admin_role_id uuid;
   v_group record;
+  v_artisan_user_id uuid;
   v_shipment record;
   v_order_status text;
   v_shipment_count integer;
@@ -156,15 +157,51 @@ BEGIN
   if v_order_status <> 'confirmed' then raise exception 'expected_confirmed_order_got_%',v_order_status; end if;
 
   for v_group in
-    select g.id, ap.auth_user_id
+    select g.id, g.artisan_id, ap.auth_user_id
     from public.order_artisan_groups g
     join public.artisan_profiles ap on ap.id=g.artisan_id
     where g.order_id=v_order_id
     order by g.id
   loop
-    if v_group.auth_user_id is null then raise exception 'artisan_auth_fixture_missing'; end if;
-    perform pg_catalog.set_config('request.jwt.claim.sub', v_group.auth_user_id::text, true);
-    perform pg_catalog.set_config('request.jwt.claims', pg_catalog.json_build_object('sub',v_group.auth_user_id,'role','authenticated')::text, true);
+    v_artisan_user_id := v_group.auth_user_id;
+
+    if v_artisan_user_id is null then
+      v_artisan_user_id := pg_catalog.gen_random_uuid();
+
+      insert into auth.users (
+        instance_id,
+        id,
+        aud,
+        role,
+        email,
+        encrypted_password,
+        email_confirmed_at,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        created_at,
+        updated_at
+      ) values (
+        '00000000-0000-0000-0000-000000000000'::uuid,
+        v_artisan_user_id,
+        'authenticated',
+        'authenticated',
+        'irth-e2e-artisan-' || replace(v_group.artisan_id::text,'-','') || '@example.com',
+        '',
+        pg_catalog.now(),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        '{}'::jsonb,
+        pg_catalog.now(),
+        pg_catalog.now()
+      );
+
+      update public.artisan_profiles ap
+      set auth_user_id = v_artisan_user_id
+      where ap.id = v_group.artisan_id
+        and ap.auth_user_id is null;
+    end if;
+
+    perform pg_catalog.set_config('request.jwt.claim.sub', v_artisan_user_id::text, true);
+    perform pg_catalog.set_config('request.jwt.claims', pg_catalog.json_build_object('sub',v_artisan_user_id,'role','authenticated')::text, true);
     perform public.update_my_artisan_fulfillment_status(v_group.id,'preparing');
     perform public.update_my_artisan_fulfillment_status(v_group.id,'ready_for_courier_pickup');
   end loop;
@@ -207,6 +244,8 @@ BEGIN
   select oi.artisan_id, ap.auth_user_id into v_item_artisan_id,v_item_artisan_user_id
   from public.order_items oi join public.artisan_profiles ap on ap.id=oi.artisan_id
   where oi.id=v_order_item_id;
+
+  if v_item_artisan_user_id is null then raise exception 'review_artisan_auth_fixture_missing'; end if;
 
   v_reply_id := public.submit_artisan_review_reply(v_review_id,v_item_artisan_id,v_item_artisan_user_id,'Thank you from the artisan E2E fixture');
   if not exists (select 1 from private.review_artisan_replies ar where ar.id=v_reply_id and ar.status='pending_review') then
@@ -256,6 +295,7 @@ ROLLBACK;
 runTransactionalSql(sql);
 
 console.log(`PASS Temporary Super Admin fixture created inside transaction`);
+console.log(`PASS Missing Artisan auth fixtures were created inside transaction`);
 console.log(`PASS Admin confirmed Order: ${fixture.order_number}`);
 console.log("PASS 3 artisans moved fulfillment to ready-for-courier pickup");
 console.log("PASS 3 shipments progressed pickup -> transit -> delivered");
