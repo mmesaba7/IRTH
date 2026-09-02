@@ -76,12 +76,16 @@ const fixtures = sqlJson(`
     )
     and (select count(*) from public.order_artisan_groups g where g.order_id=o.id) = 3
     and (select count(*) from public.order_items oi where oi.order_id=o.id) = 3
+    and exists (
+      select 1 from public.order_items oi
+      where oi.order_id=o.id and oi.tax_rate_percent>0 and oi.tax_amount>0
+    )
   order by o.created_at desc
   limit 1
 `);
 
 if (fixtures.length !== 1) {
-  fail("Expected the latest Guest COD Order Foundation fixture in received/pending state. Run test:order-foundation-e2e first.");
+  fail("Expected the latest tax-bearing Guest COD Order Foundation fixture in received/pending state. Run test:order-foundation-e2e first after applying the Tax migration.");
 }
 
 const fixture = fixtures[0];
@@ -110,6 +114,8 @@ DECLARE
   v_payment_status text;
   v_refund_status text;
   v_reversal_count integer;
+  v_tax_reversal_count integer;
+  v_tax_reversal_amount numeric;
   v_restored_qty integer;
 BEGIN
   select r.id into v_super_admin_role_id from public.roles r where r.code='super_admin' limit 1;
@@ -177,9 +183,10 @@ BEGIN
   from public.order_items oi
   join public.products p on p.id=oi.product_id
   where oi.order_id=v_order_id and p.quantity is not null and not p.made_to_order
+    and oi.tax_rate_percent>0 and oi.tax_amount>0
   order by oi.id
   limit 1;
-  if v_order_item.id is null then raise exception 'finite_inventory_order_item_required'; end if;
+  if v_order_item.id is null then raise exception 'tax_bearing_finite_inventory_order_item_required'; end if;
 
   select p.quantity into v_product_qty_before from public.products p where p.id=v_order_item.product_id;
 
@@ -245,7 +252,17 @@ BEGIN
     and l.order_item_id=v_order_item.id
     and l.source='return_refund'
     and l.entry_type in ('refund_merchandise_reversal','refund_irth_subsidy_reversal','refund_commission_reversal');
-  if v_reversal_count<>3 then raise exception 'expected_3_refund_reversal_entries_got_%',v_reversal_count; end if;
+  if v_reversal_count<>3 then raise exception 'expected_3_core_refund_reversal_entries_got_%',v_reversal_count; end if;
+
+  select count(*),coalesce(max(l.amount),0)
+  into v_tax_reversal_count,v_tax_reversal_amount
+  from private.artisan_settlement_ledger l
+  where l.order_id=v_order_id
+    and l.order_item_id=v_order_item.id
+    and l.source='return_refund'
+    and l.entry_type='refund_tax_reversal';
+  if v_tax_reversal_count<>1 then raise exception 'expected_1_tax_refund_reversal_got_%',v_tax_reversal_count; end if;
+  if v_tax_reversal_amount<=0 then raise exception 'tax_refund_reversal_must_be_positive'; end if;
 
   select p.quantity into v_product_qty_after from public.products p where p.id=v_order_item.product_id;
   if v_product_qty_after<>v_product_qty_before+1 then raise exception 'inventory_not_restored'; end if;
@@ -267,7 +284,7 @@ console.log("PASS Refund prepared from trusted sale-ledger snapshots with shippi
 console.log("PASS Trusted system refund-success boundary completed the refund");
 console.log("PASS Refund-success retry was idempotent");
 console.log("PASS Return reached refunded and Payment reached partially_refunded/refunded");
-console.log("PASS Merchandise, IRTH subsidy, and commission reversal ledger entries recorded");
+console.log("PASS Merchandise, IRTH subsidy, commission, and tax settlement reversals recorded");
 console.log("PASS Restockable finite inventory restored exactly once");
 console.log("PASS Transaction rolled back; local fixture state preserved");
 console.log("Refund / Money domain E2E passed (payment-provider E2E remains pending gateway selection).\n");
