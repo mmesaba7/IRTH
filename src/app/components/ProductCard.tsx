@@ -24,6 +24,17 @@ type ProductMedia = {
   signedUrl: string;
 };
 
+const DEMO_PRODUCT_VISUALS: Record<string, string> = {
+  "Pottery & Ceramics": "/demo/crafts/pottery-ceramics.svg",
+  Textiles: "/demo/crafts/textiles.svg",
+  Metalwork: "/demo/crafts/metalwork.svg",
+  Woodwork: "/demo/crafts/woodwork.svg",
+  Embroidery: "/demo/crafts/embroidery.svg",
+  Leatherwork: "/demo/crafts/leatherwork.svg",
+  "Glass Art": "/demo/crafts/glass-art.svg",
+  "Arabic Calligraphy": "/demo/crafts/calligraphy.svg",
+};
+
 export default function ProductCard({ product }: ProductCardProps) {
   const { slug } = product;
   const savedSnapshot = useSyncExternalStore(
@@ -36,6 +47,10 @@ export default function ProductCard({ product }: ProductCardProps) {
   const { quote, item, loading, marketRequired, error } = useProductQuote(slug, 1);
   const canAddToCart = item?.status === "available";
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const demoFallbackUrl = product.slug.startsWith("demo-")
+    ? DEMO_PRODUCT_VISUALS[product.category] ?? null
+    : null;
+  const displayImageUrl = coverUrl ?? demoFallbackUrl;
 
   useEffect(() => {
     void ensureSavedProductsLoaded();
@@ -110,9 +125,9 @@ export default function ProductCard({ product }: ProductCardProps) {
     <Link href={`/product/${product.slug}`} className="group block h-full">
       <article className="flex h-full flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] transition duration-300 hover:-translate-y-1 hover:border-[var(--border-medium)] hover:shadow-[var(--shadow-card)]">
         <div className={`relative aspect-[4/3] overflow-hidden ${accentColors[product.accent]}`}>
-          {coverUrl ? (
+          {displayImageUrl ? (
             <img
-              src={coverUrl}
+              src={displayImageUrl}
               alt={product.name}
               loading="lazy"
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.035]"
