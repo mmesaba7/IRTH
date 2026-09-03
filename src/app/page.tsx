@@ -9,6 +9,7 @@ import BestSellersSection from "./components/BestSellersSection";
 import BlogHighlightsSection from "./components/BlogHighlightsSection";
 import NewArrivalsSection from "./components/NewArrivalsSection";
 import ProductCard from "./components/ProductCard";
+import IrthIcon, { type IrthIconName } from "./components/IrthIcon";
 import type { Product } from "./data/products";
 import { publicCountries } from "./data/countries";
 import { createClient } from "@/lib/supabase/client";
@@ -43,6 +44,7 @@ type DbArtisan = {
 };
 
 type DbProduct = {
+  id: string;
   slug: string;
   artisan_id: string;
   primary_craft_id: string;
@@ -118,18 +120,14 @@ type HomeOffer = HomeOfferRow & {
 };
 
 type SecureOfferQuote = {
-  market: {
-    currency_code: string;
-  };
+  market: { currency_code: string };
   items: Array<{
     slug: string;
     status: string;
     originalLineTotal: string | null;
     lineTotal: string | null;
     promotionDiscount: string | null;
-    promotion: null | {
-      id: string;
-    };
+    promotion: null | { id: string };
   }>;
 };
 
@@ -151,8 +149,8 @@ const DEFAULT_HOMEPAGE_SECTIONS: HomepageSectionConfig[] = [
   { key: "recently_viewed", visible: true, order: 9 },
   { key: "story_brand", visible: true, order: 10 },
   { key: "wholesale_cta", visible: true, order: 11 },
-  { key: "blog_highlights", visible: true, order: 12 },
-  { key: "trust_value", visible: true, order: 13 },
+  { key: "trust_value", visible: true, order: 12 },
+  { key: "blog_highlights", visible: true, order: 13 },
   { key: "footer", visible: true, order: 14 },
 ];
 
@@ -197,6 +195,17 @@ function parsePublishedHomepageSections(value: unknown): HomepageSectionConfig[]
   return parsed.sort((a, b) => a.order - b.order);
 }
 
+function craftIconName(value: string): IrthIconName {
+  const craft = value.toLowerCase();
+  if (craft.includes("text") || craft.includes("weav") || craft.includes("fabric")) return "textile";
+  if (craft.includes("pot") || craft.includes("ceramic") || craft.includes("clay")) return "pottery";
+  if (craft.includes("metal") || craft.includes("copper") || craft.includes("brass")) return "metal";
+  if (craft.includes("wood")) return "wood";
+  if (craft.includes("leather")) return "leather";
+  if (craft.includes("jewel") || craft.includes("silver") || craft.includes("gold")) return "jewelry";
+  return "craft";
+}
+
 export default function HomePage() {
   const supabase = useMemo(() => createClient(), []);
   const [products, setProducts] = useState<Product[]>([]);
@@ -206,8 +215,13 @@ export default function HomePage() {
   const [artisans, setArtisans] = useState<HomeArtisan[]>([]);
   const [offers, setOffers] = useState<HomeOffer[]>([]);
   const [homepageSections, setHomepageSections] = useState<HomepageSectionConfig[]>(DEFAULT_HOMEPAGE_SECTIONS);
+  const [locale, setLocale] = useState<"ar" | "en">("ar");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setLocale(localStorage.getItem("irth-locale") === "en" ? "en" : "ar");
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -238,13 +252,13 @@ export default function HomePage() {
           const payload = (await response.json()) as { document?: unknown };
           return { data: payload.document ?? null, error: null };
         })
-        .catch((error: unknown) => ({ data: null, error }));
+        .catch((cmsError: unknown) => ({ data: null, error: cmsError }));
 
       const [countriesResult, craftsResult, artisansResult, productsResult, offersResult, cmsResult] = await Promise.all([
         supabase.from("countries").select("id, slug, name_ar, name_en").eq("is_active", true).order("name_en", { ascending: true }),
         supabase.from("crafts").select("id, name_ar, name_en").eq("is_active", true).order("name_en", { ascending: true }),
         supabase.from("artisan_profiles").select("id, slug, name_ar, name_en, country_id, region_ar, region_en, bio_ar, bio_en, story_ar, story_en, primary_craft_id, profile_image_url").eq("status", "active").order("slug", { ascending: true }),
-        supabase.from("products").select("slug, artisan_id, primary_craft_id, name_ar, name_en, description_ar, description_en, story_ar, story_en, material_ar, material_en, price, dimensions, weight, made_to_order, preparation_time, one_of_a_kind, customization").eq("lifecycle_status", "published").order("created_at", { ascending: false }),
+        supabase.from("products").select("id, slug, artisan_id, primary_craft_id, name_ar, name_en, description_ar, description_en, story_ar, story_en, material_ar, material_en, price, dimensions, weight, made_to_order, preparation_time, one_of_a_kind, customization").eq("lifecycle_status", "published").order("created_at", { ascending: false }),
         offersPromise,
         cmsPromise,
       ]);
@@ -356,6 +370,7 @@ export default function HomePage() {
         const craft = craftMap.get(product.primary_craft_id);
         const craftName = craft?.name_en || "Craft";
         return {
+          id: product.id,
           slug: product.slug,
           artisanSlug: artisan?.slug || "artisan",
           name: product.name_ar || product.name_en,
@@ -401,35 +416,225 @@ export default function HomePage() {
 
   const selectedProducts = products.slice(0, 6);
   const featuredArtisan = artisans[0];
+  const isArabic = locale === "ar";
+  const t = (ar: string, en: string) => isArabic ? ar : en;
+
+  function SearchExperience() {
+    return (
+      <section className="relative z-20 mx-auto -mt-5 w-full max-w-[var(--container-max)] px-4 md:-mt-8 md:px-6">
+        <div className="grid gap-4 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)] md:grid-cols-[1.35fr_.65fr] md:items-center md:p-5">
+          <Link href="/search" className="group flex min-h-14 items-center gap-3 rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 transition hover:border-[var(--color-copper)]">
+            <IrthIcon name="search" className="h-5 w-5 shrink-0 text-[var(--color-copper)]" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-[var(--color-espresso)]">{t("ابحث عن شيء له معنى", "Find something meaningful")}</p>
+              <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{t("منتج، حرفة، حرفي أو دولة...", "Products, crafts, artisans, or countries...")}</p>
+            </div>
+            <span className="text-[var(--color-copper)] transition-transform group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5">→</span>
+          </Link>
+
+          <div className="grid grid-cols-3 gap-2">
+            <Link href="/crafts" className="flex flex-col items-center gap-1.5 rounded-[var(--radius-sm)] px-2 py-2 text-center text-[11px] text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"><IrthIcon name="grid" className="h-5 w-5 text-[var(--color-copper)]" />{t("الحرف", "Crafts")}</Link>
+            <Link href="/artisans" className="flex flex-col items-center gap-1.5 rounded-[var(--radius-sm)] px-2 py-2 text-center text-[11px] text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"><IrthIcon name="user" className="h-5 w-5 text-[var(--color-copper)]" />{t("الحرفيون", "Artisans")}</Link>
+            <Link href="/countries" className="flex flex-col items-center gap-1.5 rounded-[var(--radius-sm)] px-2 py-2 text-center text-[11px] text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"><IrthIcon name="globe" className="h-5 w-5 text-[var(--color-copper)]" />{t("الدول", "Countries")}</Link>
+          </div>
+        </div>
+        {error && <div className="mt-4 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+      </section>
+    );
+  }
 
   function renderHomepageSection(key: string): ReactNode {
     switch (key) {
-      case "hero": return <HomepageCampaignHero />;
+      case "hero":
+        return <HomepageCampaignHero />;
+
       case "crafts":
         if (crafts.length === 0) return null;
-        return <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20"><div className="flex items-end justify-between gap-5"><div><p className="section-eyebrow">Explore by craft</p><h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Begin with the craft.</h2></div><Link href="/crafts" className="text-sm font-medium text-[var(--color-copper)] hover:underline">All crafts →</Link></div><div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">{crafts.map((craft) => <Link key={craft.id} href={`/crafts?category=${encodeURIComponent(craft.filterName)}`} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"><p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">{craft.name}</p><p className="mt-2 text-xs text-[var(--color-copper)]">Explore →</p></Link>)}</div></section>;
+        return (
+          <section className="irth-section">
+            <div className="irth-section-heading">
+              <div><p className="section-eyebrow">{t("تسوّق حسب الحرفة", "Shop by craft")}</p><h2>{t("ابدأ من الحرفة.", "Begin with the craft.")}</h2></div>
+              <Link href="/crafts" className="irth-section-link">{t("كل الحرف", "All crafts")} <span>→</span></Link>
+            </div>
+            <div className="mt-7 grid auto-cols-[132px] grid-flow-col gap-3 overflow-x-auto pb-2 [scrollbar-width:none] md:grid-flow-row md:grid-cols-4 md:overflow-visible lg:grid-cols-8">
+              {crafts.map((craft) => (
+                <Link
+                  key={craft.id}
+                  href={`/crafts?category=${encodeURIComponent(craft.filterName)}`}
+                  className="group flex min-h-[118px] flex-col items-center justify-center gap-3 rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-4 text-center transition hover:-translate-y-1 hover:border-[var(--color-copper)] hover:shadow-[var(--shadow-soft)]"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--color-copper)] transition group-hover:bg-[var(--color-copper)] group-hover:text-white"><IrthIcon name={craftIconName(craft.filterName)} className="h-6 w-6" /></span>
+                  <span className="text-xs font-bold leading-5 text-[var(--color-espresso)]">{craft.name}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        );
+
       case "explore_countries":
         if (countries.length === 0) return null;
-        return <section className="border-y border-[var(--border-soft)] bg-[var(--surface-muted)]"><div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20"><div><p className="section-eyebrow">Explore by place</p><h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Heritage shaped by place.</h2></div><div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{countries.map((country) => <Link key={country.id} href={`/country/${country.slug}`} className="relative min-h-[230px] overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-espresso)] p-6 text-[var(--color-ivory)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-elevated)]">{country.heroImage && <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{ backgroundImage: `url("${country.heroImage}")` }} />}<div className="relative z-10 flex h-full flex-col justify-end"><p className="text-xs uppercase tracking-[0.18em] text-[var(--color-copper)]">Country</p><h3 className="mt-2 font-[var(--font-display)] text-3xl">{country.name}</h3><p className="mt-1 text-sm text-[var(--color-ivory)]/65">{country.nameEn}</p></div></Link>)}</div></div></section>;
+        return (
+          <section className="border-y border-[var(--border-soft)] bg-[var(--surface-muted)]/58">
+            <div className="irth-section">
+              <div className="irth-section-heading">
+                <div><p className="section-eyebrow">{t("اكتشف المكان", "Explore by place")}</p><h2>{t("لكل مكان حكاية وحرفة.", "Heritage shaped by place.")}</h2></div>
+                <Link href="/countries" className="irth-section-link">{t("كل الدول", "All countries")} <span>→</span></Link>
+              </div>
+              <div className="irth-horizontal-rail mt-8 md:grid-auto-columns-[minmax(250px,30%)] lg:grid-auto-columns-[minmax(235px,23%)]">
+                {countries.map((country) => (
+                  <Link key={country.id} href={`/country/${country.slug}`} className="group relative min-h-[245px] overflow-hidden rounded-[var(--radius-lg)] bg-[var(--color-petrol-deep)] text-white shadow-[var(--shadow-soft)]">
+                    {country.heroImage ? <img src={country.heroImage} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]" /> : <div className="irth-pattern absolute inset-0 opacity-40" />}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-petrol-deep)]/90 via-[var(--color-petrol-deep)]/12 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 p-5">
+                      <p className="text-[10px] font-bold uppercase tracking-[.15em] text-[var(--color-antique-gold)]">{t("دولة", "Country")}</p>
+                      <h3 className="mt-1 font-[var(--font-display)] text-3xl font-semibold">{country.name}</h3>
+                      <p className="mt-1 text-xs text-white/65">{country.nameEn}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </section>
+        );
+
       case "featured_products":
         if (selectedProducts.length === 0) return null;
-        return <section className="border-t border-[var(--border-soft)]"><div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20"><div className="flex items-end justify-between gap-5"><div><p className="section-eyebrow">From the marketplace</p><h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Stories you can take home.</h2></div><Link href="/crafts" className="text-sm font-medium text-[var(--color-copper)] hover:underline">View all →</Link></div><div className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">{selectedProducts.map((product) => <ProductCard key={product.slug} product={product} />)}</div></div></section>;
+        return (
+          <section className="irth-section">
+            <div className="irth-section-heading">
+              <div><p className="section-eyebrow">{t("مختارات من إرث", "Curated from IRTH")}</p><h2>{t("قطع تحمل أثر صانعها.", "Made to be kept.")}</h2></div>
+              <Link href="/crafts" className="irth-section-link">{t("كل المنتجات", "View all")} <span>→</span></Link>
+            </div>
+            <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
+              {selectedProducts.map((product) => <ProductCard key={product.slug} product={product} />)}
+            </div>
+          </section>
+        );
+
       case "best_sellers": return <BestSellersSection />;
       case "new_arrivals": return <NewArrivalsSection />;
+
       case "featured_artisans":
-        if (!featuredArtisan && artisans.length <= 1) return null;
-        return <Fragment>{featuredArtisan && <section className="overflow-hidden bg-[var(--color-olive)] text-[var(--color-ivory)]"><div className="mx-auto grid max-w-[var(--container-max)] md:grid-cols-2"><div className="relative min-h-[340px] overflow-hidden">{featuredArtisan.profileImage ? <img src={featuredArtisan.profileImage} alt={featuredArtisan.name} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 flex items-center justify-center"><div className="flex h-44 w-44 items-center justify-center rounded-full bg-[var(--color-ivory)]/90 p-6 text-center"><span className="font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{featuredArtisan.name}</span></div></div>}</div><div className="flex items-center px-6 py-14 md:px-12"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-antique-gold)]">Meet the maker</p><h2 className="mt-4 font-[var(--font-display)] text-4xl md:text-5xl">{featuredArtisan.name}</h2><p className="mt-2 text-sm text-[var(--color-ivory)]/65">{featuredArtisan.mainCraft} · {featuredArtisan.country}</p><p className="mt-6 text-base leading-8 text-[var(--color-ivory)]/80">{featuredArtisan.bio}</p>{featuredArtisan.story && <p className="mt-5 line-clamp-4 text-sm leading-7 text-[var(--color-ivory)]/65">{featuredArtisan.story}</p>}<Link href={`/artisan/${featuredArtisan.slug}`} className="btn-light mt-8">Meet the artisan →</Link></div></div></div></section>}{artisans.length > 1 && <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20"><p className="section-eyebrow">Makers of IRTH</p><h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Meet more artisans.</h2><div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{artisans.map((artisan) => <Link key={artisan.id} href={`/artisan/${artisan.slug}`} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"><p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">{artisan.country} · {artisan.region}</p><h3 className="mt-2 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{artisan.name}</h3><p className="mt-1 text-sm font-medium text-[var(--color-copper)]">{artisan.mainCraft}</p>{artisan.bio && <p className="mt-4 line-clamp-3 text-sm leading-6 text-[var(--text-secondary)]">{artisan.bio}</p>}</Link>)}</div></section>}</Fragment>;
+        if (!featuredArtisan) return null;
+        return (
+          <section className="overflow-hidden bg-[var(--color-petrol-deep)] text-[var(--color-ivory)]">
+            <div className="mx-auto max-w-[var(--container-max)] px-4 py-12 md:px-6 md:py-16">
+              <div className="overflow-hidden rounded-[var(--radius-xl)] border border-white/10 bg-[var(--color-petrol)] shadow-[var(--shadow-elevated)] md:grid md:grid-cols-[1.08fr_.92fr]">
+                <div className="relative min-h-[370px] overflow-hidden md:min-h-[520px]">
+                  {featuredArtisan.profileImage ? <img src={featuredArtisan.profileImage} alt={featuredArtisan.name} className="absolute inset-0 h-full w-full object-cover" /> : <div className="irth-pattern absolute inset-0 opacity-35" />}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-petrol-deep)]/55 via-transparent to-transparent" />
+                </div>
+                <div className="flex items-center p-7 md:p-10 lg:p-14">
+                  <div>
+                    <p className="section-eyebrow !text-[var(--color-antique-gold)]">{t("قصة حرفي", "Artisan story")}</p>
+                    <h2 className="mt-4 font-[var(--font-display)] text-4xl font-semibold leading-tight text-[#fff7e7] md:text-6xl">{featuredArtisan.name}</h2>
+                    <p className="mt-2 text-sm text-white/58">{featuredArtisan.mainCraft} · {featuredArtisan.region || featuredArtisan.country}</p>
+                    <p className="mt-6 text-sm leading-8 text-white/74 md:text-base">{featuredArtisan.story || featuredArtisan.bio}</p>
+                    <Link href={`/artisan/${featuredArtisan.slug}`} className="btn-light mt-8">{t("اكتشف قصته", "Meet the artisan")} <span>→</span></Link>
+                  </div>
+                </div>
+              </div>
+
+              {artisans.length > 1 && (
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  {artisans.slice(1).map((artisan) => (
+                    <Link key={artisan.id} href={`/artisan/${artisan.slug}`} className="flex items-center gap-4 rounded-[var(--radius-md)] border border-white/10 bg-white/5 p-4 transition hover:bg-white/10">
+                      {artisan.profileImage ? <img src={artisan.profileImage} alt="" className="h-16 w-16 shrink-0 rounded-full object-cover" /> : <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/10 font-[var(--font-display)] text-xl">{artisan.name.charAt(0)}</span>}
+                      <div className="min-w-0"><p className="font-[var(--font-display)] text-2xl font-semibold text-[#fff7e7]">{artisan.name}</p><p className="mt-1 truncate text-xs text-white/55">{artisan.mainCraft} · {artisan.country}</p></div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        );
+
       case "promotions":
         if (offers.length === 0) return null;
-        return <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20"><div className="flex items-end justify-between gap-5"><div><p className="section-eyebrow">Current offers</p><h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">عروض معتمدة وفعالة.</h2><p className="mt-3 text-sm text-[var(--text-secondary)]">يظهر هنا العرض الفائز فقط لكل منتج حسب السوق المختار.</p></div></div><div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{offers.map((offer) => <Link key={`${offer.promotion_id}-${offer.product_id}`} href={`/product/${offer.product_slug}`} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"><div className="flex items-center justify-between gap-3"><span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-medium text-[var(--color-espresso)]">{offer.source_type === "irth" ? "IRTH Offer" : "Artisan Offer"}</span><span className="text-lg font-semibold text-[var(--color-copper)]">{offer.discount_type === "percentage" ? `${Number(offer.discount_value)}% OFF` : `${formatMoney(offer.promotion_discount, offer.currency_code)} OFF`}</span></div><h3 className="mt-5 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{offer.product_name_ar || offer.product_name_en}</h3><p className="mt-2 text-sm text-[var(--text-secondary)]">{offer.artisan_name_ar || offer.artisan_name_en} · {offer.country_name_ar || offer.country_name_en}</p><p className="mt-3 text-sm text-[var(--text-muted)]">السعر الأصلي: {formatMoney(offer.original_line_total, offer.currency_code)}</p><p className="mt-1 text-sm font-medium text-[var(--color-copper)]">بعد العرض: {formatMoney(offer.final_line_total, offer.currency_code)}</p><p className="mt-4 text-xs text-[var(--text-muted)]">حتى {new Date(offer.end_at).toLocaleString("ar-EG")}</p></Link>)}</div></section>;
+        return (
+          <section className="irth-section">
+            <div className="irth-section-heading">
+              <div><p className="section-eyebrow">{t("عروض حالية", "Current offers")}</p><h2>{t("فرصة مختارة، بسعر موثوق.", "A special reason to look closer.")}</h2></div>
+            </div>
+            <div className="mt-8 grid gap-4 lg:grid-cols-2">
+              {offers.map((offer, index) => (
+                <Link
+                  key={`${offer.promotion_id}-${offer.product_id}`}
+                  href={`/product/${offer.product_slug}`}
+                  className={`group relative overflow-hidden border p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)] ${index === 0 ? "min-h-[280px] rounded-[var(--radius-xl)] border-[var(--color-copper)]/35 bg-[var(--color-copper)] text-white lg:row-span-2 lg:min-h-full" : "rounded-[var(--radius-md)] border-[var(--border-soft)] bg-[var(--surface)] text-[var(--text-primary)]"}`}
+                >
+                  <div className={`irth-pattern absolute inset-0 ${index === 0 ? "opacity-20" : "opacity-10"}`} />
+                  <div className="relative z-10 flex h-full flex-col justify-between">
+                    <div className="flex items-start justify-between gap-4">
+                      <span className={`text-[10px] font-bold uppercase tracking-[.15em] ${index === 0 ? "text-[#fff0d7]" : "text-[var(--color-copper)]"}`}>{offer.source_type === "irth" ? "IRTH Offer" : "Artisan Offer"}</span>
+                      <span className={`font-[var(--font-display)] text-3xl font-bold ${index === 0 ? "text-[#fff7e7]" : "text-[var(--color-copper)]"}`}>{offer.discount_type === "percentage" ? `${Number(offer.discount_value)}%` : formatMoney(offer.promotion_discount, offer.currency_code)}</span>
+                    </div>
+                    <div className="mt-12">
+                      <h3 className={`font-[var(--font-display)] font-semibold leading-tight ${index === 0 ? "text-4xl md:text-5xl" : "text-2xl text-[var(--color-espresso)]"}`}>{offer.product_name_ar || offer.product_name_en}</h3>
+                      <p className={`mt-2 text-sm ${index === 0 ? "text-white/72" : "text-[var(--text-secondary)]"}`}>{offer.artisan_name_ar || offer.artisan_name_en} · {offer.country_name_ar || offer.country_name_en}</p>
+                      <div className="mt-5 flex flex-wrap items-center gap-3 text-sm"><span className={index === 0 ? "text-white/55 line-through" : "text-[var(--text-muted)] line-through"}>{formatMoney(offer.original_line_total, offer.currency_code)}</span><span className="font-bold">{formatMoney(offer.final_line_total, offer.currency_code)}</span></div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        );
+
       case "recently_viewed":
         if (recentlyViewed.length === 0) return null;
-        return <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20"><p className="section-eyebrow">Continue exploring</p><h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Recently viewed.</h2><div className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-4">{recentlyViewed.map((product) => <ProductCard key={product.slug} product={product} />)}</div></section>;
-      case "story_brand": return <section className="border-y border-[var(--border-soft)] bg-[var(--surface-muted)]"><div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20"><p className="section-eyebrow">Heritage stories</p><h2 className="mt-3 font-[var(--font-display)] text-4xl text-[var(--color-espresso)] md:text-5xl">More than an object.</h2><p className="mt-5 max-w-2xl text-base leading-8 text-[var(--text-secondary)]">Explore the people, materials, places, and traditions behind handmade work.</p><Link href="/stories" className="btn-secondary mt-7">Discover the stories →</Link></div></section>;
-      case "wholesale_cta": return <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20"><div className="rounded-[var(--radius-xl)] border border-[var(--border-soft)] bg-[var(--surface)] px-6 py-12 md:px-10"><p className="section-eyebrow">Wholesale · طلب كمية</p><h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Need a larger quantity?</h2><p className="mt-4 max-w-2xl text-base leading-8 text-[var(--text-secondary)]">Send a wholesale request to IRTH. Your contact information is handled by IRTH and is not shared directly with artisans.</p><Link href="/wholesale" className="btn-secondary mt-7">Wholesale request →</Link></div></section>;
+        return (
+          <section className="irth-section">
+            <div className="irth-section-heading"><div><p className="section-eyebrow">{t("شوهد مؤخرًا", "Recently viewed")}</p><h2>{t("كمّل من حيث توقفت.", "Pick up where you left off.")}</h2></div><Link href="/recently-viewed" className="irth-section-link">{t("عرض الكل", "View all")} <span>→</span></Link></div>
+            <div className="irth-horizontal-rail mt-7 lg:grid-auto-columns-[minmax(220px,24%)]">{recentlyViewed.map((product) => <ProductCard key={product.slug} product={product} />)}</div>
+          </section>
+        );
+
+      case "story_brand":
+        return (
+          <section className="overflow-hidden border-y border-[var(--border-soft)] bg-[var(--surface-muted)]">
+            <div className="mx-auto grid max-w-[var(--container-max)] md:grid-cols-2">
+              <div className="relative min-h-[320px] bg-[var(--color-petrol)] md:min-h-[480px]">
+                {countries[0]?.heroImage ? <img src={countries[0].heroImage} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="irth-pattern absolute inset-0 opacity-35" />}
+                <div className="absolute inset-0 bg-[var(--color-petrol-deep)]/25" />
+              </div>
+              <div className="flex items-center px-6 py-14 md:px-12 lg:px-16">
+                <div><p className="section-eyebrow">{t("قصتنا", "Our story")}</p><h2 className="mt-4 font-[var(--font-display)] text-4xl font-semibold leading-tight text-[var(--color-espresso)] md:text-6xl">{t("أكثر من مجرد قطعة.", "More than an object.")}</h2><p className="mt-6 max-w-xl text-base leading-8 text-[var(--text-secondary)]">{t("وراء كل قطعة يدٌ صنعتها، ومادة اختيرت، ومكان ترك أثره، ومعرفة انتقلت عبر الزمن.", "Explore the people, materials, places, and traditions behind handmade work.")}</p><Link href="/stories" className="btn-secondary mt-8">{t("اكتشف القصص", "Discover the stories")} <span>→</span></Link></div>
+              </div>
+            </div>
+          </section>
+        );
+
+      case "wholesale_cta":
+        return (
+          <section className="irth-section">
+            <div className="relative overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-petrol)] px-6 py-12 text-[var(--color-ivory)] md:px-10 md:py-16">
+              <div className="irth-pattern absolute inset-0 opacity-20" />
+              <div className="relative z-10 max-w-3xl"><p className="section-eyebrow !text-[var(--color-antique-gold)]">Wholesale · طلب كمية</p><h2 className="mt-3 font-[var(--font-display)] text-4xl font-semibold leading-tight text-[#fff7e7] md:text-6xl">{t("احتياجات أكبر، بنفس العناية.", "Source authentic crafts at scale.")}</h2><p className="mt-5 max-w-2xl text-sm leading-8 text-white/70 md:text-base">{t("أرسل طلب الكمية إلى IRTH. بيانات التواصل الخاصة بك تظل لدى IRTH ولا تُشارك مباشرة مع الحرفيين.", "Send a wholesale request to IRTH. Your contact information is handled by IRTH and is not shared directly with artisans.")}</p><Link href="/wholesale" className="btn-primary mt-8">{t("أرسل طلب كمية", "Wholesale request")} <span>→</span></Link></div>
+            </div>
+          </section>
+        );
+
+      case "trust_value":
+        return (
+          <section className="border-y border-[var(--border-soft)] bg-[var(--surface)]">
+            <div className="irth-section py-10 md:py-12">
+              <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
+                {[
+                  { icon: "shield" as const, title: t("منتجات مراجَعة", "Reviewed products"), body: t("النشر يمر بمراجعة IRTH.", "Marketplace publishing follows IRTH review.") },
+                  { icon: "user" as const, title: t("خصوصية العميل", "Customer privacy"), body: t("بيانات التواصل الحساسة لا تصل للحرفي.", "Sensitive contact details stay protected.") },
+                  { icon: "return" as const, title: t("إرجاع واسترداد", "Returns & refunds"), body: t("جزء من تجربة الـMVP المعتمدة.", "Supported in the approved marketplace flow.") },
+                  { icon: "orders" as const, title: t("طلب واحد واضح", "One clear order"), body: t("مع تقسيم داخلي حسب الحرفيين والشحنات.", "Internally organized by artisans and shipments.") },
+                ].map((item) => (
+                  <div key={item.title} className="text-center md:text-start"><IrthIcon name={item.icon} className="mx-auto h-7 w-7 text-[var(--color-copper)] md:mx-0" /><p className="mt-3 text-sm font-bold text-[var(--color-espresso)]">{item.title}</p><p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{item.body}</p></div>
+                ))}
+              </div>
+            </div>
+          </section>
+        );
+
       case "blog_highlights": return <BlogHighlightsSection />;
-      case "trust_value": return <section className="mx-auto w-full max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20"><div className="rounded-[var(--radius-xl)] bg-[var(--color-espresso)] px-6 py-12 text-center text-[var(--color-ivory)] md:py-16"><p className="section-eyebrow">Explore IRTH</p><h2 className="mt-4 font-[var(--font-display)] text-4xl md:text-5xl">Begin anywhere.</h2><p className="mx-auto mt-4 max-w-xl text-base text-[var(--color-ivory)]/70">Start with a craft, a country, an artisan, or a story.</p><Link href="/explore" className="btn-primary mt-7">Discover IRTH →</Link></div></section>;
-     case "footer": return null;
+      case "footer": return null;
       default: return null;
     }
   }
@@ -438,12 +643,27 @@ export default function HomePage() {
     return <main className="min-h-screen bg-[var(--background)]"><Header /><div className="flex h-96 items-center justify-center"><p className="text-[var(--text-secondary)]">جاري تحميل IRTH...</p></div></main>;
   }
 
+  const visibleSections = homepageSections.filter((section) => section.visible).sort((a, b) => a.order - b.order);
+  const heroVisible = visibleSections.some((section) => section.key === "hero");
+
   return (
     <main className="min-h-screen bg-[var(--background)] pb-24 text-[var(--text-primary)] md:pb-0">
       <Header />
-      <section className="mx-auto max-w-[var(--container-max)] px-5 pt-8 md:px-6 md:pt-10"><Link href="/search" className="group flex items-center gap-4 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] px-5 py-4 shadow-[var(--shadow-soft)] transition-all hover:border-[var(--color-copper)] hover:shadow-[var(--shadow-card)]"><span className="text-xl text-[var(--color-copper)]">🔎</span><div className="flex-1"><p className="text-sm font-medium text-[var(--color-espresso)]">Search IRTH</p><p className="mt-0.5 text-sm text-[var(--text-muted)]">Products, crafts, artisans, countries...</p></div><span className="text-[var(--color-copper)]">→</span></Link>{error && <div className="mt-5 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-600">{error}</div>}</section>
-      {homepageSections.filter((section) => section.visible).sort((a, b) => a.order - b.order).map((section) => <Fragment key={section.key}>{renderHomepageSection(section.key)}</Fragment>)}
-      <nav className="bottom-nav md:hidden"><Link href="/" className="active"><span>🏠</span> Home</Link><Link href="/search"><span>🔎</span> Search</Link><Link href="/explore"><span>🧭</span> Explore</Link><Link href="/saved"><span>❤️</span> Saved</Link><Link href="/account"><span>👤</span> Account</Link></nav>
+      {!heroVisible && <SearchExperience />}
+      {visibleSections.map((section) => (
+        <Fragment key={section.key}>
+          {renderHomepageSection(section.key)}
+          {section.key === "hero" && <SearchExperience />}
+        </Fragment>
+      ))}
+
+      <nav className="bottom-nav md:hidden">
+        <Link href="/" className="active"><IrthIcon name="home" />Home</Link>
+        <Link href="/search"><IrthIcon name="search" />Search</Link>
+        <Link href="/explore"><IrthIcon name="compass" />Explore</Link>
+        <Link href="/saved"><IrthIcon name="heart" />Saved</Link>
+        <Link href="/account"><IrthIcon name="user" />Account</Link>
+      </nav>
     </main>
   );
 }
