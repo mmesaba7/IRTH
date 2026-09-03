@@ -51,6 +51,7 @@ const DEMO_PRODUCT_SLUG_VISUALS: Record<string, string> = {
   "papyrus-portait-9de4007e": "https://images.unsplash.com/photo-1728242410792-5559cb70def0?auto=format&fit=crop&w=1200&q=82",
 };
 
+// These two predate the demo- slug convention but are still test/demo catalog items.
 const DEMO_LEGACY_SLUGS = new Set([
   "arabisque-table-20eaba75",
   "papyrus-portait-9de4007e",
