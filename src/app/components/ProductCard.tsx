@@ -25,21 +25,28 @@ type ProductMedia = {
 };
 
 const DEMO_PRODUCT_VISUALS: Record<string, string> = {
-  "Pottery & Ceramics": "/demo/crafts/pottery-ceramics.svg",
-  Textiles: "/demo/crafts/textiles.svg",
-  Metalwork: "/demo/crafts/metalwork.svg",
-  Woodwork: "/demo/crafts/woodwork.svg",
-  Embroidery: "/demo/crafts/embroidery.svg",
-  Leatherwork: "/demo/crafts/leatherwork.svg",
-  "Glass Art": "/demo/crafts/glass-art.svg",
-  "Arabic Calligraphy": "/demo/crafts/calligraphy.svg",
+  "Pottery & Ceramics": "https://images.unsplash.com/photo-1590605055494-3fe30e437490?auto=format&fit=crop&w=1200&q=82",
+  Textiles: "https://images.unsplash.com/photo-1756361771435-b60616ef968c?auto=format&fit=crop&w=1200&q=82",
+  Metalwork: "https://images.unsplash.com/photo-1593466901025-8e34d32093d6?auto=format&fit=crop&w=1200&q=82",
+  Woodwork: "https://images.unsplash.com/photo-1587049447800-c0efb5514883?auto=format&fit=crop&w=1200&q=82",
+  Embroidery: "https://images.unsplash.com/photo-1772411535836-493bfc9b6f5f?auto=format&fit=crop&w=1200&q=82",
+  Leatherwork: "https://images.unsplash.com/photo-1709039549252-179925870591?auto=format&fit=crop&w=1200&q=82",
+  "Glass Art": "https://images.unsplash.com/photo-1513538209087-f223a5718ede?auto=format&fit=crop&w=1200&q=82",
+  "Arabic Calligraphy": "https://images.unsplash.com/photo-1767938072592-89d00df0618d?auto=format&fit=crop&w=1200&q=82",
 };
 
 const DEMO_PRODUCT_SLUG_VISUALS: Record<string, string> = {
-  "demo-leather-journal": "/demo/products/leather-journal.svg",
-  "demo-glass-lantern": "/demo/products/glass-lantern.svg",
-  "demo-copper-tray": "/demo/products/copper-tray.svg",
-  "demo-woven-scarf": "/demo/products/woven-scarf.svg",
+  "demo-leather-journal": "https://images.unsplash.com/photo-1709039549252-179925870591?auto=format&fit=crop&w=1200&q=82",
+  "demo-leather-pouch": "https://images.unsplash.com/photo-1709039549252-179925870591?auto=format&fit=crop&w=1200&q=82",
+  "demo-glass-lantern": "https://images.unsplash.com/photo-1513538209087-f223a5718ede?auto=format&fit=crop&w=1200&q=82",
+  "demo-copper-tray": "https://images.unsplash.com/photo-1593466901025-8e34d32093d6?auto=format&fit=crop&w=1200&q=82",
+  "demo-brass-incense-holder": "https://images.unsplash.com/photo-1593466901025-8e34d32093d6?auto=format&fit=crop&w=1200&q=82",
+  "demo-woven-scarf": "https://images.unsplash.com/photo-1772411535836-493bfc9b6f5f?auto=format&fit=crop&w=1200&q=82",
+  "demo-moroccan-runner": "https://images.unsplash.com/photo-1756361771435-b60616ef968c?auto=format&fit=crop&w=1200&q=82",
+  "demo-embroidered-cushion": "https://images.unsplash.com/photo-1772411535836-493bfc9b6f5f?auto=format&fit=crop&w=1200&q=82",
+  "demo-pottery-vase": "https://images.unsplash.com/photo-1590605055494-3fe30e437490?auto=format&fit=crop&w=1200&q=82",
+  "demo-olive-wood-board": "https://images.unsplash.com/photo-1587049447800-c0efb5514883?auto=format&fit=crop&w=1200&q=82",
+  "demo-calligraphy-panel": "https://images.unsplash.com/photo-1767938072592-89d00df0618d?auto=format&fit=crop&w=1200&q=82",
 };
 
 export default function ProductCard({ product }: ProductCardProps) {
