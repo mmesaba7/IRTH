@@ -17,8 +17,8 @@ function digest(value: string) {
   return createHash("sha256").update(value).digest();
 }
 
-function authorizeProcessor(request: NextRequest) {
-  const configured = process.env.IRTH_EMAIL_PROCESSOR_SECRET?.trim();
+function authorizeBearer(request: NextRequest, configuredSecret: string | undefined) {
+  const configured = configuredSecret?.trim();
   if (!configured || configured.length < 32) {
     return { configured: false, authorized: false };
   }
@@ -33,27 +33,17 @@ function authorizeProcessor(request: NextRequest) {
   };
 }
 
-function parseLimit(request: NextRequest) {
+function parseLimit(request: NextRequest, defaultLimit = 10) {
   const raw = request.nextUrl.searchParams.get("limit");
-  if (!raw) return 10;
+  if (!raw) return defaultLimit;
   const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed)) return 10;
+  if (!Number.isFinite(parsed)) return defaultLimit;
   return Math.max(1, Math.min(parsed, 20));
 }
 
-export async function POST(request: NextRequest) {
-  const auth = authorizeProcessor(request);
-
-  if (!auth.configured) {
-    return jsonNoStore({ error: "Email processor is not configured." }, 503);
-  }
-
-  if (!auth.authorized) {
-    return jsonNoStore({ error: "Unauthorized." }, 401);
-  }
-
+async function runProcessor(request: NextRequest, defaultLimit = 10) {
   try {
-    const result = await processNotificationEmailOutbox(parseLimit(request));
+    const result = await processNotificationEmailOutbox(parseLimit(request, defaultLimit));
     return jsonNoStore(result);
   } catch (error) {
     if (
@@ -69,4 +59,35 @@ export async function POST(request: NextRequest) {
     console.error("Notification email processor failed.");
     return jsonNoStore({ error: "Unable to process notification emails." }, 500);
   }
+}
+
+// Vercel Cron invokes configured paths with GET and, when CRON_SECRET is set,
+// sends it as an Authorization: Bearer <secret> header.
+export async function GET(request: NextRequest) {
+  const auth = authorizeBearer(request, process.env.CRON_SECRET);
+
+  if (!auth.configured) {
+    return jsonNoStore({ error: "Cron processor is not configured." }, 503);
+  }
+
+  if (!auth.authorized) {
+    return jsonNoStore({ error: "Unauthorized." }, 401);
+  }
+
+  return runProcessor(request, 20);
+}
+
+// Preserve the existing manually-invoked processor contract.
+export async function POST(request: NextRequest) {
+  const auth = authorizeBearer(request, process.env.IRTH_EMAIL_PROCESSOR_SECRET);
+
+  if (!auth.configured) {
+    return jsonNoStore({ error: "Email processor is not configured." }, 503);
+  }
+
+  if (!auth.authorized) {
+    return jsonNoStore({ error: "Unauthorized." }, 401);
+  }
+
+  return runProcessor(request);
 }
