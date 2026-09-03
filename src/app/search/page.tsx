@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Header from "../components/Header";
+import IrthIcon from "../components/IrthIcon";
 import ProductCard from "../components/ProductCard";
 import {
   loadPublicMarketplaceCatalog,
@@ -267,7 +268,7 @@ export default function SearchPage() {
             What are you looking for?
           </label>
           <div className="mt-2 flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 focus-within:border-[var(--color-copper)]">
-            <span aria-hidden="true" className="text-[var(--text-muted)]">🔎</span>
+            <IrthIcon name="search" className="h-5 w-5 shrink-0 text-[var(--text-muted)]" />
             <input
               id="global-search"
               type="search"
@@ -401,6 +402,14 @@ export default function SearchPage() {
           </>
         )}
       </section>
+
+      <nav className="bottom-nav md:hidden">
+        <Link href="/"><IrthIcon name="home" />Home</Link>
+        <Link href="/search" className="active"><IrthIcon name="search" />Search</Link>
+        <Link href="/explore"><IrthIcon name="compass" />Explore</Link>
+        <Link href="/saved"><IrthIcon name="heart" />Saved</Link>
+        <Link href="/account"><IrthIcon name="user" />Account</Link>
+      </nav>
     </main>
   );
 }

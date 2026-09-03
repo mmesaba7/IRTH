@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Header from "../components/Header";
+import IrthIcon from "../components/IrthIcon";
 import {
   loadPublicMarketplaceCatalog,
   type PublicCatalogCountry,
@@ -161,6 +162,14 @@ export default function CountriesPage() {
           </div>
         )}
       </section>
+
+      <nav className="bottom-nav md:hidden">
+        <Link href="/"><IrthIcon name="home" />Home</Link>
+        <Link href="/search"><IrthIcon name="search" />Search</Link>
+        <Link href="/explore" className="active"><IrthIcon name="compass" />Explore</Link>
+        <Link href="/saved"><IrthIcon name="heart" />Saved</Link>
+        <Link href="/account"><IrthIcon name="user" />Account</Link>
+      </nav>
     </main>
   );
 }

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Header from "../components/Header";
+import MobileBottomNav from "../components/MobileBottomNav";
 import { createClient } from "@/lib/supabase/client";
 
 export default function AccountPage() {
@@ -9,7 +11,9 @@ export default function AccountPage() {
   const supabase = createClient();
 
   return (
-    <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
+    <main className="min-h-screen bg-[var(--background)] pb-24 text-[var(--text-primary)]">
+      <Header />
+
       <section className="mx-auto max-w-[var(--container-max)] px-6 py-10 md:py-16">
         <div className="flex flex-col gap-6 border-b border-[var(--border-soft)] pb-8 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -60,6 +64,8 @@ export default function AccountPage() {
           />
         </div>
       </section>
+
+      <MobileBottomNav active="account" />
     </main>
   );
 }

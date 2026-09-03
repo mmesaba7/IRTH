@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Header from "../components/Header";
+import MobileBottomNav from "../components/MobileBottomNav";
 import Link from "next/link";
 import ProductCard from "../components/ProductCard";
 import type { PublicCatalogProduct } from "@/lib/publicMarketplace";
@@ -107,6 +108,8 @@ export default function RecentlyViewedPage() {
           </div>
         )}
       </section>
+
+      <MobileBottomNav active="account" />
     </main>
   );
 }

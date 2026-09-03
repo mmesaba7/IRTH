@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Header from "../../components/Header";
+import MobileBottomNav from "../../components/MobileBottomNav";
 import ProductCard from "../../components/ProductCard";
 import {
   loadPublicMarketplaceCatalog,
@@ -276,6 +277,8 @@ export default function CountryPage() {
           </div>
         )}
       </section>
+
+      <MobileBottomNav active="explore" />
     </main>
   );
 }

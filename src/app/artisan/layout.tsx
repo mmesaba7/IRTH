@@ -4,6 +4,15 @@ import type { ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
+const portalPrefixes = [
+  "/artisan/dashboard",
+  "/artisan/orders",
+  "/artisan/payouts",
+  "/artisan/products",
+  "/artisan/promotions",
+  "/artisan/reviews",
+];
+
 export default function ArtisanLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -15,11 +24,13 @@ export default function ArtisanLayout({ children }: { children: ReactNode }) {
     router.refresh();
   };
 
-  const isLoginPage = pathname === "/artisan/login";
+  const isPortalPage = portalPrefixes.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
 
   return (
     <>
-      {!isLoginPage && (
+      {isPortalPage && (
         <div className="border-b border-[var(--border-soft)] bg-[var(--surface)]">
           <div className="mx-auto flex max-w-[var(--container-max)] items-center justify-end px-4 py-2 sm:px-6">
             <button

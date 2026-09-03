@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Header from "../components/Header";
+import IrthIcon from "../components/IrthIcon";
 import ProductCard from "../components/ProductCard";
 import type { PublicCatalogProduct } from "@/lib/publicMarketplace";
 import { loadPublicMarketplaceCatalog } from "@/lib/publicMarketplace";
@@ -108,6 +109,14 @@ export default function SavedPage() {
           </div>
         )}
       </section>
+
+      <nav className="bottom-nav md:hidden">
+        <Link href="/"><IrthIcon name="home" />Home</Link>
+        <Link href="/search"><IrthIcon name="search" />Search</Link>
+        <Link href="/explore"><IrthIcon name="compass" />Explore</Link>
+        <Link href="/saved" className="active"><IrthIcon name="heart" />Saved</Link>
+        <Link href="/account"><IrthIcon name="user" />Account</Link>
+      </nav>
     </main>
   );
 }

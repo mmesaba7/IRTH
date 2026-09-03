@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Header from "../components/Header";
+import IrthIcon from "../components/IrthIcon";
 
 const explorePaths = [
   {
@@ -142,30 +143,11 @@ export default function ExplorePage() {
 
       {/* Mobile navigation */}
       <nav className="bottom-nav md:hidden">
-        <Link href="/">
-          <span>🏠</span>
-          Home
-        </Link>
-
-        <Link href="/search">
-          <span>🔎</span>
-          Search
-        </Link>
-
-        <Link href="/explore" className="active">
-          <span>🧭</span>
-          Explore
-        </Link>
-
-        <Link href="/saved">
-          <span>❤️</span>
-          Saved
-        </Link>
-
-        <Link href="/account">
-          <span>👤</span>
-          Account
-        </Link>
+        <Link href="/"><IrthIcon name="home" />Home</Link>
+        <Link href="/search"><IrthIcon name="search" />Search</Link>
+        <Link href="/explore" className="active"><IrthIcon name="compass" />Explore</Link>
+        <Link href="/saved"><IrthIcon name="heart" />Saved</Link>
+        <Link href="/account"><IrthIcon name="user" />Account</Link>
       </nav>
     </main>
   );
