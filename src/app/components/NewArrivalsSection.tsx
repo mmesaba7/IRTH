@@ -33,6 +33,9 @@ export default function NewArrivalsSection() {
 
   if (loading || products.length === 0) return null;
 
+  const leadProducts = products.slice(0, 2);
+  const railProducts = products.slice(2);
+
   return (
     <section className="bg-[var(--background)]">
       <div className="irth-section">
@@ -47,8 +50,16 @@ export default function NewArrivalsSection() {
           أحدث المنتجات التي اجتازت مراجعة IRTH وتم نشرها على المتجر.
         </p>
 
-        <div className="irth-horizontal-rail mt-7 lg:grid-auto-columns-[minmax(245px,27%)]">
-          {products.map((product) => <ProductCard key={product.slug} product={product} />)}
+        <div className="mt-7 grid gap-4 lg:grid-cols-[1.15fr_.85fr] lg:items-start">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            {leadProducts.map((product) => <ProductCard key={product.slug} product={product} />)}
+          </div>
+
+          {railProducts.length > 0 && (
+            <div className="irth-horizontal-rail lg:grid-auto-columns-[minmax(190px,46%)]">
+              {railProducts.map((product) => <ProductCard key={product.slug} product={product} />)}
+            </div>
+          )}
         </div>
       </div>
     </section>
