@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import {
+  Cormorant_Garamond,
+  Geist,
+  Geist_Mono,
+  Noto_Naskh_Arabic,
+  Noto_Sans_Arabic,
+} from "next/font/google";
 import "./globals.css";
 import ClientRootShell from "./components/ClientRootShell";
 
@@ -11,6 +17,24 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const latinDisplay = Cormorant_Garamond({
+  variable: "--font-latin-display",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const arabicDisplay = Noto_Naskh_Arabic({
+  variable: "--font-arabic-display",
+  subsets: ["arabic"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const arabicBody = Noto_Sans_Arabic({
+  variable: "--font-arabic-body",
+  subsets: ["arabic"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -37,7 +61,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ar" dir="rtl">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${latinDisplay.variable} ${arabicDisplay.variable} ${arabicBody.variable} antialiased`}
+      >
         <ClientRootShell>{children}</ClientRootShell>
       </body>
     </html>
