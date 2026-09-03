@@ -325,6 +325,11 @@ textarea::placeholder { color: var(--text-muted); }
   .bottom-nav { display: none !important; }
 }
 
+@media (min-width: 1280px) {
+  .irth-icon-button[aria-label="Open menu"],
+  .irth-icon-button[aria-label="Close menu"] { display: none !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after {
