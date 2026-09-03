@@ -47,7 +47,14 @@ const DEMO_PRODUCT_SLUG_VISUALS: Record<string, string> = {
   "demo-pottery-vase": "https://images.unsplash.com/photo-1590605055494-3fe30e437490?auto=format&fit=crop&w=1200&q=82",
   "demo-olive-wood-board": "https://images.unsplash.com/photo-1587049447800-c0efb5514883?auto=format&fit=crop&w=1200&q=82",
   "demo-calligraphy-panel": "https://images.unsplash.com/photo-1767938072592-89d00df0618d?auto=format&fit=crop&w=1200&q=82",
+  "arabisque-table-20eaba75": "https://images.unsplash.com/photo-1587049447800-c0efb5514883?auto=format&fit=crop&w=1200&q=82",
+  "papyrus-portait-9de4007e": "https://images.unsplash.com/photo-1728242410792-5559cb70def0?auto=format&fit=crop&w=1200&q=82",
 };
+
+const DEMO_LEGACY_SLUGS = new Set([
+  "arabisque-table-20eaba75",
+  "papyrus-portait-9de4007e",
+]);
 
 export default function ProductCard({ product }: ProductCardProps) {
   const { slug } = product;
@@ -61,7 +68,8 @@ export default function ProductCard({ product }: ProductCardProps) {
   const { quote, item, loading, marketRequired, error } = useProductQuote(slug, 1);
   const canAddToCart = item?.status === "available";
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
-  const demoFallbackUrl = product.slug.startsWith("demo-")
+  const isDemoProduct = product.slug.startsWith("demo-") || DEMO_LEGACY_SLUGS.has(product.slug);
+  const demoFallbackUrl = isDemoProduct
     ? DEMO_PRODUCT_SLUG_VISUALS[product.slug] ?? DEMO_PRODUCT_VISUALS[product.category] ?? null
     : null;
   const displayImageUrl = coverUrl ?? demoFallbackUrl;
