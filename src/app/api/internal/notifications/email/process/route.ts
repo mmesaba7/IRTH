@@ -33,17 +33,17 @@ function authorizeBearer(request: NextRequest, configuredSecret: string | undefi
   };
 }
 
-function parseLimit(request: NextRequest) {
+function parseLimit(request: NextRequest, defaultLimit = 10) {
   const raw = request.nextUrl.searchParams.get("limit");
-  if (!raw) return 10;
+  if (!raw) return defaultLimit;
   const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed)) return 10;
+  if (!Number.isFinite(parsed)) return defaultLimit;
   return Math.max(1, Math.min(parsed, 20));
 }
 
-async function runProcessor(request: NextRequest) {
+async function runProcessor(request: NextRequest, defaultLimit = 10) {
   try {
-    const result = await processNotificationEmailOutbox(parseLimit(request));
+    const result = await processNotificationEmailOutbox(parseLimit(request, defaultLimit));
     return jsonNoStore(result);
   } catch (error) {
     if (
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
     return jsonNoStore({ error: "Unauthorized." }, 401);
   }
 
-  return runProcessor(request);
+  return runProcessor(request, 20);
 }
 
 // Preserve the existing manually-invoked processor contract.
