@@ -3,6 +3,7 @@ import { jsonNoStore } from "@/lib/serverApi";
 import type { Product } from "@/app/data/products";
 
 type ProductRow = {
+  id: string;
   slug: string;
   artisan_id: string;
   primary_craft_id: string;
@@ -51,7 +52,7 @@ export async function GET() {
     const { data: productData, error: productError } = await admin
       .from("products")
       .select(
-        "slug, artisan_id, primary_craft_id, name_ar, name_en, description_ar, description_en, story_ar, story_en, material_ar, material_en, dimensions, weight, made_to_order, preparation_time, one_of_a_kind, customization, published_at"
+        "id, slug, artisan_id, primary_craft_id, name_ar, name_en, description_ar, description_en, story_ar, story_en, material_ar, material_en, dimensions, weight, made_to_order, preparation_time, one_of_a_kind, customization, published_at"
       )
       .eq("lifecycle_status", "published")
       .not("published_at", "is", null)
@@ -126,6 +127,7 @@ export async function GET() {
       const craftName = craft.name_en || craft.name_ar || "Craft";
       return [
         {
+          id: product.id,
           slug: product.slug,
           artisanSlug: artisan.slug,
           name: product.name_ar || product.name_en,

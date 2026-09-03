@@ -6,6 +6,7 @@ import ProductCard from "../components/ProductCard";
 import Link from "next/link";
 import type { Product } from "../data/products";
 import { createClient } from "@/lib/supabase/client";
+import IrthIcon from "../components/IrthIcon";
 
 type DbProduct = {
   id: string;
@@ -120,12 +121,11 @@ export default function CraftsPage() {
       const mappedProducts: Product[] = visibleRows.map((row, index) => {
         const artisan = artisanMap.get(row.artisan_id);
         const craft = craftMap.get(row.primary_craft_id);
-        const country = artisan?.country_id
-          ? countryMap.get(artisan.country_id)
-          : undefined;
+        const country = artisan?.country_id ? countryMap.get(artisan.country_id) : undefined;
         const accents: Product["accent"][] = ["terracotta", "olive", "copper"];
 
         return {
+          id: row.id,
           slug: row.slug,
           artisanSlug: artisan?.slug ?? "artisan",
           name: row.name_en || row.slug,
@@ -156,21 +156,18 @@ export default function CraftsPage() {
       const categoryFromUrl = searchParams.get("category");
       if (categoryFromUrl) {
         const matchingCategory = mappedProducts.find(
-          (product) =>
-            product.category.toLowerCase() === categoryFromUrl.toLowerCase()
+          (product) => product.category.toLowerCase() === categoryFromUrl.toLowerCase()
         )?.category;
         if (matchingCategory) setSelectedCategory(matchingCategory);
       }
 
       const countryFromUrl = searchParams.get("country");
-      if (countryFromUrl) {
-        setSelectedCountry(countryFromUrl);
-      }
+      if (countryFromUrl) setSelectedCountry(countryFromUrl);
 
       setLoading(false);
     };
 
-    loadPublishedProducts();
+    void loadPublishedProducts();
   }, []);
 
   const filteredProducts = useMemo(() => {
@@ -180,16 +177,13 @@ export default function CraftsPage() {
         product.name.toLowerCase().includes(search) ||
         product.artisan.toLowerCase().includes(search) ||
         product.country.toLowerCase().includes(search);
-      const matchesCategory =
-        selectedCategory === "all" || product.category === selectedCategory;
-      const matchesCountry =
-        !selectedCountry ||
-        product.country.toLowerCase() === selectedCountry.toLowerCase();
+      const matchesCategory = selectedCategory === "all" || product.category === selectedCategory;
+      const matchesCountry = !selectedCountry || product.country.toLowerCase() === selectedCountry.toLowerCase();
       return matchesSearch && matchesCategory && matchesCountry;
     });
   }, [products, searchTerm, selectedCategory, selectedCountry]);
 
-  const categories = ["all", ...new Set(products.map((p) => p.category))];
+  const categories = ["all", ...new Set(products.map((product) => product.category))];
 
   if (loading) {
     return (
@@ -203,40 +197,28 @@ export default function CraftsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] pb-24">
+    <main className="min-h-screen bg-[var(--background)] pb-24 text-[var(--text-primary)]">
       <Header />
 
       <section className="mx-auto max-w-[var(--container-max)] px-6 py-10 md:py-16">
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
-              Explore
-            </p>
-            <h1 className="mt-1 font-[var(--font-display)] text-4xl md:text-5xl text-[var(--color-espresso)]">
-              All Crafts
-            </h1>
-            <p className="mt-2 text-[var(--text-secondary)]">
-              Discover authentic handmade pieces from our artisans
-            </p>
+            <p className="section-eyebrow">Explore</p>
+            <h1 className="mt-1 font-[var(--font-display)] text-4xl font-semibold text-[var(--color-espresso)] md:text-5xl">All Crafts</h1>
+            <p className="mt-2 text-[var(--text-secondary)]">Discover authentic handmade pieces from our artisans</p>
           </div>
-          <span className="text-sm text-[var(--text-muted)]">
-            {filteredProducts.length} products
-          </span>
+          <span className="text-sm text-[var(--text-muted)]">{filteredProducts.length} products</span>
         </div>
 
-        {error && (
-          <div className="mt-6 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-            {error}
-          </div>
-        )}
+        {error && <div className="mt-6 rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-4 text-sm text-red-600">{error}</div>}
 
-        <div className="mt-8 flex flex-col gap-4 rounded-[var(--radius-lg)] bg-[var(--surface)] p-5 border border-[var(--border-soft)] sm:flex-row sm:items-center">
+        <div className="mt-8 flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-5 sm:flex-row sm:items-center">
           <div className="flex-1">
             <input
               type="text"
               placeholder="Search by name, artisan, or country..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(event) => setSearchTerm(event.target.value)}
               className="w-full rounded-[var(--radius-md)] border border-[var(--border-soft)] bg-[var(--background)] px-4 py-3 text-sm outline-none transition-colors focus:border-[var(--color-copper)]"
             />
           </div>
@@ -246,11 +228,7 @@ export default function CraftsPage() {
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`rounded-full px-4 py-2 text-xs font-medium transition-colors ${
-                  selectedCategory === category
-                    ? "bg-[var(--color-espresso)] text-[var(--color-ivory)]"
-                    : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--border-soft)]"
-                }`}
+                className={`rounded-full px-4 py-2 text-xs font-medium transition-colors ${selectedCategory === category ? "bg-[var(--color-espresso)] text-[var(--color-ivory)]" : "bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--border-soft)]"}`}
               >
                 {category === "all" ? "All" : category}
               </button>
@@ -264,19 +242,17 @@ export default function CraftsPage() {
           </div>
         ) : (
           <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredProducts.map((product) => (
-              <ProductCard key={product.slug} product={product} />
-            ))}
+            {filteredProducts.map((product) => <ProductCard key={product.slug} product={product} />)}
           </div>
         )}
       </section>
 
       <nav className="bottom-nav md:hidden">
-        <Link href="/" className="active"><span>🏠</span> Home</Link>
-        <Link href="/search"><span>🔎</span> Search</Link>
-        <Link href="/crafts"><span>🧭</span> Explore</Link>
-        <Link href="/saved"><span>❤️</span> Saved</Link>
-        <Link href="/account"><span>👤</span> Account</Link>
+        <Link href="/"><IrthIcon name="home" />Home</Link>
+        <Link href="/search"><IrthIcon name="search" />Search</Link>
+        <Link href="/explore" className="active"><IrthIcon name="compass" />Explore</Link>
+        <Link href="/saved"><IrthIcon name="heart" />Saved</Link>
+        <Link href="/account"><IrthIcon name="user" />Account</Link>
       </nav>
     </main>
   );

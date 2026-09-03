@@ -144,6 +144,7 @@ export async function GET() {
       const craftName = craft.name_en || craft.name_ar || "Craft";
       return [
         {
+          id: product.id,
           slug: product.slug,
           artisanSlug: artisan.slug,
           name: product.name_ar || product.name_en,

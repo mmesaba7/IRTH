@@ -32,24 +32,35 @@ export default function BlogHighlightsSection() {
   if (posts.length === 0) return null;
 
   return (
-    <section className="border-y border-[var(--border-soft)] bg-[var(--surface-muted)]">
-      <div className="mx-auto max-w-[var(--container-max)] px-5 py-14 md:px-6 md:py-20">
-        <div className="flex items-end justify-between gap-5">
+    <section className="border-y border-[var(--border-soft)] bg-[var(--surface-muted)]/60">
+      <div className="irth-section">
+        <div className="irth-section-heading">
           <div>
             <p className="section-eyebrow">IRTH Journal</p>
-            <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[var(--color-espresso)] md:text-5xl">Stories behind the craft.</h2>
+            <h2>Stories, materials, and places.</h2>
           </div>
-          <Link href="/blog" className="text-sm font-medium text-[var(--color-copper)] hover:underline">All articles →</Link>
+          <Link href="/blog" className="irth-section-link">All articles <span aria-hidden="true">→</span></Link>
         </div>
 
-        <div className="mt-8 grid gap-5 md:grid-cols-3">
-          {posts.map((post) => (
-            <Link key={post.key} href={`/blog/${post.payload.slug}`} className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
-              {post.coverImageUrl && <img src={post.coverImageUrl} alt={post.payload.titleAr} className="aspect-[16/10] w-full object-cover" />}
-              <div className="p-6">
-                <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-copper)]">{new Date(post.publishedAt).toLocaleDateString("ar-EG")}</p>
-                <h3 className="mt-3 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">{post.payload.titleAr}</h3>
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">{post.payload.titleEn}</p>
+        <div className="irth-horizontal-rail mt-8 md:grid md:grid-flow-row md:grid-cols-3 md:overflow-visible">
+          {posts.map((post, index) => (
+            <Link
+              key={post.key}
+              href={`/blog/${post.payload.slug}`}
+              className={`group overflow-hidden border border-[var(--border-soft)] bg-[var(--surface)] transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)] ${index === 0 ? "rounded-[var(--radius-xl)]" : "rounded-[var(--radius-md)]"}`}
+            >
+              <div className="relative overflow-hidden">
+                {post.coverImageUrl ? (
+                  <img src={post.coverImageUrl} alt={post.payload.titleAr} className="aspect-[16/10] w-full object-cover transition-transform duration-500 group-hover:scale-[1.035]" />
+                ) : (
+                  <div className="irth-pattern aspect-[16/10] bg-[var(--color-petrol)] opacity-90" />
+                )}
+                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[var(--color-petrol-deep)]/40 to-transparent" />
+              </div>
+              <div className="p-5 md:p-6">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--color-copper)]">{new Date(post.publishedAt).toLocaleDateString("ar-EG")}</p>
+                <h3 className="mt-3 line-clamp-2 font-[var(--font-display)] text-2xl font-semibold leading-tight text-[var(--color-espresso)]">{post.payload.titleAr}</h3>
+                <p className="mt-2 line-clamp-1 text-xs text-[var(--text-muted)]">{post.payload.titleEn}</p>
                 <p className="mt-4 line-clamp-3 text-sm leading-7 text-[var(--text-secondary)]">{post.payload.excerptAr}</p>
               </div>
             </Link>

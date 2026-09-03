@@ -1,5 +1,7 @@
 export type Product = {
 
+  id?: string;
+
   slug: string;
 
   artisanSlug: string;
@@ -51,7 +53,7 @@ export type Product = {
 export const products: Record<string, Product> = {
   "clay-vessel": {
     slug: "clay-vessel",
-        artisanSlug: "ahmed-hassan",
+    artisanSlug: "ahmed-hassan",
     name: "Handcrafted Clay Vessel",
     artisan: "Ahmed Hassan",
     country: "Egypt",
