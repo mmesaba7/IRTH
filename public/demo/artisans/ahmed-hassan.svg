@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1100" role="img" aria-labelledby="title desc">
+  <title id="title">Demo artisan portrait</title>
+  <desc id="desc">Stylized fictional portrait artwork for IRTH demo content.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#073B3C"/><stop offset="1" stop-color="#062C38"/></linearGradient>
+    <radialGradient id="sun"><stop stop-color="#D9A13B" stop-opacity=".9"/><stop offset="1" stop-color="#C45D2D" stop-opacity=".15"/></radialGradient>
+    <pattern id="p" width="64" height="64" patternUnits="userSpaceOnUse"><path d="M0 32 32 0l32 32-32 32Z" fill="none" stroke="#F6F0E4" stroke-opacity=".07" stroke-width="2"/></pattern>
+  </defs>
+  <rect width="900" height="1100" fill="url(#bg)"/>
+  <circle cx="660" cy="245" r="210" fill="url(#sun)"/>
+  <rect width="900" height="1100" fill="url(#p)"/>
+  <path d="M0 860c155-125 270-160 425-115 145 42 260 30 475-95v450H0Z" fill="#C45D2D" opacity=".2"/>
+  <path d="M245 925c20-210 72-342 205-342s188 132 205 342Z" fill="#EADCC4"/>
+  <ellipse cx="450" cy="430" rx="150" ry="188" fill="#B97950"/>
+  <path d="M298 400c20-170 90-242 169-242 105 0 174 98 165 252-52-44-104-77-166-88-55 47-105 69-168 78Z" fill="#202522"/>
+  <path d="M329 472c18 146 74 225 121 225 50 0 107-80 124-225-37 34-76 49-124 49-46 0-85-15-121-49Z" fill="#202522" opacity=".92"/>
+  <path d="M370 430c20-12 40-12 60 0m40 0c20-12 40-12 60 0" fill="none" stroke="#202522" stroke-width="12" stroke-linecap="round"/>
+  <path d="M415 520c23 17 47 17 70 0" fill="none" stroke="#6F3F2C" stroke-width="10" stroke-linecap="round"/>
+  <path d="M280 875c95-88 245-88 340 0" fill="none" stroke="#D9A13B" stroke-width="18" stroke-opacity=".8"/>
+  <text x="58" y="1018" fill="#F6F0E4" font-family="Georgia,serif" font-size="31" letter-spacing="5">DEMO · IRTH ARTISAN</text>
+</svg>

@@ -42,13 +42,24 @@ function publishedCountryCover(slug: string) {
   return `/api/homepage/country-cover/${encodeURIComponent(slug)}`;
 }
 
+const demoCountryPhotography: Partial<Record<string, string>> = {
+  jordan: "https://images.unsplash.com/photo-1500120194857-62b493650979?auto=format&fit=crop&w=1400&q=82",
+  morocco: "https://images.unsplash.com/photo-1655376407147-4acdf34667ff?auto=format&fit=crop&w=1400&q=82",
+  "saudi-arabia": "https://images.unsplash.com/photo-1670762903850-231b08a54518?auto=format&fit=crop&w=1400&q=82",
+  uae: "https://images.unsplash.com/photo-1745750434535-5943ef2fd31a?auto=format&fit=crop&w=1400&q=82",
+};
+
+function countryCover(slug: string) {
+  return demoCountryPhotography[slug] ?? publishedCountryCover(slug);
+}
+
 export const publicCountries: Record<string, PublicCountry> = {
   egypt: {
     id: "country-1",
     slug: "egypt",
     name: "مصر",
     nameEn: "Egypt",
-    heroImage: publishedCountryCover("egypt"),
+    heroImage: countryCover("egypt"),
 
     crafts: [],
     featuredArtisanSlugs: [],
@@ -61,7 +72,7 @@ export const publicCountries: Record<string, PublicCountry> = {
     slug: "jordan",
     name: "الأردن",
     nameEn: "Jordan",
-    heroImage: publishedCountryCover("jordan"),
+    heroImage: countryCover("jordan"),
 
     crafts: [],
     featuredArtisanSlugs: [],
@@ -74,7 +85,7 @@ export const publicCountries: Record<string, PublicCountry> = {
     slug: "morocco",
     name: "المغرب",
     nameEn: "Morocco",
-    heroImage: publishedCountryCover("morocco"),
+    heroImage: countryCover("morocco"),
 
     crafts: [],
     featuredArtisanSlugs: [],
@@ -87,7 +98,7 @@ export const publicCountries: Record<string, PublicCountry> = {
     slug: "saudi-arabia",
     name: "المملكة العربية السعودية",
     nameEn: "Saudi Arabia",
-    heroImage: publishedCountryCover("saudi-arabia"),
+    heroImage: countryCover("saudi-arabia"),
 
     crafts: [],
     featuredArtisanSlugs: [],
@@ -100,7 +111,7 @@ export const publicCountries: Record<string, PublicCountry> = {
     slug: "uae",
     name: "الإمارات العربية المتحدة",
     nameEn: "UAE",
-    heroImage: publishedCountryCover("uae"),
+    heroImage: countryCover("uae"),
 
     crafts: [],
     featuredArtisanSlugs: [],
