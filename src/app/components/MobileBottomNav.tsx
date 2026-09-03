@@ -21,12 +21,20 @@ export type MobileBottomNavActive = MobileBottomNavItem["key"];
 export default function MobileBottomNav({ active }: { active?: MobileBottomNavActive }) {
   return (
     <nav className="bottom-nav md:hidden" aria-label="Mobile navigation">
-      {items.map((item) => (
-        <Link key={item.key} href={item.href} className={active === item.key ? "active" : undefined}>
-          <IrthIcon name={item.icon} />
-          {item.label}
-        </Link>
-      ))}
+      {items.map((item) => {
+        const isActive = active === item.key;
+        return (
+          <Link
+            key={item.key}
+            href={item.href}
+            className={isActive ? "active" : undefined}
+            aria-current={isActive ? "page" : undefined}
+          >
+            <IrthIcon name={item.icon} />
+            {item.label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }
