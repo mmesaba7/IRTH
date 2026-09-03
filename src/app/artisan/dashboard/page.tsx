@@ -1,158 +1,102 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Header from "../../components/Header";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import Header from "../../components/Header";
+import IrthIcon, { type IrthIconName } from "../../components/IrthIcon";
+
+type DashboardLink = {
+  href: string;
+  title: string;
+  description: string;
+  icon: IrthIconName;
+};
+
+const dashboardLinks: DashboardLink[] = [
+  {
+    href: "/artisan/orders",
+    title: "إدارة الطلبات",
+    description: "تابع طلبات منتجاتك وحدّث مراحل التجهيز المسموح بها.",
+    icon: "orders",
+  },
+  {
+    href: "/artisan/products",
+    title: "إدارة المنتجات",
+    description: "راجع منتجاتك، أضف منتجًا جديدًا، أو عدّل المنتجات الحالية.",
+    icon: "craft",
+  },
+  {
+    href: "/artisan/payouts",
+    title: "المستحقات والمدفوعات",
+    description: "تابع المستحقات وحالة عمليات الصرف من الواجهة المالية المخصصة.",
+    icon: "journal",
+  },
+  {
+    href: "/artisan/reviews",
+    title: "التقييمات والردود",
+    description: "راجع تقييمات مشترياتك الحقيقية وأرسل ردودك لمراجعة IRTH.",
+    icon: "story",
+  },
+  {
+    href: "/artisan/promotions",
+    title: "العروض والخصومات",
+    description: "اقترح عروضًا على منتجاتك وتابع حالة مراجعة IRTH قبل النشر.",
+    icon: "spark",
+  },
+];
 
 export default function ArtisanDashboardPage() {
-  const router = useRouter();
-  const supabase = createClient();
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(false);
-  }, []);
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-[var(--background)]">
-        <Header />
-        <div className="flex h-96 items-center justify-center">
-          <p>جاري التحميل...</p>
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
       <Header />
 
       <section className="mx-auto max-w-[var(--container-max)] px-6 py-10 md:py-16">
-        {/* رأس الصفحة */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-6 border-b border-[var(--border-soft)] pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">
-              Welcome back
+              Artisan Panel
             </p>
-            <h1 className="mt-1 font-[var(--font-display)] text-4xl font-normal text-[var(--color-espresso)]">
-              أحمد حسن
+            <h1 className="mt-2 font-[var(--font-display)] text-4xl font-normal text-[var(--color-espresso)] md:text-5xl">
+              لوحة تحكم الحرفي
             </h1>
-            <p className="text-[var(--text-secondary)]">لوحة تحكم الحرفي</p>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
+              إدارة الطلبات والمنتجات والمستحقات والتقييمات والعروض من مكان واحد، بدون عرض بيانات تواصل العميل الحساسة.
+            </p>
           </div>
 
-          <div className="flex gap-3">
-            {/* ✅ الزر الجديد بتاع إضافة منتج */}
+          <Link
+            href="/artisan/products/new"
+            className="inline-flex w-fit items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-copper)] px-6 py-3 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-espresso)]"
+          >
+            <IrthIcon name="craft" className="h-5 w-5" />
+            إضافة منتج جديد
+          </Link>
+        </div>
+
+        <div className="mt-10 rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface-muted)] p-5 text-sm leading-6 text-[var(--text-secondary)]">
+          الأرقام التشغيلية والمالية لا تُعرض هنا إلا من مصدر موثوق. استخدم الأقسام المتخصصة أدناه لمتابعة الحالة الفعلية لكل جزء من عملك.
+        </div>
+
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {dashboardLinks.map((item) => (
             <Link
-              href="/product/new"
-              className="rounded-[var(--radius-md)] bg-[var(--color-copper)] px-6 py-3 text-sm font-medium text-[var(--color-ivory)] transition hover:bg-[var(--color-espresso)]"
+              key={item.href}
+              href={item.href}
+              className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:border-[var(--color-copper)] hover:shadow-[var(--shadow-card)]"
             >
-              + إضافة منتج جديد
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--color-copper)] transition group-hover:bg-[var(--color-copper)] group-hover:text-[var(--color-ivory)]">
+                <IrthIcon name={item.icon} className="h-5 w-5" />
+              </div>
+              <h2 className="mt-5 font-[var(--font-display)] text-2xl text-[var(--color-espresso)]">
+                {item.title}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                {item.description}
+              </p>
+              <p className="mt-5 text-sm font-medium text-[var(--color-copper)]">
+                فتح القسم ←
+              </p>
             </Link>
-
-            <button
-              type="button"
-              onClick={async () => {
-                await supabase.auth.signOut({ scope: "local" });
-                router.replace("/artisan/login");
-                router.refresh();
-              }}
-              className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
-            >
-              تسجيل خروج
-            </button>
-          </div>
-        </div>
-
-        {/* الكاردات السريعة (Overview) */}
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <p className="text-sm text-[var(--text-muted)]">الطلبات الجديدة</p>
-            <p className="mt-2 text-3xl font-bold text-[var(--color-espresso)]">3</p>
-          </div>
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <p className="text-sm text-[var(--text-muted)]">قيد التجهيز</p>
-            <p className="mt-2 text-3xl font-bold text-[var(--color-espresso)]">5</p>
-          </div>
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <p className="text-sm text-[var(--text-muted)]">المنتجات المنشورة</p>
-            <p className="mt-2 text-3xl font-bold text-[var(--color-espresso)]">12</p>
-          </div>
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6">
-            <p className="text-sm text-[var(--text-muted)]">المستحقات</p>
-            <p className="mt-2 text-3xl font-bold text-[var(--color-copper)]">$1,240</p>
-          </div>
-        </div>
-
-        {/* روابط الأقسام */}
-        <div className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <Link
-            href="/artisan/orders"
-            className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
-          >
-            <div className="text-3xl">📦</div>
-            <h3 className="mt-3 font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-              إدارة الطلبات
-            </h3>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              شوف الطلبات الجديدة وغير حالتها
-            </p>
-          </Link>
-
-          <Link
-            href="/artisan/products"
-            className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
-          >
-            <div className="text-3xl">🛍️</div>
-            <h3 className="mt-3 font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-              إدارة المنتجات
-            </h3>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              شوف منتجاتك، أضف جديدة، أو عدل الموجودة
-            </p>
-          </Link>
-
-          <Link
-            href="/artisan/payouts"
-            className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
-          >
-            <div className="text-3xl">💰</div>
-            <h3 className="mt-3 font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-              المستحقات والمدفوعات
-            </h3>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              تابع المبيعات والمستحقات المالية
-            </p>
-          </Link>
-
-          {/* ✅ الرابط الجديد لردود على التقييمات */}
-          <Link
-            href="/artisan/reviews"
-            className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
-          >
-            <div className="text-3xl">⭐</div>
-            <h3 className="mt-3 font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-              ردود على التقييمات
-            </h3>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              شوف تقييمات منتجاتك وأضف ردود
-            </p>
-          </Link>
-
-          <Link
-            href="/artisan/promotions"
-            className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
-          >
-            <div className="text-3xl">🎯</div>
-            <h3 className="mt-3 font-[var(--font-display)] text-xl text-[var(--color-espresso)]">
-              العروض والخصومات
-            </h3>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              أنشئ عروض على منتجاتك
-            </p>
-          </Link>
+          ))}
         </div>
       </section>
     </main>
