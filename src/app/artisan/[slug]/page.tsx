@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Header from "../../components/Header";
-import IrthIcon from "../../components/IrthIcon";
+import MobileBottomNav from "../../components/MobileBottomNav";
 import ProductCard from "../../components/ProductCard";
 import {
   loadPublicMarketplaceCatalog,
@@ -170,13 +170,7 @@ export default function ArtisanProfilePage() {
         )}
       </section>
 
-      <nav className="bottom-nav md:hidden">
-        <Link href="/"><IrthIcon name="home" />Home</Link>
-        <Link href="/search"><IrthIcon name="search" />Search</Link>
-        <Link href="/explore" className="active"><IrthIcon name="compass" />Explore</Link>
-        <Link href="/saved"><IrthIcon name="heart" />Saved</Link>
-        <Link href="/account"><IrthIcon name="user" />Account</Link>
-      </nav>
+      <MobileBottomNav active="explore" />
     </main>
   );
 }
