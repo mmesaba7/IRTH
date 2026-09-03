@@ -9,6 +9,7 @@ import {
   type NotificationFeed,
   type NotificationItem,
 } from "@/lib/notifications";
+import IrthIcon from "./IrthIcon";
 
 function getLocale() {
   if (typeof window === "undefined") return "en" as const;
@@ -83,15 +84,11 @@ export default function NotificationBell() {
   };
 
   return (
-    <div className="relative flex items-center gap-1">
-      <Link
-        href="/notifications"
-        aria-label="Notifications"
-        className="relative text-lg text-[var(--color-espresso)] transition-colors hover:text-[var(--color-copper)]"
-      >
-        🔔
+    <div className="relative flex items-center gap-0.5">
+      <Link href="/notifications" aria-label="Notifications" className="irth-icon-button relative">
+        <IrthIcon name="bell" className="h-5 w-5" />
         {feed.unreadCount > 0 && (
-          <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-terracotta)] px-1 text-[10px] text-[var(--color-ivory)]">
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-copper)] px-1 text-[9px] text-white">
             {feed.unreadCount > 99 ? "99+" : feed.unreadCount}
           </span>
         )}
@@ -102,30 +99,26 @@ export default function NotificationBell() {
         aria-label="Toggle notifications dropdown"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--color-copper)]"
+        className="rounded-full px-1 py-2 text-[10px] text-current opacity-55 transition-opacity hover:opacity-100"
       >
-        ▼
+        ▾
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 max-h-96 w-80 overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] shadow-[var(--shadow-elevated)]">
+        <div className="absolute right-0 top-full z-[70] mt-2 max-h-96 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] text-[var(--text-primary)] shadow-[var(--shadow-elevated)]">
           <div className="flex items-center justify-between border-b border-[var(--border-soft)] px-4 py-3">
-            <span className="text-sm font-medium text-[var(--color-espresso)]">
+            <span className="text-sm font-semibold text-[var(--color-espresso)]">
               {locale === "ar" ? "الإشعارات" : "Notifications"}
             </span>
             {feed.unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={() => void markAllRead()}
-                className="text-xs text-[var(--color-copper)] hover:underline"
-              >
+              <button type="button" onClick={() => void markAllRead()} className="text-xs font-medium text-[var(--color-copper)] hover:underline">
                 {locale === "ar" ? "تحديد الكل كمقروء" : "Mark all read"}
               </button>
             )}
           </div>
 
           {feed.items.length === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">
+            <div className="px-4 py-7 text-center text-sm text-[var(--text-muted)]">
               {locale === "ar" ? "لا توجد إشعارات" : "No notifications yet"}
             </div>
           ) : (
@@ -135,22 +128,14 @@ export default function NotificationBell() {
                   key={item.id}
                   type="button"
                   onClick={() => void openNotification(item)}
-                  className={`w-full px-4 py-3 text-left transition hover:bg-[var(--surface-muted)] ${
-                    !item.readAt ? "bg-[var(--color-copper)]/5" : ""
-                  }`}
+                  className={`w-full px-4 py-3 text-start transition hover:bg-[var(--surface-muted)] ${!item.readAt ? "bg-[var(--color-copper)]/5" : ""}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-medium text-[var(--color-espresso)]">
-                        {titleFor(item, locale)}
-                      </p>
-                      <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                        {bodyFor(item, locale)}
-                      </p>
+                      <p className="text-sm font-medium text-[var(--color-espresso)]">{titleFor(item, locale)}</p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{bodyFor(item, locale)}</p>
                     </div>
-                    {!item.readAt && (
-                      <span className="mt-1 h-2 w-2 min-w-2 rounded-full bg-[var(--color-copper)]" />
-                    )}
+                    {!item.readAt && <span className="mt-1 h-2 w-2 min-w-2 rounded-full bg-[var(--color-copper)]" />}
                   </div>
                 </button>
               ))}
@@ -158,11 +143,7 @@ export default function NotificationBell() {
           )}
 
           <div className="border-t border-[var(--border-soft)] px-4 py-3 text-center">
-            <Link
-              href="/notifications"
-              onClick={() => setOpen(false)}
-              className="text-xs font-medium text-[var(--color-copper)] hover:underline"
-            >
+            <Link href="/notifications" onClick={() => setOpen(false)} className="text-xs font-semibold text-[var(--color-copper)] hover:underline">
               {locale === "ar" ? "عرض كل الإشعارات" : "View all notifications"}
             </Link>
           </div>
