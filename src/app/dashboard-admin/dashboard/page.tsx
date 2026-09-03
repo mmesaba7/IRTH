@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import IrthIcon, { type IrthIconName } from "../../components/IrthIcon";
 import { createClient } from "@/lib/supabase/client";
 
 type DashboardData = {
@@ -24,6 +25,13 @@ type DashboardData = {
     createdAt: string;
     itemCount: number;
   }>;
+};
+
+type AdminNavItem = {
+  title: string;
+  description: string;
+  href: string;
+  icon: IrthIconName;
 };
 
 const EMPTY: DashboardData = {
@@ -60,37 +68,37 @@ export default function DashboardAdminPage() {
     return <div className="flex h-screen items-center justify-center bg-[var(--background)] text-[var(--text-secondary)]">Loading trusted dashboard…</div>;
   }
 
-  const nav = [
-    ["📦 Orders", "Manage all orders", "/dashboard-admin/orders"],
-    ["↩ Returns", `${data.counts.openReturns} open`, "/dashboard-admin/returns"],
-    ["👥 Customers", "Accounts, suspension & support notes", "/dashboard-admin/customers"],
-    ["✍️ Customization Requests", "Order customization snapshots", "/dashboard-admin/customizations"],
-    ["👤 Artisans", "Manage artisans", "/dashboard-admin/artisans"],
-    ["🛍️ Products", "Manage products", "/dashboard-admin/products"],
-    ["🛡️ Product Management", "Remove any product with an audited reason", "/dashboard-admin/product-management"],
-    ["💵 Price Reviews", "Review artisan market price changes", "/dashboard-admin/product-price-reviews"],
-    ["💰 Commission", "Craft defaults & overrides", "/dashboard-admin/commission"],
-    ["💳 Payouts", "Payout operations", "/dashboard-admin/payouts"],
-    ["📝 Reviews", "Moderate reviews & replies", "/dashboard-admin/reviews"],
-    ["📦 Wholesale", `${data.counts.openWholesale} open`, "/dashboard-admin/wholesale"],
-    ["🏺 Crafts", "Manage crafts", "/dashboard-admin/crafts"],
-    ["🌍 Countries", "Manage countries", "/dashboard-admin/countries"],
-    ["🧭 Content Manager", "Homepage, Blog, Help, Contact, Footer, Campaigns & Preview", "/dashboard-admin/content"],
-    ["🏷 Promotions", "Manage promotions", "/dashboard-admin/promotions"],
-    ["🤝 Artisan Promotions", "Review artisan offers", "/dashboard-admin/artisan-promotions"],
-    ["⚙️ Settings", "Shipping & return settings", "/dashboard-admin/settings"],
+  const nav: AdminNavItem[] = [
+    { title: "Orders", description: "Manage all orders", href: "/dashboard-admin/orders", icon: "orders" },
+    { title: "Returns", description: `${data.counts.openReturns} open`, href: "/dashboard-admin/returns", icon: "return" },
+    { title: "Customers", description: "Accounts, suspension & support notes", href: "/dashboard-admin/customers", icon: "user" },
+    { title: "Customization Requests", description: "Order customization snapshots", href: "/dashboard-admin/customizations", icon: "craft" },
+    { title: "Artisans", description: "Manage artisans", href: "/dashboard-admin/artisans", icon: "user" },
+    { title: "Products", description: "Manage products", href: "/dashboard-admin/products", icon: "grid" },
+    { title: "Product Management", description: "Remove any product with an audited reason", href: "/dashboard-admin/product-management", icon: "shield" },
+    { title: "Price Reviews", description: "Review artisan market price changes", href: "/dashboard-admin/product-price-reviews", icon: "journal" },
+    { title: "Commission", description: "Craft defaults & overrides", href: "/dashboard-admin/commission", icon: "craft" },
+    { title: "Payouts", description: "Payout operations", href: "/dashboard-admin/payouts", icon: "journal" },
+    { title: "Reviews", description: "Moderate reviews & replies", href: "/dashboard-admin/reviews", icon: "story" },
+    { title: "Wholesale", description: `${data.counts.openWholesale} open`, href: "/dashboard-admin/wholesale", icon: "orders" },
+    { title: "Crafts", description: "Manage crafts", href: "/dashboard-admin/crafts", icon: "craft" },
+    { title: "Countries", description: "Manage countries", href: "/dashboard-admin/countries", icon: "globe" },
+    { title: "Content Manager", description: "Homepage, Blog, Help, Contact, Footer, Campaigns & Preview", href: "/dashboard-admin/content", icon: "journal" },
+    { title: "Promotions", description: "Manage promotions", href: "/dashboard-admin/promotions", icon: "spark" },
+    { title: "Artisan Promotions", description: "Review artisan offers", href: "/dashboard-admin/artisan-promotions", icon: "spark" },
+    { title: "Settings", description: "Shipping & return settings", href: "/dashboard-admin/settings", icon: "shield" },
   ];
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
       <div className="mx-auto max-w-[var(--container-max)] px-6 py-10">
-        <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-6">
+        <div className="flex flex-col gap-5 border-b border-[var(--border-soft)] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-copper)]">Admin Panel</p>
             <h1 className="mt-1 font-[var(--font-display)] text-4xl text-[var(--color-espresso)]">Dashboard</h1>
             <p className="mt-2 text-sm text-[var(--text-secondary)]">Live trusted marketplace state — no local prototype data.</p>
           </div>
-          <button type="button" onClick={async () => { await supabase.auth.signOut({ scope: "local" }); router.replace("/dashboard-admin/login"); router.refresh(); }} className="rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]">Logout</button>
+          <button type="button" onClick={async () => { await supabase.auth.signOut({ scope: "local" }); router.replace("/dashboard-admin/login"); router.refresh(); }} className="w-fit rounded-[var(--radius-md)] border border-[var(--border-soft)] px-5 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]">Logout</button>
         </div>
 
         {error && <div className="mt-6 rounded-[var(--radius-md)] bg-red-50 p-4 text-sm text-red-700">{error}</div>}
@@ -112,14 +120,23 @@ export default function DashboardAdminPage() {
           )}
         </div>
 
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {nav.map(([title, description, href]) => (
-            <Link key={href} href={href} className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
-              <p className="font-[var(--font-display)] text-xl text-[var(--color-espresso)]">{title}</p>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">{description}</p>
-            </Link>
-          ))}
-        </div>
+        <section className="mt-10">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--color-copper)]">Operations</p>
+            <h2 className="mt-1 font-[var(--font-display)] text-3xl text-[var(--color-espresso)]">Manage IRTH</h2>
+          </div>
+          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {nav.map((item) => (
+              <Link key={item.href} href={item.href} className="group rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-6 transition hover:-translate-y-1 hover:border-[var(--color-copper)] hover:shadow-[var(--shadow-card)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--color-copper)] transition group-hover:bg-[var(--color-copper)] group-hover:text-[var(--color-ivory)]">
+                  <IrthIcon name={item.icon} className="h-5 w-5" />
+                </div>
+                <p className="mt-4 font-[var(--font-display)] text-xl text-[var(--color-espresso)]">{item.title}</p>
+                <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">{item.description}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         <section className="mt-14">
           <div className="flex items-end justify-between gap-4">
