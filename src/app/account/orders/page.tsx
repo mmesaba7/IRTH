@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Header from "@/app/components/Header";
+import MobileBottomNav from "@/app/components/MobileBottomNav";
 import OrderTrackingCard from "@/app/components/OrderTrackingCard";
 import { createClient } from "@/lib/supabase/server";
 import type { CustomerOrderTracking } from "@/lib/customerOrderTracking";
@@ -81,23 +82,7 @@ export default async function CustomerOrdersPage() {
         )}
       </section>
 
-      <nav className="bottom-nav md:hidden">
-        <Link href="/">
-          <span>🏠</span> Home
-        </Link>
-        <Link href="/search">
-          <span>🔎</span> Search
-        </Link>
-        <Link href="/crafts">
-          <span>🧭</span> Explore
-        </Link>
-        <Link href="/saved">
-          <span>❤️</span> Saved
-        </Link>
-        <Link href="/account" className="active">
-          <span>👤</span> Account
-        </Link>
-      </nav>
+      <MobileBottomNav active="account" />
     </main>
   );
 }
