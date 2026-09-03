@@ -35,6 +35,13 @@ const DEMO_PRODUCT_VISUALS: Record<string, string> = {
   "Arabic Calligraphy": "/demo/crafts/calligraphy.svg",
 };
 
+const DEMO_PRODUCT_SLUG_VISUALS: Record<string, string> = {
+  "demo-leather-journal": "/demo/products/leather-journal.svg",
+  "demo-glass-lantern": "/demo/products/glass-lantern.svg",
+  "demo-copper-tray": "/demo/products/copper-tray.svg",
+  "demo-woven-scarf": "/demo/products/woven-scarf.svg",
+};
+
 export default function ProductCard({ product }: ProductCardProps) {
   const { slug } = product;
   const savedSnapshot = useSyncExternalStore(
@@ -48,7 +55,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const canAddToCart = item?.status === "available";
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const demoFallbackUrl = product.slug.startsWith("demo-")
-    ? DEMO_PRODUCT_VISUALS[product.category] ?? null
+    ? DEMO_PRODUCT_SLUG_VISUALS[product.slug] ?? DEMO_PRODUCT_VISUALS[product.category] ?? null
     : null;
   const displayImageUrl = coverUrl ?? demoFallbackUrl;
 
