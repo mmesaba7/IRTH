@@ -33,6 +33,7 @@ export default function NewArrivalsSection() {
 
   if (loading || products.length === 0) return null;
 
+  // Keep New Arrivals visually distinct from the larger featured-products grid.
   const leadProducts = products.slice(0, 2);
   const railProducts = products.slice(2);
 
