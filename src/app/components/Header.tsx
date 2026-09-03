@@ -108,6 +108,16 @@ export default function Header() {
     return () => { document.body.style.overflow = previousOverflow; };
   }, [menuOpen]);
 
+  useEffect(() => {
+    const desktopQuery = window.matchMedia("(min-width: 1280px)");
+    const closeAtDesktop = () => {
+      if (desktopQuery.matches) setMenuOpen(false);
+    };
+    closeAtDesktop();
+    desktopQuery.addEventListener("change", closeAtDesktop);
+    return () => desktopQuery.removeEventListener("change", closeAtDesktop);
+  }, []);
+
   const toggleLocale = () => {
     const newLocale = locale === "ar" ? "en" : "ar";
     setLocale(newLocale);
@@ -127,13 +137,13 @@ export default function Header() {
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[var(--color-petrol)] text-[var(--color-ivory)] shadow-[0_8px_28px_rgba(6,44,56,0.12)]">
       <div className="mx-auto max-w-[var(--container-max)] px-4 sm:px-5 md:px-6">
         <div className="flex min-h-[68px] items-center justify-between gap-4 md:min-h-[76px]">
-          <div className="flex min-w-0 items-center gap-3 lg:gap-7">
+          <div className="flex min-w-0 items-center gap-3 xl:gap-7">
             <button
               type="button"
               aria-label={menuOpen ? "Close menu" : "Open menu"}
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((value) => !value)}
-              className="irth-icon-button md:hidden"
+              className="irth-icon-button xl:hidden"
             >
               <IrthIcon name={menuOpen ? "close" : "menu"} className="h-5 w-5" />
             </button>
@@ -146,7 +156,7 @@ export default function Header() {
               )}
             </Link>
 
-            <nav className="hidden items-center gap-4 text-[13px] font-medium lg:flex xl:gap-6">
+            <nav className="hidden items-center gap-4 text-[13px] font-medium xl:flex xl:gap-6">
               {primaryLinks.map((link) => (
                 <Link key={link.href} href={link.href} className="text-[var(--color-ivory)]/78 transition-colors hover:text-[var(--color-antique-gold)]">
                   {link.label}
@@ -198,7 +208,7 @@ export default function Header() {
       </div>
 
       {menuOpen && (
-        <div className="fixed inset-0 top-[68px] z-40 overflow-y-auto bg-[var(--color-petrol-deep)] text-[var(--color-ivory)] md:hidden">
+        <div className="fixed inset-0 top-[68px] z-40 overflow-y-auto bg-[var(--color-petrol-deep)] text-[var(--color-ivory)] md:top-[76px] xl:hidden">
           <div className="mx-auto flex min-h-full max-w-xl flex-col px-6 pb-10 pt-8">
             <div className="grid gap-1">
               {primaryLinks.map((link) => (
