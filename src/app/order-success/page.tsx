@@ -54,7 +54,7 @@ function OrderSuccessContent() {
         <div className="rounded-[var(--radius-lg)] border border-[var(--border-soft)] bg-[var(--surface)] p-8 text-center md:p-12">
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--color-olive)]">Order received</p>
           <h1 className="mt-4 font-[var(--font-display)] text-4xl font-normal text-[var(--color-espresso)] md:text-5xl">Thank you for your order</h1>
-          <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[var(--text-secondary)]">IRTH received your order securely. Payment has not been collected yet; the payment status remains pending until the Payment Layer is integrated.</p>
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[var(--text-secondary)]">IRTH received your order securely. Your current order and payment statuses are shown below and will update as the order progresses.</p>
 
           <div className="mt-8 rounded-[var(--radius-md)] bg-[var(--surface-muted)] p-6">
             <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Order number</p>
