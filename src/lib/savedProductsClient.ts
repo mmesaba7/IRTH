@@ -42,7 +42,9 @@ export function subscribeToSaved(onStoreChange: () => void) {
 }
 
 function write(slugs: string[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...new Set(slugs)]));
+  const canonical = [...new Set(slugs)];
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(canonical));
+  hydrationPromise = Promise.resolve(canonical);
   window.dispatchEvent(new Event(EVENT_NAME));
 }
 
