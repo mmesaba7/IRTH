@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CancellationPanel from "@/app/components/CancellationPanel";
 import {
   ORDER_STAGE_SEQUENCE,
   exactStageTimestamp,
@@ -94,6 +95,12 @@ export default function OrderTrackingCard({
             })}
           </div>
         </section>
+
+        <CancellationPanel
+          orderId={order.orderId}
+          orderNumber={order.orderNumber}
+          guestToken={guestToken}
+        />
 
         <section className="mt-7 border-t border-[var(--border-soft)] pt-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
