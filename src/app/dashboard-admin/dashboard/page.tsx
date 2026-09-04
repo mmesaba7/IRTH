@@ -70,6 +70,8 @@ export default function DashboardAdminPage() {
 
   const nav: AdminNavItem[] = [
     { title: "Orders", description: "Manage all orders", href: "/dashboard-admin/orders", icon: "orders" },
+    { title: "COD Collection", description: "Record collected cash after delivery", href: "/dashboard-admin/cod", icon: "journal" },
+    { title: "Cancellations", description: "Review cancellation requests after preparation starts", href: "/dashboard-admin/cancellations", icon: "return" },
     { title: "Returns", description: `${data.counts.openReturns} open`, href: "/dashboard-admin/returns", icon: "return" },
     { title: "Customers", description: "Accounts, suspension & support notes", href: "/dashboard-admin/customers", icon: "user" },
     { title: "Customization Requests", description: "Order customization snapshots", href: "/dashboard-admin/customizations", icon: "craft" },
